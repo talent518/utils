@@ -5,3 +5,4 @@
   * download.php => 响应浏览器另存为文件（下载），支持大文件下载，支持断点续传
   * linux-server-info.php => Web版本的Unix服务器的实时监控.
   * proxy.php => php版本的反射代理
+  * hongbao.php => 红包算法
