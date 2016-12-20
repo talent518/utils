@@ -8,7 +8,7 @@
   * hongbao.php => 红包算法
   * str_split_unique.sql => MySQL版本的基于分隔符的子字符串唯一处理的函数
   * MQ => IBM MQSeries(IBM公司的消息队列服务)相关测试代码
-　　　　* java => Java版本的eclipse项目代码
+    * java => Java版本的eclipse项目代码
     * get.php => PHP版本的读取消息
     * put.php => PHP版本的写入消息
     * test.sh => 创建队列并启动相关服务的Shell脚本(必须在mqm用户下执行: Linux系统下测试通过)
