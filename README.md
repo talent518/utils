@@ -6,3 +6,4 @@
   * linux-server-info.php => Web版本的Unix服务器的实时监控.
   * proxy.php => php版本的反射代理
   * hongbao.php => 红包算法
+  * str_split_unique.sql => MySQL版本的基于分隔符的子字符串唯一处理的函数
