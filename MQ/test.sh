@@ -1,0 +1,66 @@
+#!/bin/sh --login
+
+# 结束一个队列管理器QM1
+endmqm -i QM1
+
+# 删除一个队列管理器QM1
+dltmqm QM1
+
+# 创建一个队列管理器QM1
+crtmqm QM1
+
+# 启动一个队列管理器QM1
+strmqm QM1
+
+runmqsc QM1 << EOF
+* 禁止队列管理器权限控制
+ALTER QMGR CHLAUTH(DISABLED)
+
+* TCP监听器，用于开放给外系统的通道连接，端口号可以自定义
+DEFINE LISTENER('QM1LSR') +
+ TRPTYPE(TCP) +
+ PORT(1415) +
+ BACKLOG(100) +
+ CONTROL(QMGR) +
+ REPLACE
+
+* 开启监听通道
+START LISTENER('QM1LSR')
+
+* 接受通道，与对方的发送通道构成一组完整的通道
+DEFINE CHANNEL('QM1CHL') +
+ CHLTYPE(SVRCONN) +
+ TRPTYPE(TCP) +
+ MAXMSGL(6291456) +
+ MCAUSER('mqm') +
+ REPLACE
+
+START CHANNEL('QM1CHL')
+DIS CHS('QM1CHL')
+
+* 定义队列Q1，最大消息长度1M，最大队列长度99999
+DEFINE QLOCAL('Q1') +
+ DESCR(' ') +
+ DEFPSIST(NO) +
+ MAXDEPTH(99999) +
+ MAXMSGL(1048576) +
+ REPLACE
+
+* 定义队列Q2，最大消息长度10M，最大队列长度999999
+DEFINE QLOCAL('Q2') +
+ DESCR(' ') +
+ DEFPSIST(NO) +
+ MAXDEPTH(999999) +
+ MAXMSGL(10485760) +
+ REPLACE
+
+* 定义队列Q3，最大消息长度100M，最大队列长度9999999
+DEFINE QLOCAL('Q3') +
+ DESCR(' ') +
+ DEFPSIST(NO) +
+ MAXDEPTH(9999999) +
+ MAXMSGL(104857600) +
+ REPLACE
+
+END
+EOF
