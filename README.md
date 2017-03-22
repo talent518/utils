@@ -12,3 +12,5 @@
     * get.php => PHP版本的读取消息
     * put.php => PHP版本的写入消息
     * test.sh => 创建队列并启动相关服务的Shell脚本(必须在mqm用户下执行: Linux系统下测试通过)
+  * base64.c => base64加密与解密
+  
