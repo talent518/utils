@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <math.h>
 
 #include "base64.h"
 
@@ -49,7 +50,7 @@ int base64_encode(const unsigned char *src, int slen,unsigned char **dst, int *d
 		*dlen=0;
 		return(0);
 	}
-	n=(slen+2)/3*4;
+	n=round((double) slen / 3.0)*4;
 	*dst=(unsigned char*)malloc(n+1);
 	*dlen=n;
 
@@ -79,7 +80,7 @@ int base64_encode(const unsigned char *src, int slen,unsigned char **dst, int *d
 	}
 	
 	for(;p-*dst<*dlen;){
-		printf("p:%d\n",p);
+		// printf("p:%d\n",p);
 		*p++ = '=';
 	}
 
