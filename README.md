@@ -13,4 +13,5 @@
     * put.php => PHP版本的写入消息
     * test.sh => 创建队列并启动相关服务的Shell脚本(必须在mqm用户下执行: Linux系统下测试通过)
   * base64.c => base64加密与解密
+  * getopt.c => 获取指定格式的命令行参数(参数识别/粘贴)
   
