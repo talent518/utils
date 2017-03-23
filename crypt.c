@@ -182,6 +182,9 @@ int main(int argc, char *argv[]) {
 
 	printf("decode(%d): %s\n", len, dec);
 
+	if(enc) free(enc);
+	if(dec) free(dec);
+
 	return 0;
 }
 
