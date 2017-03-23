@@ -34,7 +34,7 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 	unsigned char digest[16];
 	unsigned char _key[32], keya[32], keyb[32], keyc[32], cryptkey[64];
 	unsigned char buffer[64];
-	unsigned ckey_length = 16;	// 随机密钥长度 取值 0-32;
+	unsigned ckey_length = 20;	// 随机密钥长度 取值 0-32;
 								// 加入随机密钥，可以令密文无任何规律，即便是原文和密钥完全相同，加密结果也会每次不同，增大破解难度。
 								// 取值越大，密文变动规律越大，密文变化 = 16 的 $ckey_length 次方
 								// 当此值为 0 时，则不产生随机密钥
@@ -53,7 +53,12 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 			memcpy(keyc, str, ckey_length);
 		} else {
 			snprintf(buffer, sizeof(buffer), "%lf", microtime());
-			MD5DigestHex(&md5, buffer, strlen(buffer), digest, keyc);
+			MD5Digest(&md5, buffer, strlen(buffer), digest);
+
+			char *ptr = NULL;
+			unsigned int ptr_len = 0;
+			base64_encode(digest, 16, (unsigned char**)&ptr, &ptr_len);nprint(ptr, ptr_len);
+			memcpy(keyc, ptr, ckey_length);
 		}
 		nprint(keyc, ckey_length);
 	}
