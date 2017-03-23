@@ -12,7 +12,7 @@ class Crypt {
 	
 	// 字符串解密加密
 	private static function code ( $string, $key, $mode, $expiry ) {
-		$ckey_length = 16; // 随机密钥长度 取值 0-32;
+		$ckey_length = 20; // 随机密钥长度 取值 0-32;
 		                  // 加入随机密钥，可以令密文无任何规律，即便是原文和密钥完全相同，加密结果也会每次不同，增大破解难度。
 		                  // 取值越大，密文变动规律越大，密文变化 = 16 的 $ckey_length 次方
 		                  // 当此值为 0 时，则不产生随机密钥
@@ -20,7 +20,7 @@ class Crypt {
 		$key = md5($key);
 		$keya = md5(substr($key, 0, 16));
 		$keyb = md5(substr($key, 16, 16));
-		$keyc = $ckey_length ? ( $mode ? substr($string, 0, $ckey_length) : substr(md5(microtime()),  - $ckey_length) ) : '';
+		$keyc = $ckey_length ? ( $mode ? substr($string, 0, $ckey_length) : substr(base64_encode(md5(microtime())),  - $ckey_length) ) : '';
 		
 		$cryptkey = $keya . md5($keya . $keyc);
 		$key_length = strlen($cryptkey);
