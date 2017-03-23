@@ -28,7 +28,7 @@ static const unsigned char base64_dec_map[128]={
 	127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
 	127, 127, 127, 62, 127, 127, 127, 63, 52, 53,
 	54, 55, 56, 57, 58, 59, 60, 61, 127, 127,
-	127, 64, 127, 127, 127, 0, 1, 2, 3, 4,
+	127, 127, 127, 127, 127, 0, 1, 2, 3, 4,
 	5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 	15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 	25, 127, 127, 127, 127, 127, 127, 26, 27, 28,
@@ -41,7 +41,7 @@ static const unsigned char base64_dec_map[128]={
 * 把字符串src(长度slen)编码为base64格式串并写入dst(长度dlen)
 * 返回非0为成功，否则为失败
 */
-int base64_encode(const unsigned char *src, int slen,unsigned char **dst, int *dlen){
+int base64_encode(const unsigned char *src, int slen, unsigned char **dst, int *dlen){
 	int i,n;
 	int C1,C2,C3;
 	unsigned char *p;
@@ -50,8 +50,14 @@ int base64_encode(const unsigned char *src, int slen,unsigned char **dst, int *d
 		*dlen=0;
 		return(0);
 	}
-	n=round((double) slen / 3.0)*4;
-	*dst=(unsigned char*)malloc(n+1);
+	n=ceil((double) slen / 3.0)*4;
+	if((*dst) && (*dlen)<n+1) {
+		free(*dst);
+		*dst = NULL;
+	}
+	if(!(*dst)) {
+		*dst=(unsigned char*)malloc(n+1);
+	}
 	*dlen=n;
 
 	n=(slen/3)*3;
@@ -92,8 +98,8 @@ int base64_encode(const unsigned char *src, int slen,unsigned char **dst, int *d
 * 把base64格式串src(长度slen)解码为字符串并写入dst(长度dlen)
 * 返回非0为成功，否则为失败
 */
-int base64_decode(const unsigned char *src, int slen,unsigned char **dst, int *dlen){
-	#define SRC_CHECK *src==0 || *src>127 || base64_dec_map[*src]>=64
+int base64_decode(const unsigned char *src, int slen, unsigned char **dst, int *dlen){
+	#define SRC_CHECK *src>127 || base64_dec_map[*src]==127
 	int i,n;
 	unsigned short x;
 	unsigned char *p;
@@ -101,15 +107,19 @@ int base64_decode(const unsigned char *src, int slen,unsigned char **dst, int *d
 	if(slen==0 || SRC_CHECK){
 		return(0);
 	}
-	n=((slen+3)/4)*3;
-	*dst=(unsigned char*)malloc(n+1);
+	n=(slen/4)*3;
+	if(*dlen<n+1 && *dst) {
+		free(*dst);
+		*dst = NULL;
+	}
+	if(!*dst) {
+		*dst=(unsigned char*)malloc(n+1);
+	}
 
 	x=n=0;
 	p=*dst;
 	for(i=0;i<slen;i++){
-		//if( *src == '\r' || *src == '\n' )
-		//	continue;
-		if(SRC_CHECK){
+		if(SRC_CHECK) {
 			continue;
 		}
 		x=(x<<6) | (base64_dec_map[*src] & 0x3F);
@@ -121,7 +131,7 @@ int base64_decode(const unsigned char *src, int slen,unsigned char **dst, int *d
 		src++;
 	}
 	*p = 0;
-	*dlen=(int)(p-*dst);
+	*dlen=p-*dst;
 	return(1);
 }
 /*

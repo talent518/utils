@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include <sys/time.h>
 
 #include "md5.h"
@@ -11,7 +12,7 @@
 #include "crypt.h"
 
 #if 0
-	#define nprint(result, retlen) printf("%s(%d): ", __func__, __LINE__);fwrite(result, retlen, 1, stdout);printf("\n")
+	#define nprint(result, retlen) printf("%s(%d): \"", __func__, __LINE__);fwrite(result, retlen, 1, stdout);printf("\"\n")
 #else
 	#define nprint(result, retlen)
 #endif
@@ -33,8 +34,9 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 	MD5_CTX md5;
 	unsigned char digest[16];
 	unsigned char _key[32], keya[32], keyb[32], keyc[32], cryptkey[64];
-	unsigned char buffer[64];
-	unsigned ckey_length = 20;	// 随机密钥长度 取值 0-32;
+	unsigned char buffer[64], *ptr = NULL;
+	unsigned int _len = 0;
+	unsigned int ckey_length = 20;	// 随机密钥长度 取值 0-32;
 								// 加入随机密钥，可以令密文无任何规律，即便是原文和密钥完全相同，加密结果也会每次不同，增大破解难度。
 								// 取值越大，密文变动规律越大，密文变化 = 16 的 $ckey_length 次方
 								// 当此值为 0 时，则不产生随机密钥
@@ -55,10 +57,9 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 			snprintf(buffer, sizeof(buffer), "%lf", microtime());
 			MD5Digest(&md5, buffer, strlen(buffer), digest);
 
-			char *ptr = NULL;
-			unsigned int ptr_len = 0;
-			base64_encode(digest, 16, (unsigned char**)&ptr, &ptr_len);nprint(ptr, ptr_len);
-			memcpy(keyc, ptr, ckey_length);
+			ptr = keyc;
+			_len = sizeof(keyc);
+			base64_encode(digest, 16, (unsigned char**)&ptr, &_len);
 		}
 		nprint(keyc, ckey_length);
 	}
@@ -127,17 +128,16 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 
 	free(data);
 	data = NULL;
-	data_len = 0;
 	
 	if(mode) {
-		i = strtol(result, (char**) &data, 10);
+		i = strtol(result, (char**) &data, 10);nprint(result, retlen);
 	
 		if(i == 0 || i-time(NULL) > 0) {
 			MD5Init(&md5);
 			MD5Update(&md5, (unsigned char *)(result+26), (unsigned int)(retlen-26));
 			MD5Update(&md5, keyb, 32);
 			MD5Final(&md5, digest);
-			str2hex(digest, 16, buffer);
+			str2hex(digest, 16, buffer);nprint(buffer, 16);nprint(result+10, 16);
 
 			if(!memcmp(result+10, buffer, 16)) {
 				retlen -= 26;
@@ -150,19 +150,21 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 		free(result);
 		return 0;
 	} else if(ckey_length) {
-		base64_encode(result, retlen, (unsigned char**)&data, &data_len);
-
-		retlen = data_len+ckey_length;
+		data_len = retlen;
+		retlen = ceil((double) (data_len) / 3.0) * 4 + ckey_length;
 		*ret = (char*) malloc(retlen+1);
 		memcpy(*ret, keyc, ckey_length);
-		memcpy(*ret + ckey_length, data, data_len);
+		ptr = *ret + ckey_length;
+		_len = retlen - ckey_length + 1;
+		base64_encode(result, data_len, (unsigned char**)&ptr, &_len);
 		memset(*ret + retlen, 0, 1);
 		
 		free(result);
-		free(data);
 		
 		return retlen;
 	} else {
+		*ret = NULL;
+		retlen = 0;
 		base64_encode(result, retlen, (unsigned char**)ret, &retlen);
 		return retlen;
 	}
@@ -174,11 +176,11 @@ int main(int argc, char *argv[]) {
 	char *enc, *dec = NULL;
 	enc = crypt_encode(str, strlen(str), "123456", 0);
 	
-	printf("encode: %s\n", enc);
-	
-	crypt_decode(enc, &dec, "123456", 0);
+	printf("encode(%d): %s\n", strlen(enc), enc);
 
-	printf("decode: %s\n", dec);
+	int len = crypt_decode(enc, &dec, "123456", 0);
+
+	printf("decode(%d): %s\n", len, dec);
 
 	return 0;
 }
