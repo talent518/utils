@@ -17,3 +17,5 @@
   * md5.c => md5哈希值
   * crypt.c 康盛公司UCenter中的加解密算法
   * crypt.php 康盛公司UCenter中的加解密算法
+  * conn-stat.sh 统计TCP监听端口的连接数
+  * qrcode-transfer-file 二维码传输文件

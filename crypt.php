@@ -20,7 +20,7 @@ class Crypt {
 		$key = md5($key);
 		$keya = md5(substr($key, 0, 16));
 		$keyb = md5(substr($key, 16, 16));
-		$keyc = $ckey_length ? ( $mode ? substr($string, 0, $ckey_length) : substr(base64_encode(md5(microtime())),  - $ckey_length) ) : '';
+		$keyc = $ckey_length ? ( $mode ? substr($string, 0, $ckey_length) : substr(base64_encode(md5(microtime())), 0, $ckey_length) ) : '';
 		
 		$cryptkey = $keya . md5($keya . $keyc);
 		$key_length = strlen($cryptkey);
