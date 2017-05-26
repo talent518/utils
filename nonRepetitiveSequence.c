@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char strSequence[] = "01234567";
-const unsigned int lenSequence = sizeof(strSequence) - 1;
+#define strSequence "01234567"
+#define lenSequence sizeof(strSequence) - 1
 
 void seq(const char buf[], int b, int n) {
 	static int id = 0;
