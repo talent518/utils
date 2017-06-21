@@ -1,13 +1,16 @@
 #ifndef _CRYPT_H
 #define _CRYPT_H
 
-unsigned int crypt_code(const char *str, unsigned int strlen, char **ret, const char *key, bool mode, unsigned int expiry);
+#include <string.h>
+#include <stdbool.h>
 
-inline char *crypt_encode(const char *str, unsigned int strlen, const char *key, unsigned int expiry) {
+unsigned int crypt_code(const char *str, unsigned int len, char **ret, const char *key, bool mode, unsigned int expiry);
+
+inline char *crypt_encode(const char *str, unsigned int len, const char *key, unsigned int expiry) {
 	char *enc = NULL;
 
-	crypt_code(str, strlen, &enc, key, false, expiry);
-	
+	crypt_code(str, len, &enc, key, false, expiry);
+
 	return enc;
 }
 
