@@ -33,8 +33,8 @@ inline double microtime()
 unsigned int crypt_code(const char *str, unsigned int len, char **ret, const char *key, bool mode, unsigned int expiry) {
 	MD5_CTX md5;
 	unsigned char digest[16];
-	unsigned char _key[32], keya[32], keyb[32], keyc[32], cryptkey[64];
-	unsigned char buffer[64], *ptr = NULL;
+	unsigned char _key[33], keya[33], keyb[33], keyc[33], cryptkey[65];
+	unsigned char buffer[65], *ptr = NULL;
 	unsigned int _len = 0;
 	unsigned int ckey_length = 20;	// 随机密钥长度 取值 0-32;
 								// 加入随机密钥，可以令密文无任何规律，即便是原文和密钥完全相同，加密结果也会每次不同，增大破解难度。
@@ -165,7 +165,7 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 	} else {
 		*ret = NULL;
 		retlen = 0;
-		base64_encode(result, retlen, (unsigned char**)ret, &retlen);
+		base64_encode(result, data_len, (unsigned char**)ret, &retlen);
 		return retlen;
 	}
 }

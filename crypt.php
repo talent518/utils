@@ -69,5 +69,8 @@ $key = '123456';
 $enc = Crypt::encode("Crypt加密解密测试!", $key);
 $dec = Crypt::decode($enc, $key);
 echo 'encode: ', $enc, PHP_EOL;
-echo 'encode: ', $dec, PHP_EOL;
+echo 'decode: ', $dec, PHP_EOL;
+if(isset($_SERVER['argv'][2])) {
+	echo 'custom decode: (', Crypt::decode($_SERVER['argv'][1], $_SERVER['argv'][2]) , ')', PHP_EOL;
+}
 
