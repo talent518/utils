@@ -1,4 +1,4 @@
-// gcc -O3 -lm -o cpu-memory-info cpu-memory-info.c
+// gcc -O3 -o cpu-memory-info cpu-memory-info.c -lm
 
 #include <stdio.h>
 #include <stdlib.h>
