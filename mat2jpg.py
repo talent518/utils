@@ -42,7 +42,7 @@ def mat2jpg(matFile, jpgFile, matKey='data', num_classes=21):
         outputs[i] = np.array(img)
     
     im = Image.fromarray(outputs[0])
-    im.save(jpgFile)
+    im.save(jpgFile, quality=100)
 
     print jpgFile
 
