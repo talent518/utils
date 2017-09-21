@@ -2,6 +2,7 @@ from PIL import Image
 import scipy.io as sio
 import argparse
 import numpy as np
+import os
 
 # colour map
 label_colours = [(0,0,0)
@@ -16,6 +17,9 @@ label_colours = [(0,0,0)
                 # 16=potted plant, 17=sheep, 18=sofa, 19=train, 20=tv/monitor
 
 def mat2jpg(matFile, jpgFile, matKey='data', num_classes=21):
+    if os.path.exists(jpgFile) and os.path.getmtime(jpgFile) > os.path.getmtime(matFile):
+       return
+ 
     mat = sio.loadmat(matFile)
     mask = mat[matKey]
     h, w, c, n = mask.shape
