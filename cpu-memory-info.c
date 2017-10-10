@@ -1,11 +1,14 @@
-// gcc -O3 -o cpu-memory-info cpu-memory-info.c -lm
+// gcc -Wno-unused-result -O3 -o cpu-memory-info cpu-memory-info.c -lm && ./cpu-memory-info
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
 
 #define LINES 20
+
+#define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
 
 typedef struct {
 	unsigned long int user;
@@ -21,7 +24,7 @@ typedef struct {
 
 void getcpu(cpu_t *cpu) {
 	static char buff[128];
-	static strcpu[8];
+	static char strcpu[8];
 	FILE *fp;
 	
 	memset(cpu, 0, sizeof(cpu_t));
@@ -63,7 +66,7 @@ void getmem(mem_t *mem) {
 	fclose(fp);
 	
 	ptr = buff;
-	while(ptr && sscanf(ptr, "%[^:]: %d", key, &val)) {
+	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
 		// printf("%s => %d\n", key, val);
 		
 		if(i & 01 && !strcmp(key, "MemTotal")) {
@@ -127,71 +130,108 @@ int main(int argc, char *argv[]){
 	cpu_t cpu, cpu2;
 	mem_t mem;
 
-	char buff[128] = {'\0'};
-	char strcpu[6];
-
-	int all, all2, i = LINES, delay = 1;
+	unsigned int all, all2, i, delay = 1;
 
 	double total;
 	long int realUsed;
+	char hasCpu = 1, hasMem = 1;
 	
-	if(argc == 2) {
-		delay = atoi(argv[1]);
-		if(delay <= 0) {
-			delay = 1;
+	for(i=1; i<argc; i++) {
+		switch(argv[i][0]) {
+			case '-':
+				switch(argv[i][1]) {
+					case 'c':
+						hasMem = 0;
+						hasCpu = 1;
+						break;
+					case 'm':
+						hasMem = 1;
+						hasCpu = 0;
+						break;
+					case 'h':
+					case '?':
+						printf("Usage: %s [ -c | -m | -h | -? ] [ delay]\n"
+								"  -c     Cpu info\n"
+								"  -m     Memory info\n"
+								"  -h,-?  This help\n", argv[0]);
+						return 0;
+				}
+				break;
+			default:
+				delay = atoi(argv[1]);
+				if(delay <= 0) {
+					delay = 1;
+				}
+				break;
 		}
 	}
+	
+	i = LINES;
 
-	getcpu(&cpu);
+	if(hasCpu) {
+		getcpu(&cpu);
 
-	all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
+		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
+	}
 
 	while(1) {
 		if(i++ % LINES == 0) {
 			i = 1;
 			
-			printf("------------------------------------------------------------|------------------------------------------------------|-------------------\n");
-			printf("                           CPU (%)                          |                      Memory Size                     |  Real Memory (%)  \n");
-			printf("------------------------------------------------------------|------------------------------------------------------|-------------------\n");
-			printf(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest|MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached  Swap\n");
-			printf("------------------------------------------------------------|------------------------------------------------------|-------------------\n");
+			if(hasCpu && hasMem) {
+				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
+				cpu_mem_head("                           CPU (%%)                          ", "                      Memory Size                     |  Real Memory (%%)  ");
+			}
+			cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
+			cpu_mem_head(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest", "MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached  Swap");
+			cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
 			fflush(stdout);
 		}
 
 		sleep(delay);
 
-		getcpu(&cpu2);
+		if(hasCpu) {
+			getcpu(&cpu2);
 
-		all2 = cpu2.user + cpu2.nice + cpu2.system + cpu2.idle + cpu2.iowait + cpu2.irq + cpu2.softirq + cpu2.stolen + cpu2.guest;
+			all2 = cpu2.user + cpu2.nice + cpu2.system + cpu2.idle + cpu2.iowait + cpu2.irq + cpu2.softirq + cpu2.stolen + cpu2.guest;
 
-		total = (all2 - all) / 100.0;
+			total = (all2 - all) / 100.0;
 		
-		printf("%5.2f", (double)(cpu2.user - cpu.user) / total);
-		printf("%6.2f", (double)(cpu2.nice - cpu.nice) / total);
-		printf("%7.2f", (double)(cpu2.system - cpu.system) / total);
-		printf("%7.2f", (double)(cpu2.idle - cpu.idle) / total);
-		printf("%7.2f", (double)(cpu2.iowait - cpu.iowait) / total);
-		printf("%6.2f", (double)(cpu2.irq - cpu.irq) / total);
-		printf("%8.2f", (double)(cpu2.softirq - cpu.softirq) / total);
-		printf("%7.2f", (double)(cpu2.stolen - cpu.stolen) / total);
-		printf("%7.2f|", (double)(cpu2.guest - cpu.guest) / total);
+			printf("%5.2f", (double)(cpu2.user - cpu.user) / total);
+			printf("%6.2f", (double)(cpu2.nice - cpu.nice) / total);
+			printf("%7.2f", (double)(cpu2.system - cpu.system) / total);
+			printf("%7.2f", (double)(cpu2.idle - cpu.idle) / total);
+			printf("%7.2f", (double)(cpu2.iowait - cpu.iowait) / total);
+			printf("%6.2f", (double)(cpu2.irq - cpu.irq) / total);
+			printf("%8.2f", (double)(cpu2.softirq - cpu.softirq) / total);
+			printf("%7.2f", (double)(cpu2.stolen - cpu.stolen) / total);
+			printf("%7.2f", (double)(cpu2.guest - cpu.guest) / total);
+		
+			cpu = cpu2;
+			all = all2;
+		}
+		
+		if(hasCpu && hasMem) {
+			printf("|");
+		}
 
-		getmem(&mem);
-		printf("%8s", fsize(mem.total));
-		printf("%9s", fsize(mem.free));
-		printf("%9s", fsize(mem.cached));
-		printf("%9s", fsize(mem.buffers));
-		printf("%10s", fsize(mem.swapTotal));
-		printf("%9s|", fsize(mem.swapFree));
-		//printf("%6.2f", (double)(mem.total - mem.free) * 100.0 / (double)mem.total); // MemPercent
-		printf("%6.2f", (double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total); // MemRealPercent
-		printf("%7.2f", (double)(mem.cached) * 100.0 / (double)mem.total); // MemCachedPercent
-		printf("%6.2f\n", mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0); // SwapPercent
+		if(hasMem) {
+			getmem(&mem);
+			printf("%8s", fsize(mem.total));
+			printf("%9s", fsize(mem.free));
+			printf("%9s", fsize(mem.cached));
+			printf("%9s", fsize(mem.buffers));
+			printf("%10s", fsize(mem.swapTotal));
+			printf("%9s|", fsize(mem.swapFree));
+			//printf("%6.2f", (double)(mem.total - mem.free) * 100.0 / (double)mem.total); // MemPercent
+			printf("%6.2f", (double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total); // MemRealPercent
+			printf("%7.2f", (double)(mem.cached) * 100.0 / (double)mem.total); // MemCachedPercent
+			printf("%6.2f", mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0); // SwapPercent
+		}
+		
+		printf("\n");
 		
 		fflush(stdout);
-		
-		cpu = cpu2; // memcpy(&cpu, &cpu2, sizeof(cpu_t));
-		all = all2;
 	}
 
     return 0;
