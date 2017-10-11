@@ -20,4 +20,5 @@
   * conn-stat.sh 统计TCP监听端口的连接数
   * qrcode-transfer-file 二维码传输文件
   * gif2png.py => 把GIF图片中的每一帧保存为PNG图片
-  * mat2jpg.py => 把caffe的预测图mat文件转为jpg格式。
+  * mat2jpg.py => 把caffe的预测图mat文件转为jpg格式
+  * listen.sh => linux获取本地TCP监听端口号
