@@ -267,10 +267,11 @@ int main(int argc, char *argv[]){
 						}
 					case 'h':
 					case '?':
-						printf("Usage: %s [ -c | -m | -h | -? ] [ delay]\n"
-								"  -c     Cpu info\n"
-								"  -m     Memory info\n"
-								"  -h,-?  This help\n", argv[0]);
+						printf("Usage: %s [ -c | -m | -p <pid> | -h | -? ] [ delay]\n"
+								"  -c        Cpu info\n"
+								"  -m        Memory info\n"
+								"  -p <pid>  Process info\n"
+								"  -h,-?     This help\n", argv[0]);
 						return 0;
 				}
 				break;
