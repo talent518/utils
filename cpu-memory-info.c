@@ -166,6 +166,42 @@ const char* get_items(const char*buffer ,unsigned int item){
 	return p;
 }
 
+unsigned int getprocessdirtys(int pid) {
+	static char buff[256*1024] = "";
+	static char fname[64] = "";
+	static char key[64] = "";
+	static long int val = 0;
+	FILE *fp;
+	char *ptr;
+	
+	snprintf(fname, sizeof(fname), "/proc/%d/smaps", pid);
+
+	fp = fopen(fname, "r");
+	if(!fp) {
+		return 0;
+	}
+
+	memset(buff, 0, sizeof(buff));
+	fread(buff, sizeof(buff) - 1, 1, fp);
+
+	fclose(fp);
+	
+	ptr = buff;
+	
+	unsigned int dirtys = 0;
+	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
+		if(!strcmp(key, "Private_Dirty")) {
+			dirtys += val;
+		}
+		ptr = strchr(ptr, '\n');
+		if(ptr) {
+			ptr++;
+		}
+	}
+	
+	return dirtys;
+}
+
 int getprocessinfo(int pid, process_t *proc) {
 	static char buff[1024] = "";
 	static char fname[64] = "";
@@ -173,7 +209,6 @@ int getprocessinfo(int pid, process_t *proc) {
 	static long int val = 0;
 	FILE *fp;
 	char *ptr;
-	register int i;
 
 	snprintf(fname, sizeof(fname), "/proc/%d/statm", pid);
 
@@ -220,6 +255,8 @@ int getprocessinfo(int pid, process_t *proc) {
 	fclose(fp);
 
 	ptr = buff;
+	proc->dirty = 0;
+	proc->rssFile = 0;
 	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
 		if(!strcmp(key, "RssFile")) {
 			proc->rssFile = val;
@@ -229,6 +266,11 @@ int getprocessinfo(int pid, process_t *proc) {
 		if(ptr) {
 			ptr++;
 		}
+	}
+	
+	if(!proc->dirty || !proc->rssFile) {
+		proc->dirty = getprocessdirtys(pid);
+		proc->rssFile  = proc->resident * 4 - proc->dirty;
 	}
 
 	return 1;
