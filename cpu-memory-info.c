@@ -190,7 +190,7 @@ unsigned int getprocessdirtys(int pid) {
 	
 	unsigned int dirtys = 0;
 	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
-		if(!strcmp(key, "Private_Dirty")) {
+		if(!strcmp(key, "Private_Dirty") || !strcmp(key, "Shared_Dirty")) {
 			dirtys += val;
 		}
 		ptr = strchr(ptr, '\n');
