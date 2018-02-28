@@ -239,7 +239,7 @@ int getprocessinfo(int pid, process_t *proc) {
 	const char *q = get_items(buff, 14);
 	sscanf(q, "%ld%ld%ld%ld", &proc->utime, &proc->stime, &proc->cutime, &proc->cstime);
 	q = get_items(q, 7);
-	sscanf(q, "%ld", &proc->threads);
+	sscanf(q, "%u", &proc->threads);
 
 	snprintf(fname, sizeof(fname), "/proc/%d/status", pid);
 
