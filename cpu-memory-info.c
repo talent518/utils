@@ -415,7 +415,7 @@ int main(int argc, char *argv[]){
 
 		if(pid > 0) {
 			if(!getprocessinfo(pid, &proc2)) {
-				return 0;
+				continue;
 			}
 
 			getcpu(&cpu);
