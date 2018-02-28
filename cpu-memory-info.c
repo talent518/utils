@@ -244,7 +244,6 @@ int getprocessinfo(int pid, process_t *proc) {
 	snprintf(fname, sizeof(fname), "/proc/%d/status", pid);
 
 	fp = fopen(fname, "r");
-	fp = fopen(fname, "r");
 	if(!fp) {
 		return 0;
 	}
@@ -337,7 +336,7 @@ int main(int argc, char *argv[]){
 	if(pid > 0) {
 		if(!getprocessinfo(pid, &proc)) {
 			printf("process not exists.\n");
-			return 0;
+			return 1;
 		}
 
 		pall = proc.utime + proc.stime + proc.cutime + proc.cstime;
@@ -415,7 +414,7 @@ int main(int argc, char *argv[]){
 
 		if(pid > 0) {
 			if(!getprocessinfo(pid, &proc2)) {
-				continue;
+				return 1;
 			}
 
 			getcpu(&cpu);
