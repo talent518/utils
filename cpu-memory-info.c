@@ -145,6 +145,8 @@ typedef struct {
 	long int stime; // Amount of time that this process has been scheduled in kernel mode, measured in clock ticks
 	long int cutime; // Amount of time that this process's waited-for children have been scheduled in user mode, measured in clock ticks
 	long int cstime; // Amount of time that this process's waited-for children have been scheduled in kernel mode, measured in clock ticks
+	
+	double etime; // runned time for seconds
 } process_t;
 
 //获取第N项开始的指针
@@ -242,6 +244,20 @@ int getprocessinfo(int pid, process_t *proc) {
 	sscanf(q, "%ld%ld%ld%ld", &proc->utime, &proc->stime, &proc->cutime, &proc->cstime);
 	q = get_items(q, 7);
 	sscanf(q, "%u", &proc->threads);
+	q = get_items(q, 3);
+	
+	unsigned long int etime = 0;
+	sscanf(q, "%llu", &etime);
+	
+	fp = fopen("/proc/uptime", "r");
+	fgets(buff, sizeof(buff) - 1, fp);
+
+	fclose(fp);
+	
+	double uptime = 0;
+	sscanf(buff, "%lf", &uptime);
+	
+	proc->etime = uptime - (double) (etime) / (double) sysconf(_SC_CLK_TCK);
 
 	snprintf(fname, sizeof(fname), "/proc/%d/status", pid);
 
@@ -336,7 +352,7 @@ int main(int argc, char *argv[]){
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
-	char procArgStr[NPROC][117];
+	char procArgStr[NPROC][106];
 	char fname[64] = "";
 	for(n=0; n<nproc; n++) {
 		int len = snprintf(fname, sizeof(fname), "/proc/%d/cmdline", pid[n]);
@@ -345,7 +361,7 @@ int main(int argc, char *argv[]){
 			pid[n] = 0;
 			continue;
 		}
-		len = fread(procArgStr[n], 1, sizeof(procArgStr[0])-len-4+16, fp);
+		len = fread(procArgStr[n], 1, sizeof(procArgStr[0]), fp);
 		fclose(fp);
 
 		procArgStr[n][len-1] = '\0';
@@ -388,10 +404,19 @@ int main(int argc, char *argv[]){
 					printf("--------------------------------------------------------------------------------------------------------------------\n");
 				nn = nproc;
 				for(n=0; n<nproc; n++) {
-					if(pid[n]>0)
-						printf("%d: %s\n", pid[n], procArgStr[n]);
-					else
+					if(pid[n]>0) {
+						unsigned int mtime = proc[n].etime/60;
+						unsigned int htime = mtime/60;
+						unsigned int dtime = htime/24;
+						printf("%d:\n  Run Time: ", pid[n]);
+						if(dtime>0) {
+							printf("%d-", dtime);
+						}
+						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, proc[n].etime - mtime*60);
+						printf("  Command: %s\n", procArgStr[n]);
+					} else {
 						nn --;
+					}
 				}
 				if(nn<=0) {
 					return 0;
