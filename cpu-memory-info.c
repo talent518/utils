@@ -1,12 +1,14 @@
 // gcc -Wno-unused-result -O3 -o cpu-memory-info cpu-memory-info.c -lm && ./cpu-memory-info
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
 
 #define LINES 20
+#define NPROC 5
 
 #define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
 
@@ -278,14 +280,15 @@ int getprocessinfo(int pid, process_t *proc) {
 int main(int argc, char *argv[]){
 	cpu_t cpu, cpu2;
 	mem_t mem;
-	process_t proc, proc2;
+	int pid[NPROC];
+	process_t proc[NPROC], proc2[NPROC];
 
-	unsigned int all, all2, pall, pall2, i, delay = 1;
+	unsigned int all, all2, pall[NPROC], pall2[NPROC], i, delay = 1;
 
 	double total;
 	long int realUsed;
 	char hasCpu = 1, hasMem = 1;
-	int pid = 0;
+	int nproc = 0, n;
 	
 	for(i=1; i<argc; i++) {
 		switch(argv[i][0]) {
@@ -300,10 +303,10 @@ int main(int argc, char *argv[]){
 						hasCpu = 0;
 						break;
 					case 'p':
-						if(i+1 < argc) {
+						if(i+1 < argc && nproc<NPROC) {
 							hasCpu = 0;
 							hasMem = 0;
-							pid = atoi(argv[i+1]);
+							pid[nproc++] = atoi(argv[i+1]);
 							break;
 						}
 					case 'h':
@@ -311,7 +314,7 @@ int main(int argc, char *argv[]){
 						printf("Usage: %s [ -c | -m | -p <pid> | -h | -? ] [ delay]\n"
 								"  -c        Cpu info\n"
 								"  -m        Memory info\n"
-								"  -p <pid>  Process info\n"
+								"  -p <pid>  Process info(Multiple)\n"
 								"  -h,-?     This help\n", argv[0]);
 						return 0;
 				}
@@ -333,23 +336,42 @@ int main(int argc, char *argv[]){
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
-	if(pid > 0) {
-		if(!getprocessinfo(pid, &proc)) {
-			printf("process not exists.\n");
-			return 1;
+	char procArgStr[NPROC][117];
+	char fname[64] = "";
+	for(n=0; n<nproc; n++) {
+		int len = snprintf(fname, sizeof(fname), "/proc/%d/cmdline", pid[n]);
+		FILE *fp = fopen(fname, "r");
+		if(!fp) {
+			pid[n] = 0;
+			continue;
+		}
+		len = fread(procArgStr[n], 1, sizeof(procArgStr[0])-len-4+16, fp);
+		fclose(fp);
+
+		procArgStr[n][len-1] = '\0';
+
+		for(i=0; i<len-1; i++) {
+			if(procArgStr[n][i] == '\0') {
+				procArgStr[n][i] = ' ';
+			}
 		}
 
-		pall = proc.utime + proc.stime + proc.cutime + proc.cstime;
+		if(!getprocessinfo(pid[n], &proc[n])) {
+			pid[n] = 0;
+			continue;
+		}
 
+		pall[n] = proc[n].utime + proc[n].stime + proc[n].cutime + proc[n].cstime;
+	}
+
+	if(nproc>0) {
 		getcpu(&cpu);
-
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
+	int nn, lines = 0;
 	while(1) {
-		if(i++ % LINES == 0) {
-			i = 1;
-			
+		if(lines++ % LINES == 0) {
 			if(hasCpu && hasMem) {
 				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
 				cpu_mem_head("                           CPU (%%)                          ", "                      Memory Size                     |  Real Memory (%%)  ");
@@ -361,14 +383,27 @@ int main(int argc, char *argv[]){
 				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
 			}
 
-			if(pid > 0) {
-				printf("-------------------------------------------------------------------------|--------|------------------------\n");
-				printf("                          Memory Size                                    |        |         CPU (%%)       \n");
-				printf("-------------------------------------------------------------------------|nThreads|------------------------\n");
-				printf("    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |    User  Kernel   Total\n");
-				printf("-------------------------------------------------------------------------|--------|------------------------\n");
+			if(nproc > 0) {
+				if(lines == 1)
+					printf("--------------------------------------------------------------------------------------------------------------------\n");
+				nn = nproc;
+				for(n=0; n<nproc; n++) {
+					if(pid[n]>0)
+						printf("%d: %s\n", pid[n], procArgStr[n]);
+					else
+						nn --;
+				}
+				if(nn<=0) {
+					return 0;
+				}
+				printf("--------------------------------------------------------------------------------------------------------------------\n");
+				printf("        |                          Memory Size                                    |        |         CPU (%%)       \n");
+				printf("   PID  |-------------------------------------------------------------------------|nThreads|------------------------\n");
+				printf("        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |    User  Kernel   Total\n");
+				printf("--------|-------------------------------------------------------------------------|--------|------------------------\n");
 			}
 			fflush(stdout);
+			lines = 1;
 		}
 
 		sleep(delay);
@@ -412,38 +447,52 @@ int main(int argc, char *argv[]){
 			printf("%6.2f", mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0); // SwapPercent
 		}
 
-		if(pid > 0) {
-			if(!getprocessinfo(pid, &proc2)) {
-				return 1;
-			}
+		if(hasCpu || hasMem) {
+			printf("\n");
+		}
 
+		if(nproc>0) {
 			getcpu(&cpu);
 
 			all2 = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 			total = (all2 - all) / 100.0;
-			pall2 = proc2.utime + proc2.stime + proc2.cutime + proc2.cstime;
-
-			printf("%8s", fsize(proc2.size * 4));
-			printf("%9s", fsize(proc2.resident * 4));
-			printf("%9s", fsize(proc2.share * 4));
-			printf("%9s", fsize(proc2.text * 4));
-			printf("%9s", fsize(proc2.lib * 4));
-			printf("%11s", fsize(proc2.data * 4));
-			printf("%9s", fsize(proc2.dirty));
-			printf("%9s|", fsize(proc2.rssFile));
-			printf("% 8d|", proc2.threads);
-
-			double utime =  (double)(proc2.utime - proc.utime + proc2.cutime - proc.cutime) / total;
-			double stime =  (double)(proc2.stime - proc.stime + proc2.cstime - proc.cstime) / total;
-			printf("%8.2f", utime);
-			printf("%8.2f", stime);
-			printf("%8.2f", utime + stime);
-
-			proc = proc2;
 			all = all2;
 		}
-		
-		printf("\n");
+
+		nn = nproc;
+		for(n=0; n<nproc; n++) {
+			if(pid[n] ==0 || !getprocessinfo(pid[n], &proc2[n])) {
+				pid[n] = 0;
+				nn--;
+				continue;
+			}
+
+			pall2[n] = proc2[n].utime + proc2[n].stime + proc2[n].cutime + proc2[n].cstime;
+
+			printf("%8d|", pid[n]);
+			printf("%8s", fsize(proc2[n].size * 4));
+			printf("%9s", fsize(proc2[n].resident * 4));
+			printf("%9s", fsize(proc2[n].share * 4));
+			printf("%9s", fsize(proc2[n].text * 4));
+			printf("%9s", fsize(proc2[n].lib * 4));
+			printf("%11s", fsize(proc2[n].data * 4));
+			printf("%9s", fsize(proc2[n].dirty));
+			printf("%9s|", fsize(proc2[n].rssFile));
+			printf("%8d|", proc2[n].threads);
+
+			double utime =  (double)(proc2[n].utime - proc[n].utime + proc2[n].cutime - proc[n].cutime) / total;
+			double stime =  (double)(proc2[n].stime - proc[n].stime + proc2[n].cstime - proc[n].cstime) / total;
+			printf("%8.2f", utime);
+			printf("%8.2f", stime);
+			printf("%8.2f\n", utime + stime);
+
+			proc[n] = proc2[n];
+		}
+		if(nn<=0) {
+			return 0;
+		} else if(nn>1) {
+			printf("--------------------------------------------------------------------------------------------------------------------\n");
+		}
 		
 		fflush(stdout);
 	}
