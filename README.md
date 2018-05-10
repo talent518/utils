@@ -26,3 +26,4 @@
   * 9x9.c => 加法、减法、乘法和除法表
   * 3Angle.c => 字符打印之等腰三角形
   * YangHuiTriangle.c => 杨辉三角形
+  * BubbleSort.c => 冒泡排序
