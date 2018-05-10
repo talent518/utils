@@ -23,3 +23,6 @@
   * mat2jpg.py => 把caffe的预测图mat文件转为jpg格式
   * listen.sh => linux获取本地TCP监听端口号
   * url.c => URL格式分析，来自php7中的同名文件，做了删减
+  * 9x9.c => 加法、减法、乘法和除法表
+  * 3Angle.c => 字符打印之等腰三角形
+  * YangHuiTriangle.c => 杨辉三角形
