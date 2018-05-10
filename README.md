@@ -27,3 +27,4 @@
   * 3Angle.c => 字符打印之等腰三角形
   * YangHuiTriangle.c => 杨辉三角形
   * BubbleSort.c => 冒泡排序
+  * 5AngleStar.c => 字符打印之五角星
