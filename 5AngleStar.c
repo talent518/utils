@@ -28,14 +28,14 @@ int main(int argc, char *argv[]) {
 		if(nX>nY) {
 			x = (x1>x2?x2:x1);
 			nMax = x+nX;
-			for(;x<nMax;x++) {
+			for(;x<=nMax;x++) {
 				y = (y2-y1)*(x-x1)/(x2-x1)+y1;
 				A[y][x] = '*';
 			}
 		} else {
 			y = (y1>y2?y2:y1);
 			nMax = y+nY;
-			for(;y<nMax;y++) {
+			for(;y<=nMax;y++) {
 				x = (x2-x1)*(y-y1)/(y2-y1)+x1;
 				A[y][x] = '*';
 			}
