@@ -9,33 +9,45 @@ int main(int argc, char *argv[]) {
 		N = abs(atoi(argv[1]));
 	}
 	
-	int i,j;
-	int *A = (int*) malloc(sizeof(int)*N);
-	int *A2 = (int*) malloc(sizeof(int)*N);
+	int i, n;
+	int NN = N*(N+1)/2;
+	unsigned int *A = (unsigned int*) malloc(sizeof(unsigned int)*NN);
+	int a;
 	
-	for(i=0; i<N; i++) {
-		A[i] = 1;
-		A2[i] = 1;
+	printf("line: %d\n", N);
+	printf("size: %d\n", NN);
+	
+	for(a=0,n=1; n<=N; n++) {
+		for(i=0; i<n; i++) {
+			// printf("n=%d, a=%d, a2=%d\n", n, a, a-n+1);
+			if(i==0 || i==n-1) {
+				A[a] = 1;
+			} else {
+				// a-n+1 表示 上一行为i的值
+				A[a] = A[a-n+1] + A[a-n];
+			}
+			a++;
+		}
 	}
+
+	unsigned int M = NN-(int)ceil((float)N/2.0);
+	int L = (int) ceil(log10(A[M]) + 1);
+	char fmt[3];
 	
-	for(i=1; i<=N; i++) {
-		for(j=0; j<i; j++) {
-			printf("%4d", A[j]);
+	sprintf(fmt, "%%%du", L);
+	
+	printf(" max: %d\n\n", A[M]);
+	for(a=0,n=1; n<=N; n++) {
+		printf("%2d(", n);
+		printf(fmt, A[a+n/2]);
+		printf(")");
+		for(i=0; i<n; i++) {
+			printf(fmt, A[a++]);
 		}
 		printf("\n");
-		if(i<2) {
-			continue;
-		}
-		if(i==N) {
-			break;
-		}
-		if(i>2) {
-			memcpy(A2+1, A+1, sizeof(int)*(N-2));
-		}
-		for(j=1; j<i; j++) {
-			A[j] = A2[j] + A2[j-1];
-		}
 	}
+	
+	free((void*) A);
 
 	return 0;
 }
