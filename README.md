@@ -29,4 +29,5 @@
   * BubbleSort.c => 冒泡排序
   * 5AngleStar.c => 字符打印之五角星
   * cpuid.c => 获取CPU序列号
+  * svnignore.php => 忽略所有SVN无版本控制文件
 
