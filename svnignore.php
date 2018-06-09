@@ -1,4 +1,4 @@
-#!/bin/env php
+#!/usr/bin/env php
 <?php
 $path = '.';
 if(!empty($_SERVER['argv'][1])) {
@@ -29,7 +29,7 @@ foreach($entrys as $xml) {
 	$paths[dirname($path)][] = basename($path);
 }
 
-$fname = tempnam(dirname(__FILE__), basename(__FILE__, '.php') . '-');
+$fname = tempnam(ini_get('session.save_path'), basename(__FILE__, '.php') . '-');
 
 foreach($paths as $path => $names) {
 	echo $path, PHP_EOL, '    ', implode(PHP_EOL . '    ', $names), PHP_EOL;
