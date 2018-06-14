@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #define LINES 20
-#define NPROC 5
+#define NPROC 100
 
 #define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
 
@@ -319,10 +319,12 @@ int main(int argc, char *argv[]){
 						hasCpu = 0;
 						break;
 					case 'p':
-						if(i+1 < argc && nproc<NPROC) {
+						if(i+1 < argc) {
 							hasCpu = 0;
 							hasMem = 0;
-							pid[nproc++] = atoi(argv[i+1]);
+							if(nproc<NPROC) {
+								pid[nproc++] = atoi(argv[i+1]);
+							}
 							break;
 						}
 					case 'h':
