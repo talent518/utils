@@ -3,7 +3,7 @@ CC = gcc
 CFLAGS = -O3 -I.
 LFLAGS = -lm
 
-all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar
+all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid
 
 cpu-memory-info: cpu-memory-info.o
 	@echo LD $@
@@ -41,6 +41,14 @@ BubbleSort: BubbleSort.o
 	@echo LD $@
 	@$(CC) -o $@ $? $(LFLAGS)
 
+mac: mac.o
+	@echo LD $@
+	@$(CC) -o $@ $? $(LFLAGS)
+
+cpuid: cpuid.o
+	@echo LD $@
+	@$(CC) -o $@ $? $(LFLAGS)
+
 %.o: %.c
 	@echo CC  $?
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $?
@@ -52,5 +60,5 @@ test: url
 
 clean:
 	@echo $@
-	@rm -f *.o *.s *.e cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar
+	@rm -f *.o *.s *.e cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid
 
