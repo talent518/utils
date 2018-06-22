@@ -2,33 +2,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define strSequence "01234567"
-#define lenSequence sizeof(strSequence) - 1
-
-void seq(const char buf[], int b, int n) {
+void _seq(char *str, int b, int n) {
 	static int id = 0;
-	char str[lenSequence + 1];
 	register char chr;
 	register int i;
 	
-	memcpy(str, buf, n);
-	str[n] = '\0';
-
 	for(i=b; i<n; i++) {
-		chr = str[b];
-		str[b] = str[i];
-		str[i] = chr;
+		if(i>b) {
+			chr = str[b];
+			str[b] = str[i];
+			str[i] = chr;
+		}
 		
 		if(b == n-2) {
 			printf("%10d: %s\n", ++id, str);
+		} else {
+			printf("b: %d\n", b);
+			memcpy(str+n+1, str, n);
+			_seq(str+n+1, b+1, n);
 		}
-		
-		seq(str, b+1, n);
 	}
 }
 
+void seq(const char *str) {
+	unsigned n = strlen(str);
+	char *buf = (char*) malloc(n*n);
+	
+	memset(buf, 0, n*n);
+	memcpy(buf, str, n);
+	
+	_seq(buf, 0, n);
+	
+	free(buf);
+}
+
 int main(int argc, char *argv[]) {
-	seq(strSequence, 0, lenSequence);
+	seq(argc>1?argv[1]:"123");
 
 	return 0;
 }
