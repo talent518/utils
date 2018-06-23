@@ -28,8 +28,7 @@ int main(int argc, char *argv[]) {
 				nmax = n;
 				n = ntmp;
 			}
-			while(n % nmax != 0) {
-				ntmp = n % nmax;
+			while((ntmp = n % nmax) != 0) {
 				printf("  %ld %% %ld = %ld\n", n, nmax, ntmp);
 				n = nmax;
 				nmax = ntmp;
