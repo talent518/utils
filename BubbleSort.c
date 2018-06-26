@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[]) {
 	int a[N];
-	register int i, j, tmp, n = 0;
+	register int i, j, tmp, n = 0, n2 = 0;
 	register bool flag;
 	
 	srand((unsigned int) time(NULL));
@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
 				a[i-1] = tmp;
 				
 				flag = false;
+				n2++;
 			}
 			
 			n++;
@@ -40,7 +41,7 @@ int main(int argc, char *argv[]) {
 	for(i=0; i<N; i++) {
 		printf(" %d", a[i]);
 	}
-	printf("\nn: %d/%d\n", n, N*(N-1)/2);
+	printf("\nswaps: %d\nloops: %d\nmax loops: %d\n", n2, n, N*(N-1)/2);
 	
 	return 0;
 }
