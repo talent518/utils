@@ -36,7 +36,7 @@ for($i=0; $i<$frames; $i++) {
 echo 'Frames: ', $frames, PHP_EOL;
 
 $imagick = new Imagick();
-$imagick->newImage($width, $height * $frames, 'rgba(0,0,0,0)', 'png');
+$imagick->newImage($width, $height * $frames, 'rgb(0,0,0)', 'png');
 $imagick->setImageProperty('Frames', $frames);
 
 echo 'Merge process ...', PHP_EOL;
@@ -55,5 +55,5 @@ foreach($imagicks as $i=>$_imagick) {
 }
 
 echo 'Save: battery_scale.png ...', PHP_EOL;
-file_put_contents('battery_scale.png', $imagick->getImageBlob());
+$imagick->writeImage('battery_scale.png');
 $imagick->destroy();
