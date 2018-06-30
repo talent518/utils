@@ -8,7 +8,7 @@ echo 'Frames: ', $frames, PHP_EOL;
 $imagicks = [];
 for($i=1;$i<=$frames;$i++) {
 	$imagicks[] = ($_imagick = new Imagick());
-	$_imagick->newImage($imagick->getImageWidth(), $imagick->getImageHeight()/$frames, 'rgba(0,0,0,0)', 'png');
+	$_imagick->newImage($imagick->getImageWidth(), $imagick->getImageHeight()/$frames, 'rgb(0,0,0)', 'png');
 }
 
 echo 'Pixel process ...', PHP_EOL;
@@ -30,7 +30,7 @@ foreach($iter as $y=>$pixels) {
 foreach($imagicks as $i=>$_imagick) {
 	$file = 'battery_scale_' . $i . '.png';
 	echo 'Save: ', $file, PHP_EOL;
-	file_put_contents($file, $_imagick->getImageBlob());
+	$_imagick->writeImage($file);
 	$_imagick->destroy();
 }
 
