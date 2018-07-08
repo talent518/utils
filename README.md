@@ -33,6 +33,6 @@
   * mac.c => 所有网络MAC列表
   * greatestCommonDivisor.c => 最大公约数(辗转相除法)
   * BatteryScale => Android充电模式动画
-  * rftp.sh => 根据本地目录生成ftp操作的shell脚本
-  * rftp.php => 根据本地目录生成ftp操作的php脚本(控制台版)
+  * rftp.sh => 根据本地目录递归(find命令)生成ftp操作的shell脚本
+  * rftp.php => 递归ftp上传、下载和删除目录的php脚本(控制台版)
 
