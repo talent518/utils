@@ -34,4 +34,5 @@
   * greatestCommonDivisor.c => 最大公约数(辗转相除法)
   * BatteryScale => Android充电模式动画
   * rftp.sh => 根据本地目录生成ftp操作的shell脚本
+  * rftp.php => 根据本地目录生成ftp操作的php脚本(控制台版)
 
