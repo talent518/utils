@@ -33,4 +33,5 @@
   * mac.c => 所有网络MAC列表
   * greatestCommonDivisor.c => 最大公约数(辗转相除法)
   * BatteryScale => Android充电模式动画
+  * rftp.sh => 根据本地目录生成ftp操作的shell脚本
 
