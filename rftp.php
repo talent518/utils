@@ -131,8 +131,7 @@ function ftpget($path, $localpath = '.') {
 			ftpget($remote, $local);
 		} else {
 			echo MSG_COLOR, '  Downloading file ', CLEAR_COLOR, $local, WAITING;
-			$size = @ftp_size($ftp, $remote);
-			if(($fsize = @filesize($local)) !== false && $size === $fsize) {
+			if(($fsize = @filesize($local)) !== false && $std->size == $fsize) {
 				echo MSG_COLOR, '   Downloaded file ', CLEAR_COLOR, $local, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
 			} elseif(@ftp_get($ftp, $local, $remote, FTP_BINARY, $fsize)) {
 				echo MSG_COLOR, '   Downloaded file ', CLEAR_COLOR, $local, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
@@ -153,7 +152,7 @@ function ftpremove($path) {
 		if($std->isdir) {
 			ftpremove($remote);
 		} elseif(@ftp_delete($ftp, $remote)) {
-			echo MSG_COLOR, '      Deleted file ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
+			echo MSG_COLOR, '     Deleted file ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
 		} else {
 			echo MSG_COLOR, 'Deleted Directory ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
 		}
