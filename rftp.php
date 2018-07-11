@@ -75,14 +75,14 @@ function ftpput($local, $remote) {
 	global $ftp;
 	
 	if(is_file($local)) {
-		echo MSG_COLOR, '  Uploading file ', CLEAR_COLOR, $remote, WAITING;
+		echo MSG_COLOR, '    Uploading file ', CLEAR_COLOR, $remote, WAITING;
 		$size = @ftp_size($ftp, $remote);
 		if(($fsize = @filesize($local)) !== false && $size === $fsize) {
-			echo MSG_COLOR, '   Uploaded file ', CLEAR_COLOR, $remote, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
+			echo MSG_COLOR, '     Uploaded file ', CLEAR_COLOR, $remote, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
 		} elseif(@ftp_put($ftp, $remote, $local, FTP_BINARY, $size)) {
-			echo MSG_COLOR, '   Uploaded file ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
+			echo MSG_COLOR, '     Uploaded file ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
 		} else {
-			echo MSG_COLOR, '   Uploaded file ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
+			echo MSG_COLOR, '     Uploaded file ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
 		}
 		
 		return;
