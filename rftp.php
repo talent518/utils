@@ -154,7 +154,7 @@ function ftpremove($path) {
 		} elseif(@ftp_delete($ftp, $remote)) {
 			echo MSG_COLOR, '     Deleted file ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
 		} else {
-			echo MSG_COLOR, 'Deleted Directory ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
+			echo MSG_COLOR, '     Deleted file ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
 		}
 	}
 
