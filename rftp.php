@@ -35,7 +35,7 @@ EOT;
 	exit;
 }
 
-if(!isset($options['H'])) {
+if(!isset($options['H']) && PHP_OS !== 'WINNT') {
 	define('WAITING', "\033[34m ...\033[0m\r");
 	define('CLEAR_COLOR', "\033[0m");
 	define('MSG_COLOR', "\033[35m");
@@ -43,7 +43,7 @@ if(!isset($options['H'])) {
 	define('SUCCESS_COLOR', "\033[32m");
 	define('FAILURE_COLOR', "\033[31m");
 } else {
-	define('WAITING', null);
+	define('WAITING', PHP_OS === 'WINNT' ? " ...\n" : " ...\r");
 	define('CLEAR_COLOR', null);
 	define('MSG_COLOR', null);
 	define('SKIP_COLOR', null);
