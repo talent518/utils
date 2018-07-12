@@ -6,7 +6,7 @@ if(empty($options['p'])) $options['p'] = 21;
 
 if(empty($options) || empty($options['h']) || empty($options['u']) || empty($options['w']) || empty($options['m']) || !in_array($options['m'], ['get', 'put', 'del']) || (empty($options['l']) && $options['m'] !== 'del') || empty($options['r'])) {
 	echo @<<<EOT
-Shell scripts for generating FTP operations based on local directories
+FTP recursively uploading, downloading, and deleting operation scripts
 
 usage: {$_SERVER['argv'][0]} <options>
 options:
@@ -18,7 +18,7 @@ options:
         get               Recursively download directory
         put               Recursively upload directory
         del               Recursively delete directory
-    -l <local>            Generating lists of directories and files based on local directories
+    -l <local>            Local working directory
     -r <remote>           Remote server directory
     -H                    Prohibition of highlighting
 
