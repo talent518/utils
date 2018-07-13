@@ -37,7 +37,6 @@ def ftpget(f, local, remote):
 		plocal = local + '/' + item['name']
 		premote = remote + '/' + item['name']
 		if item['isdir']:
-			sys.stdout.flush()
 			if os.path.isdir(plocal):
 				print(' Created Directory %s skip\n' % plocal, end='')
 			else:
@@ -53,7 +52,7 @@ def ftpget(f, local, remote):
 				os.symlink(item['link'], plocal)
 				print('   Created symlink %s success\n' % plocal, end='')
 			except OSError:
-				print('   Created symlink %s skip\n' % plocal, end='')
+				print('   Created symlink %s failure\n' % plocal, end='')
 			
 			sys.stdout.flush()
 		else:
@@ -64,7 +63,7 @@ def ftpget(f, local, remote):
 				sys.stdout.flush()
 				fp = open(plocal, 'ab')
 				if item['size'] > 0 and item['size'] > fp.tell():
-					f.retrbinary('RETR %s' % premote, fp.write, 1024)
+					f.retrbinary('RETR %s' % premote, fp.write)
 				
 				fp.close()
 				print('   Downloaded file %s success\n' % plocal, end='')
@@ -72,10 +71,61 @@ def ftpget(f, local, remote):
 			sys.stdout.flush()
 
 def ftpput(f, local, remote):
-	pass
+	if os.path.isfile(local):
+		print('    Uploading file %s ...\r' % remote, end='')
+
+		try:
+			size = f.size(remote)
+		except:
+			size = None
+			pass
+		
+		fp = open(local, 'rb')
+		if size == os.path.getsize(local):
+			print('     Uploaded file %s skip\n' % remote, end='')
+		else:
+			print('     Uploaded file %s ...\r' % remote, end='')
+			sys.stdout.flush()
+			f.storbinary('STOR ' + remote, fp);
+			print('     Uploaded file %s success\n' % remote, end='')
+		fp.close()
+		sys.stdout.flush()
+	elif os.path.islink(local):
+		print('     Uploaded file %s  is link, cannot upload' % local)
+	else:
+		try:
+			f.cwd(remote)
+			print('Creating Directory %s skip' % remote)
+		except:
+			try:
+				f.mkd(remote)
+				print(' Created Directory %s success' % remote)
+			except:
+				print(' Created Directory %s failure' % remote)
+		sys.stdout.flush()
+		
+		for name in os.listdir(local):
+			ftpput(f, local + '/' + name, remote + '/' + name)
 
 def ftpdel(f, remote):
-	pass
+	for item in ftpdir(f, remote):
+		premote = remote + '/' + item['name']
+		if item['isdir']:
+			ftpdel(f, premote)
+		else:
+			try:
+				f.delete(premote)
+				print('     Deleted file %s success' % premote)
+			except:
+				print('     Deleted file %s failure' % premote)
+			sys.stdout.flush()
+	
+	try:
+		f.rmd(remote)
+		print('Deleted Directory %s success' % remote)
+	except:
+		print('Deleted Directory %s failure' % remote)
+	sys.stdout.flush()
 
 def ftpdir(f, remote):
 	retrLines = RetrLines()
@@ -92,10 +142,10 @@ def main():
 	f.connect(args.host, args.port)
 	f.login(args.user, args.password)
 	
-	if args.method != 'del' and not os.path.isdir(args.local):
-		os.mkdir(args.local)
-	
 	if args.method == 'get':
+		if not os.path.isdir(args.local):
+			os.mkdir(args.local)
+		
 		ftpget(f, args.local, args.remote)
 	elif args.method == 'put':
 		ftpput(f, args.local, args.remote)

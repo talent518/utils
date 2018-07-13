@@ -84,33 +84,33 @@ function ftpput($local, $remote) {
 		} else {
 			echo MSG_COLOR, '     Uploaded file ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
 		}
-		
-		return;
-	}
-	
-	echo MSG_COLOR, 'Creating Directory ', CLEAR_COLOR, $remote, WAITING;
-	if(@ftp_chdir($ftp, $remote)) {
-		echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
-	} elseif(@ftp_mkdir($ftp, $remote)) {
-		echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
+	} elseif(is_link($local)) {
+		echo MSG_COLOR, '     Uploaded file ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' is link, cannot upload', CLEAR_COLOR, PHP_EOL;
 	} else {
-		echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
-	}
-	
-	$dh = opendir($local);
-	if(!$dh) {
-		return;
-	}
-	
-	while (($file = readdir($dh)) !== false) {
-		if($file === '.' || $file === '..') {
-			continue;
+		echo MSG_COLOR, 'Creating Directory ', CLEAR_COLOR, $remote, WAITING;
+		if(@ftp_chdir($ftp, $remote)) {
+			echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
+		} elseif(@ftp_mkdir($ftp, $remote)) {
+			echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
+		} else {
+			echo MSG_COLOR, ' Created Directory ', CLEAR_COLOR, $remote, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
 		}
-		
-		ftpput($local . '/' . $file, $remote . '/' . $file);
-	}
 	
-	closedir($dh);
+		$dh = opendir($local);
+		if(!$dh) {
+			return;
+		}
+	
+		while (($file = readdir($dh)) !== false) {
+			if($file === '.' || $file === '..') {
+				continue;
+			}
+		
+			ftpput($local . '/' . $file, $remote . '/' . $file);
+		}
+	
+		closedir($dh);
+	}
 }
 
 function ftpget($path, $localpath = '.') {
@@ -129,6 +129,14 @@ function ftpget($path, $localpath = '.') {
 			}
 			
 			ftpget($remote, $local);
+		} elseif($std->link) {
+			if(@is_link($local)) {
+				echo '   Created symlink ', $local, SKIP_COLOR, ' skip', CLEAR_COLOR, PHP_EOL;
+			} elseif(@symlink($std->link, $local)) {
+				echo '   Created symlink ', $local, SUCCESS_COLOR, ' success', CLEAR_COLOR, PHP_EOL;
+			} else {
+				echo '   Created symlink ', $local, FAILURE_COLOR, ' failure', CLEAR_COLOR, PHP_EOL;
+			}
 		} else {
 			echo MSG_COLOR, '  Downloading file ', CLEAR_COLOR, $local, WAITING;
 			if(($fsize = @filesize($local)) !== false && $std->size == $fsize) {
