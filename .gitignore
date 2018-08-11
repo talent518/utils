@@ -1,6 +1,11 @@
 *.s
+*.S
 *.e
+*.E
 *.o
+*.O
+*.a
+*.so
 cpu-memory-info
 nonRepetitiveSequence
 crypt
@@ -13,3 +18,5 @@ BubbleSort
 mac
 cpuid
 greatestCommonDivisor
+rftp
+
