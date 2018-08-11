@@ -1,9 +1,11 @@
 CC = gcc
+AR = ar
+RL = ranlib
 
-CFLAGS = -O3 -I.
-LFLAGS = -lm
+CFLAGS = -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+LFLAGS = -lm -L. -lssl -lcrypto -Wl,-rpath,. -Wl,-rpath,$(PWD)
 
-all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor
+all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp
 
 cpu-memory-info: cpu-memory-info.o
 	@echo LD $@
@@ -53,11 +55,29 @@ greatestCommonDivisor: greatestCommonDivisor.o
 	@echo LD $@
 	@$(CC) -o $@ $? $(LFLAGS)
 
+libftp.a: ftp.o
+	@echo AR $@
+	@$(AR) -rcs $@ $?
+
+libftp.so: ftp.O
+	@echo LD $@
+	@$(CC) -shared -o $@ $? $(LFLAGS)
+
+rftp: getopt.o rftp.o
+	@echo LD $@
+	@$(CC) -o $@ $? -lftp $(LFLAGS)
+
 %.o: %.c
-	@echo CC  $?
+	@echo CC $?
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $?
 	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $?
 	@$(CC) $(CFLAGS) -c $? -o $@
+
+%.O: %.c
+	@echo CC $?
+	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.S) -S $?
+	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $?
+	@$(CC) $(CFLAGS) -fpic -fPIC -c $? -o $@
 
 test: url greatestCommonDivisor
 	./url 'https://github.com/talent518/calc?as=23&ew=23#fdsdasdf'
@@ -65,5 +85,5 @@ test: url greatestCommonDivisor
 
 clean:
 	@echo $@
-	@rm -f *.o *.s *.e cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor
+	@rm -f *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp
 

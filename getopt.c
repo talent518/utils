@@ -65,14 +65,12 @@ static int opt_error(int argc, char * const *argv, int oint, int optchr, int err
 }
 /* }}} */
 
-int optidx = -1;
-
 int getopt(int argc, char* const *argv, const opt_struct opts[], char **optarg, int *optind, int show_err, int arg_start) /* {{{ */
 {
 	static int optchr = 0;
 	static int dash = 0; /* have already seen the - */
 
-	optidx = -1;
+	int optidx = -1;
 
 	if (*optind >= argc) {
 		return(EOF);

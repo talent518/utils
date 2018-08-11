@@ -36,4 +36,6 @@
   * rftp.sh => 根据本地目录递归(find和awk命令)生成ftp操作(ftp命令)的shell脚本
   * rftp.php => 递归ftp上传、下载和删除目录的php脚本(控制台版)
   * rftp.py => 递归ftp上传、下载和删除目录的python脚本(控制台版)
+  * ftp.c => ftp之C语言库
+  * rftp.c => 递归ftp上传、下载和删除目录的C程序(控制台版)
 

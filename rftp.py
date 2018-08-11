@@ -7,7 +7,7 @@ import re, os, sys, ftplib, argparse
 parser = argparse.ArgumentParser(description='FTP recursively uploading, downloading, and deleting operation scripts', add_help=False)
 parser.add_argument('-h', '--host', metavar='host', type=str, help='FTP host')
 parser.add_argument('-p', '--port', metavar='port', type=int, default=21, help='FTP port')
-parser.add_argument('-u', '--user', metavar='user', type=str, help='FTP port')
+parser.add_argument('-u', '--user', metavar='user', type=str, help='FTP account')
 parser.add_argument('-w', '--password', metavar='password', type=str, help='FTP password')
 parser.add_argument('-m', '--method', metavar='method', type=str, choices=['get', 'put', 'del'], help='FTP operation method(get, put, del)')
 parser.add_argument('-l', '--local', metavar='local', type=str, help='Local working directory')
