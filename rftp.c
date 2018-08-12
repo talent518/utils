@@ -48,13 +48,88 @@ static void usage(char *argv0) {
 }
 /* }}} */
 
-void ftpget(ftpbuf_t *ftp, const char *local, const char *remote) {
+typedef int (*list_func_t)(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link);
+void ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t func) {
+	char *path = NULL;
+	char **lines;
+	int n = 0;
+	char *line;
+	int len = asprintf(&path, "-a %s", remote);
+	
+	char perms[12]="";
+	int number, owner, group;
+	unsigned long int size;
+	char dt1[4]="", dt2[3]="", dt3[6]="", datetime[13]="", name[256]="", link[256]="";
+	char *ptr;
+	
+	if(!path) {
+		fprintf(stderr, "Memory over out for \"-a %s\"\n", remote);
+		return;
+	}
+	
+	lines = ftp_list(ftp, path, len, 0);
+	if(!lines) {
+		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
+		free(path);
+		return;
+	}
+	while(line=lines[n++]) {
+		if(line[0] == 'd' && (ptr = strrchr(line, ' ')) && (!strcmp(ptr+1, ".") || !strcmp(ptr+1, ".."))) {
+			continue;
+		}
+		sscanf(line, "%12s %d %d %d %lu %s %s %s %n", perms, &number, &owner, &group, &size, dt1, dt2, dt3, &len);
+		if(line[0] == 'l' && (ptr = strstr(line+len, " -> "))) {
+			strncpy(name, line+len, ptr-line-len);
+			strcpy(link, ptr+4);
+		} else {
+			strcpy(name, line+len);
+			link[0] = '\0';
+		}
+		strcpy(datetime, dt1);
+		strcat(datetime, " ");
+		strcat(datetime, dt2);
+		strcat(datetime, " ");
+		strcat(datetime, dt3);
+		if(func(ftp, local, remote, line, perms[0], perms, number, owner, group, size, datetime, name, link)) {
+			break;
+		}
+	}
+	free(path);
+	free(lines);
 }
 
-void ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
+#if 0
+	#define PRINT_FUNC() \
+		printf("%s: %s\n", __func__, line); \
+		printf("  type: %c\n", type); \
+		printf("  perms: %s\n", perms); \
+		printf("  number: %d\n", number); \
+		printf("  owner: %d\n", owner); \
+		printf("  group: %d\n", group); \
+		printf("  size: %lu\n", size); \
+		printf("  datetime: %s\n", datetime); \
+		printf("  name: %s\n", name); \
+		printf("  link: %s\n", link)
+#else
+	#define PRINT_FUNC()
+#endif
+
+int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
+	PRINT_FUNC();
+	
+	return 0;
 }
 
-void ftpremove(ftpbuf_t *ftp, const char *remote) {
+int ftpput_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
+	PRINT_FUNC();
+	
+	return 0;
+}
+
+int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
+	PRINT_FUNC();
+	
+	return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -154,11 +229,11 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if(!strcmp(method, "get")) {
-		ftpget(ftp, local, remote);
+		ftplist(ftp, local, remote, ftpget_func);
 	} else if(!strcmp(method, "put")) {
-		ftpput(ftp, local, remote);
+		ftplist(ftp, local, remote, ftpput_func);
 	} else {
-		ftpremove(ftp, remote);
+		ftplist(ftp, local, remote, ftpremove_func);
 	}
 
 ftpQuit:

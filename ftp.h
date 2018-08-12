@@ -123,7 +123,7 @@ const char*	ftp_pwd(ftpbuf_t *ftp);
 /* exec a command [special features], return true on success, false on error */
 int 	ftp_exec(ftpbuf_t *ftp, const char *cmd, const size_t cmd_len);
 
-/* send a raw ftp command, return response as a hashtable, NULL on error */
+/* send a raw ftp command, return line number, NULL on error */
 unsigned int ftp_raw(ftpbuf_t *ftp, const char *cmd, const size_t cmd_len, char ***lines);
 
 /* changes directories, return true on success, false on error */
