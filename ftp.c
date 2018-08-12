@@ -58,7 +58,7 @@ typedef struct pollfd php_pollfd;
 #define php_gmtime_r gmtime_r
 #define php_socket_error_str strerror
 #define php_connect_nonb(sock, addr, addrlen, timeout) php_network_connect_socket((sock), (addr), (addrlen), 0, (timeout), NULL, NULL)
-#define safe_emalloc(nm, size, tmp) calloc(nm, size)
+#define safe_emalloc(nm, size, offset) malloc(nm * size + offset)
 #define emalloc malloc
 #define ecalloc calloc
 #define estrdup strdup

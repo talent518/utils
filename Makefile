@@ -2,7 +2,7 @@ CC = gcc
 AR = ar
 RL = ranlib
 
-CFLAGS = -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+CFLAGS = -O3 -I. -g -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
 LFLAGS = -lm -L. -lssl -lcrypto -Wl,-rpath,. -Wl,-rpath,$(PWD)
 
 all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp
