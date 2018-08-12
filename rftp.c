@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "getopt.h"
 #include "ftp.h"
@@ -49,7 +52,10 @@ static void usage(char *argv0) {
 /* }}} */
 
 typedef int (*list_func_t)(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link);
-void ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t func) {
+
+/* {{{ return 1 is break or failure, 0 is complete
+ */
+int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t func) {
 	char *path = NULL;
 	char **lines;
 	int n = 0;
@@ -62,17 +68,14 @@ void ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t f
 	char dt1[4]="", dt2[3]="", dt3[6]="", datetime[13]="", name[256]="", link[256]="";
 	char *ptr;
 	
-	if(!path) {
-		fprintf(stderr, "Memory over out for \"-a %s\"\n", remote);
-		return;
-	}
-	
 	lines = ftp_list(ftp, path, len, 0);
 	if(!lines) {
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
-		return;
+		return 1;
 	}
+	
+	int ret = 0;
 	while(line=lines[n++]) {
 		if(line[0] == 'd' && (ptr = strrchr(line, ' ')) && (!strcmp(ptr+1, ".") || !strcmp(ptr+1, ".."))) {
 			continue;
@@ -91,15 +94,20 @@ void ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t f
 		strcat(datetime, " ");
 		strcat(datetime, dt3);
 		if(func(ftp, local, remote, line, perms[0], perms, number, owner, group, size, datetime, name, link)) {
+			ret = 1;
 			break;
 		}
 	}
+	
 	free(path);
 	free(lines);
+	
+	return ret;
 }
+/* }}} */
 
 #if 0
-	#define PRINT_FUNC() \
+	#define PRINT_FUNC(isrm, op) \
 		printf("%s: %s\n", __func__, line); \
 		printf("  type: %c\n", type); \
 		printf("  perms: %s\n", perms); \
@@ -111,23 +119,73 @@ void ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t f
 		printf("  name: %s\n", name); \
 		printf("  link: %s\n", link)
 #else
-	#define PRINT_FUNC()
+	#define PRINT_FUNC(isrm,op) if(isrm) printf("%c: %s/%s\n", type, remote, name); else printf("%c: %s/%s "op" %s/%s\n", type, local, name, remote, name)
 #endif
 
 int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
-	PRINT_FUNC();
+	PRINT_FUNC(0,"<=");
 	
-	return 0;
+	char *plocal = NULL, *premote = NULL;
+	struct stat st;
+	int i, ret = 0;
+	
+	asprintf(&plocal, "%s/%s", local, name);
+	asprintf(&premote, "%s/%s", remote, name);
+	
+	i = lstat(plocal, &st);
+	
+	if(type == 'd') {
+		if((i==0 && S_ISDIR(st.st_mode)) || (i == -1 && mkdir(plocal, 0755) == 0)) {
+			ret = ftplist(ftp, plocal, premote, ftpget_func);
+		} else if(i==0) {
+			fprintf(stderr, "%s is not a directory\n", plocal);
+			ret = 1;
+		} else {
+			fprintf(stderr, "Failed to create directory %s\n", plocal);
+			ret = 1;
+		}
+	} else if(type == 'l') {
+		if((i==0 && S_ISLNK(st.st_mode)) || (i == -1 && symlink(link, plocal) == 0)) {
+			ret = 0; // OK
+		} else if(i==0) {
+			fprintf(stderr, "%s is not a directory\n", plocal);
+			ret = 1;
+		} else {
+			fprintf(stderr, "Failed to create directory %s\n", plocal);
+			ret = 1;
+		}
+	} else {
+		if((i==0 && S_ISREG(st.st_mode) && st.st_size != size) || i == -1) {
+			FILE *fp = fopen(plocal, "a");
+			if(fp) {
+				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 ? st.st_size : 0)) {
+					fprintf(stderr, "Download file %s failed\n", plocal);
+					ret = 1;
+				}
+				fclose(fp);
+			} else {
+				fprintf(stderr, "Unable to open file %s\n", plocal);
+				ret = 1;
+			}
+		} else if(i==0 && !S_ISREG(st.st_mode)) {
+			fprintf(stderr, "%s is not an ordinary file\n", plocal);
+		}
+	}
+	
+	free(plocal);
+	free(premote);
+	
+	return ret;
 }
 
 int ftpput_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
-	PRINT_FUNC();
+	PRINT_FUNC(0,"=>");
 	
 	return 0;
 }
 
 int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *line, char type, const char *perms, int number, int owner, int group, unsigned long int size, const char *datetime, const char *name, const char *link) {
-	PRINT_FUNC();
+	PRINT_FUNC(1,"");
 	
 	return 0;
 }
@@ -228,12 +286,32 @@ int main(int argc, char *argv[]) {
 		goto ftpQuit;
 	}
 	
+	struct stat st;
+	
+	i = strcmp(method, "del") ? lstat(local, &st) : 0;
+	
 	if(!strcmp(method, "get")) {
-		ftplist(ftp, local, remote, ftpget_func);
+		if(i == 0 && !S_ISDIR(st.st_mode)) {
+			fprintf(stderr, "%s is not a directory\n");
+		} else {
+			if(i != 0 && mkdir(local, 0755) != 0) {
+				fprintf(stderr, "Failed to create directory %s\n", local);
+			} else {
+				ftplist(ftp, local, remote, ftpget_func);
+			}
+		}
 	} else if(!strcmp(method, "put")) {
-		ftplist(ftp, local, remote, ftpput_func);
+		if(i == 0 && S_ISDIR(st.st_mode)) {
+			ftplist(ftp, local, remote, ftpput_func);
+		} else {
+			fprintf(stderr, "%s is not a directory\n");
+		}
 	} else {
-		ftplist(ftp, local, remote, ftpremove_func);
+		if(!ftplist(ftp, NULL, remote, ftpremove_func) && ftp_rmdir(ftp, remote, strlen(remote))) {
+			printf("d: %s\n", remote);
+		} else {
+			fprintf(stderr, "Deletion of directory %s failed\n", remote);
+		}
 	}
 
 ftpQuit:
