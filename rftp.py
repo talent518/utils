@@ -141,6 +141,9 @@ def main():
 	f = ftplib.FTP()
 	f.connect(args.host, args.port)
 	f.login(args.user, args.password)
+
+	if args.remote[0] != '/':
+		args.remote = f.pwd().rstrip('/') + '/' + args.remote;
 	
 	if args.method == 'get':
 		if not os.path.isdir(args.local):
