@@ -55,6 +55,10 @@ if(!isset($options['H']) && PHP_OS !== 'WINNT') {
 
 @ftp_login($ftp, $options['u'], $options['w']) or die(FAILURE_COLOR . 'Login failed' . CLEAR_COLOR . PHP_EOL);
 
+if(strncmp($options['r'], '/') && ($pwd = ftp_pwd($ftp))) {
+	$options['r'] = rtrim($pwd, '/') . '/' . $options['r'];
+}
+
 if($options['m'] === 'get') {
 	if(!is_dir($options['l'])) {
 		echo MSG_COLOR, 'Creating Directory ', CLEAR_COLOR, $options['l'], WAITING;

@@ -372,6 +372,18 @@ int main(int argc, char *argv[]) {
 	if(!ftp_login(ftp, user, strlen(user), password, strlen(password))) {
 		goto ftpQuit;
 	}
+
+	char *pwd, *ptr;
+	if(remote[0] != '/' && (pwd = (char*) ftp_pwd(ftp))) {
+		ptr = strrchr(pwd, '/');
+		if(*(ptr+1) == '\0') {
+			*ptr = '\0';
+		}
+		ptr = NULL;
+		asprintf(&ptr, "%s/%s", pwd, remote);
+		free(remote);
+		remote = ptr;
+	}
 	
 	struct stat st;
 	
