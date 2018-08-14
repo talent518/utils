@@ -32,7 +32,7 @@ static void usage(char *argv0) {
 	if (prog) {
 		prog++;
 	} else {
-		prog = "vuforia";
+		prog = "rftp";
 	}
 
 	printf( "FTP recursively uploading, downloading, and deleting operation scripts\n\n"
