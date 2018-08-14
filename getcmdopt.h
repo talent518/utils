@@ -18,6 +18,6 @@ typedef struct _opt_struct {
 } opt_struct;
 
 /* holds the index of the latest fetched element from the opts array */
-int getopt(int argc, char* const *argv, const opt_struct opts[], char **optarg, int *optind, int show_err, int arg_start);
+int getcmdopt(int argc, char* const *argv, const opt_struct opts[], char **optarg, int *optind, int show_err, int arg_start);
 
 #endif

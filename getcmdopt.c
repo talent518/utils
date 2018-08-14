@@ -2,7 +2,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
-#include "getopt.h"
+#include "getcmdopt.h"
 
 #define OPTERRCOLON 1
 #define OPTERRNF 2
@@ -65,7 +65,7 @@ static int opt_error(int argc, char * const *argv, int oint, int optchr, int err
 }
 /* }}} */
 
-int getopt(int argc, char* const *argv, const opt_struct opts[], char **optarg, int *optind, int show_err, int arg_start) /* {{{ */
+int getcmdopt(int argc, char* const *argv, const opt_struct opts[], char **optarg, int *optind, int show_err, int arg_start) /* {{{ */
 {
 	static int optchr = 0;
 	static int dash = 0; /* have already seen the - */

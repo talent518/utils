@@ -9,75 +9,75 @@ all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle 
 
 cpu-memory-info: cpu-memory-info.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 nonRepetitiveSequence: nonRepetitiveSequence.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 crypt: base64.o md5.o crypt.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 url: url.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 9x9: 9x9.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 3Angle: 3Angle.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 YangHuiTriangle: YangHuiTriangle.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 BubbleSort: BubbleSort.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 5AngleStar: 5AngleStar.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 mac: mac.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 cpuid: cpuid.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 greatestCommonDivisor: greatestCommonDivisor.o
 	@echo LD $@
-	@$(CC) -o $@ $? $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 libftp.a: ftp.o
 	@echo AR $@
-	@$(AR) -rcs $@ $?
+	@$(AR) -rcs $@ $^
 
 libftp.so: ftp.O
 	@echo LD $@
-	@$(CC) -shared -o $@ $? $(LFLAGS)
+	@$(CC) -shared -o $@ $^ $(LFLAGS)
 
-rftp: getopt.o rftp.o
+rftp: getcmdopt.o rftp.o
 	@echo LD $@
-	@$(CC) -o $@ $? -lftp $(LFLAGS)
+	@$(CC) -o $@ $^ -lftp $(LFLAGS)
 
 %.o: %.c
-	@echo CC $?
-	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $?
-	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $?
-	@$(CC) $(CFLAGS) -c $? -o $@
+	@echo CC $^
+	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
+	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $^
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
 %.O: %.c
-	@echo CC $?
-	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.S) -S $?
-	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $?
-	@$(CC) $(CFLAGS) -fpic -fPIC -c $? -o $@
+	@echo CC $^
+	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.S) -S $^
+	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $^
+	@$(CC) $(CFLAGS) -fpic -fPIC -c $^ -o $@
 
 test: url greatestCommonDivisor
 	./url 'https://github.com/talent518/calc?as=23&ew=23#fdsdasdf'

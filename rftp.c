@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "getopt.h"
+#include "getcmdopt.h"
 #include "ftp.h"
 
 static const opt_struct OPTIONS[] = {
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	while ((c = getopt(argc, argv, OPTIONS, (char**)&optarg, (int*)&optind, 1, 2))!=-1) {
+	while ((c = getcmdopt(argc, argv, OPTIONS, (char**)&optarg, (int*)&optind, 1, 2))!=-1) {
 		switch (c) {
 			case 'h':
 				host = strdup((const char *)optarg);
