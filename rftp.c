@@ -164,12 +164,12 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 }
 
 int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
-	printf("d: %s => %s\n", local, remote);
-	
-	if(!ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
+	if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
 		fprintf(stderr, "Failed to create remote directory %s\n", remote);
 		return 1;
 	}
+	
+	if(*local || *remote) printf("d: %s => %s\n", local, remote);
 	
 	DIR *dh = opendir(local);
 	if(!dh) {
@@ -373,17 +373,37 @@ int main(int argc, char *argv[]) {
 		goto ftpQuit;
 	}
 
-	char *pwd, *ptr;
-	if(remote[0] != '/' && (pwd = (char*) ftp_pwd(ftp))) {
-		ptr = strrchr(pwd, '/');
-		if(*(ptr+1) == '\0') {
-			*ptr = '\0';
-		}
+	// {{{ format remote
+	char *pwd, *ptr, *tmp;
+	if(*remote && !strcmp(remote, "/")) {
+		*remote = '\0';
+	}
+	if(!(pwd = (char*) ftp_pwd(ftp)) || !strcmp(pwd, "/")) {
+		pwd = "";
+	}
+	if(*remote && *remote != '/') {
 		ptr = NULL;
 		asprintf(&ptr, "%s/%s", pwd, remote);
 		free(remote);
 		remote = ptr;
 	}
+	ptr = remote;
+	while(*ptr) {
+		if(*ptr == '/' && *(ptr+1) == '/') {
+			pwd = ptr+2;
+			while(*pwd == '/') {
+				pwd++;
+			}
+			tmp = ptr+1;
+			while((*tmp = *pwd)) {
+				tmp++;
+				pwd++;
+			}
+		}
+		ptr++;
+	}
+	if(*remote && *(ptr-1) == '/') *(ptr-1) = '\0';
+	// }}}
 	
 	struct stat st;
 	
@@ -406,11 +426,11 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "%s is not a directory\n");
 		}
 	} else if(!strcmp(method, "rls")) {
-		printf("d: %s\n", remote);
+		if(*remote) printf("d: %s\n", remote);
 		ftplist(ftp, NULL, remote, ftplist_func);
 	} else {
-		printf("d: %s\n", remote);
-		if(ftplist(ftp, NULL, remote, ftpremove_func) || !ftp_rmdir(ftp, remote, strlen(remote))) {
+		if(*remote) printf("d: %s\n", remote);
+		if(ftplist(ftp, NULL, remote, ftpremove_func) || (*remote && !ftp_rmdir(ftp, remote, strlen(remote)))) {
 			fprintf(stderr, "Deletion of directory %s failed\n", remote);
 		}
 	}
