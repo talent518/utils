@@ -5,7 +5,7 @@ RL = ranlib
 CFLAGS = -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
 LFLAGS = -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
-all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp
+all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp PI PI1000
 
 cpu-memory-info: cpu-memory-info.o
 	@echo LD $@
@@ -67,6 +67,14 @@ rftp: getcmdopt.o rftp.o
 	@echo LD $@
 	@$(CC) -o $@ $^ -lftp $(LFLAGS)
 
+PI: PI.o
+	@echo LD $@
+	@$(CC) -o $@ $^ -O3 $(LFLAGS)
+
+PI1000: PI1000.o
+	@echo LD $@
+	@$(CC) -o $@ $^ -O3 $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
@@ -85,5 +93,5 @@ test: url greatestCommonDivisor
 
 clean:
 	@echo $@
-	@rm -f *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp
+	@rm -f *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp PI PI1000
 
