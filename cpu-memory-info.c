@@ -414,7 +414,7 @@ int main(int argc, char *argv[]){
 						if(dtime>0) {
 							printf("%d-", dtime);
 						}
-						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, proc[n].etime - mtime*60);
+						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, (float)(proc[n].etime - mtime*60));
 						printf("  Command: %s\n", procArgStr[n]);
 					} else {
 						nn --;
@@ -442,15 +442,15 @@ int main(int argc, char *argv[]){
 
 			total = (all2 - all) / 100.0;
 		
-			printf("%5.2f", (double)(cpu2.user - cpu.user) / total);
-			printf("%6.2f", (double)(cpu2.nice - cpu.nice) / total);
-			printf("%7.2f", (double)(cpu2.system - cpu.system) / total);
-			printf("%7.2f", (double)(cpu2.idle - cpu.idle) / total);
-			printf("%7.2f", (double)(cpu2.iowait - cpu.iowait) / total);
-			printf("%6.2f", (double)(cpu2.irq - cpu.irq) / total);
-			printf("%8.2f", (double)(cpu2.softirq - cpu.softirq) / total);
-			printf("%7.2f", (double)(cpu2.stolen - cpu.stolen) / total);
-			printf("%7.2f", (double)(cpu2.guest - cpu.guest) / total);
+			printf("%5.2f", (float)((double)(cpu2.user - cpu.user) / total));
+			printf("%6.2f", (float)((double)(cpu2.nice - cpu.nice) / total));
+			printf("%7.2f", (float)((double)(cpu2.system - cpu.system) / total));
+			printf("%7.2f", (float)((double)(cpu2.idle - cpu.idle) / total));
+			printf("%7.2f", (float)((double)(cpu2.iowait - cpu.iowait) / total));
+			printf("%6.2f", (float)((double)(cpu2.irq - cpu.irq) / total));
+			printf("%8.2f", (float)((double)(cpu2.softirq - cpu.softirq) / total));
+			printf("%7.2f", (float)((double)(cpu2.stolen - cpu.stolen) / total));
+			printf("%7.2f", (float)((double)(cpu2.guest - cpu.guest) / total));
 		
 			cpu = cpu2;
 			all = all2;
@@ -468,10 +468,10 @@ int main(int argc, char *argv[]){
 			printf("%9s", fsize(mem.buffers));
 			printf("%10s", fsize(mem.swapTotal));
 			printf("%9s|", fsize(mem.swapFree));
-			//printf("%6.2f", (double)(mem.total - mem.free) * 100.0 / (double)mem.total); // MemPercent
-			printf("%6.2f", (double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total); // MemRealPercent
-			printf("%7.2f", (double)(mem.cached) * 100.0 / (double)mem.total); // MemCachedPercent
-			printf("%6.2f", mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0); // SwapPercent
+			//printf("%6.2f", (float)((double)(mem.total - mem.free) * 100.0 / (double)mem.total)); // MemPercent
+			printf("%6.2f", (float)((double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total)); // MemRealPercent
+			printf("%7.2f", (float)((double)(mem.cached) * 100.0 / (double)mem.total)); // MemCachedPercent
+			printf("%6.2f", (float)(mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0)); // SwapPercent
 		}
 
 		if(hasCpu || hasMem) {
@@ -509,9 +509,9 @@ int main(int argc, char *argv[]){
 
 			double utime =  (double)(proc2[n].utime - proc[n].utime + proc2[n].cutime - proc[n].cutime) / total;
 			double stime =  (double)(proc2[n].stime - proc[n].stime + proc2[n].cstime - proc[n].cstime) / total;
-			printf("%8.2f", utime);
-			printf("%8.2f", stime);
-			printf("%8.2f\n", utime + stime);
+			printf("%8.2f", (float) utime);
+			printf("%8.2f", (float) stime);
+			printf("%8.2f\n", (float)(utime + stime));
 
 			proc[n] = proc2[n];
 		}
