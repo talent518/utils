@@ -32,10 +32,11 @@ int main(int argc, char *argv[]) {
 	}
 
 	unsigned int M = NN-(int)ceil((float)N/2.0);
-	int L = (int) ceil(log10(A[M]) + 1);
-	char fmt[5];
+	int L = (int) ceil(log10(A[M]));
+	char fmt[5], fmt2[5];
 	
 	sprintf(fmt, "%%%du", L);
+	sprintf(fmt2, "%%%du", L+1);
 	
 	printf(" max: %d\n\n", A[M]);
 	for(a=0,n=1; n<=N; n++) {
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
 		printf(fmt, A[a+n/2]);
 		printf(")");
 		for(i=0; i<n; i++) {
-			printf(fmt, A[a++]);
+			printf(fmt2, A[a++]);
 		}
 		printf("\n");
 	}
@@ -52,4 +53,3 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
