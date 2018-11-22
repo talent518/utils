@@ -45,6 +45,10 @@ int main(int argc, char *argv[]) {
 		
 		c--;
 		for(bp = ab[1] + b - 1; bp>=ab[1]; bp--) {
+			if(*bp == '0') {
+				c--;
+				continue;
+			}
 			ep = eq + c;
 			over = 0;
 			for(ap = ab[0] + a - 1; ap>=ab[0]; ap--) {
