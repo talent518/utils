@@ -33,9 +33,17 @@ int main(int argc, char *argv[]) {
 		pp = eq;
 	} else {
 		a = strlen(ab[0]);
-		ap = ab[0] + a - 1;
-		
 		b = strlen(ab[1]);
+		if(b > a) {
+			n = a;
+			a = b;
+			b = n;
+			p = ab[0];
+			ab[0] = ab[1];
+			ab[1] = p;
+		}
+		
+		ap = ab[0] + a - 1;
 		bp = ab[1] + b - 1;
 		
 		c = a + b;
