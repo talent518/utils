@@ -1,89 +1,108 @@
+/**
+ * 使用坚式乘法运算算法实现的无限位整数乘法运算
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-int main(int argc, char *argv[]) {
-	register char *p, *ap, *bp, *ep, *pp; // 指针
-	char *ab[2], *eq; // 操作数: ab[0] x ab[1] = eq
+char *strmul(char *astr, char *bstr) {
+	register char *p, *ap, *bp; // 指针
+	char *ap0, *bp0, *eq; // 操作数: astr x bstr = eq
 	register unsigned int i, a = 0, b = 0, c, n, over;
 	
-	if(argc == 3) {
-		for(i = 1; i < argc; i++) {
-			for(p = argv[i]; *p>='0' && *p<='9'; p++);
-			if(*p || p == argv[i]) goto usage;
-		}
-	} else {
-		goto usage;
+	p = astr;
+	n = 1;
+
+valid:
+	if(*p == '+' || *p == '-') p++;
+	if(*p == '0') return NULL;
+	ap0 = p;
+	for(; *p>='0' && *p<='9'; p++);
+	if(*p || p == ap0) return NULL;
+	if(n) {
+		n = 0;
+		p = bstr;
+		goto valid;
 	}
 	
-	for(i = 1; i < argc; i++) {
-		p = argv[i];
-		while(*p == '0') {
-			p++;
-		}
-		if(*p) {
-			ab[i-1] = strdup(p);
-		} else {
-			ab[i-1] = strdup("0");
-		}
-	}
+	if(*astr == '+') astr++;
+	if(*bstr == '+') bstr++;
 	
-	if(!strcmp(ab[0], "0") || !strcmp(ab[1], "0")) {
-		eq = strdup("0");
-		pp = eq;
+	if(!strcmp(astr, "0") || !strcmp(bstr, "0")) {
+		p = strdup("0");
 	} else {
-		a = strlen(ab[0]);
-		b = strlen(ab[1]);
-		if(b > a) {
-			n = a;
-			a = b;
-			b = n;
-			p = ab[0];
-			ab[0] = ab[1];
-			ab[1] = p;
-		}
-		
-		ap = ab[0] + a - 1;
-		bp = ab[1] + b - 1;
-		
+		a = strlen(astr);
+		ap = astr + a - 1; // 操作数a的个位数
+
+		b = strlen(bstr);
+		bp = bstr + b - 1; // 操作数b的个位数
+
 		c = a + b;
-		eq = (char*) malloc(c + 1);
+		eq = (char*) malloc(c + 1); // 运算结果的内存分配
 		for(i = 0; i < c; i++) eq[i] = '0';
 		eq[c] = '\0';
+
+		ap0 = astr; // 操作数a的最高数
+		if(*ap0 == '-') {
+			ap0++;
+		}
+		bp0 = bstr; // 操作数b的最高数
+		if(*bp0 == '-') {
+			bp0++;
+		}
 		
 		c--;
-		for(bp = ab[1] + b - 1; bp>=ab[1]; bp--) {
+		for(bp = bstr + b - 1; bp>=bp0; bp--) {
 			if(*bp == '0') {
 				c--;
 				continue;
 			}
-			ep = eq + c;
-			over = 0;
-			for(ap = ab[0] + a - 1; ap>=ab[0]; ap--) {
-				n = (*ep - '0') + (*ap - '0') * (*bp - '0') + over;
-				*ep-- = '0' + n%10;
+			p = eq + c; // 运算结果的未位，根据b操作数进行缩进
+			over = 0; // 进位
+			for(ap = astr + a - 1; ap>=ap0; ap--) {
+				n = (*p - '0') + (*ap - '0') * (*bp - '0') + over;
+				*p-- = '0' + n%10;
 				over = n/10;
 			}
 			for(; over>0;) {
-				n = (*ep - '0') + over;
-				*ep-- = '0' + n%10;
+				n = (*p - '0') + over;
+				*p-- = '0' + n%10;
 				over = n/10;
 			}
 			c--;
 		}
 	
-		for(pp = eq; *pp == '0'; pp++);
-	}
-	
-	printf("%s x %s = %s\n", ab[0], ab[1], pp);
-	
-	free(ab[0]);
-	free(ab[1]);
-	free(eq);
+		// 最后整理结果
+		for(p = eq; *p == '0'; p++);
+		if(astr[0] == '-') {
+			if(bstr[0] != '-') {
+				*--p = '-';
+			}
+		} else if(bstr[0] == '-') {
+			*--p = '-';
+		}
 
-	return 0;
-usage:
-	printf("usage: %s <numeric> <numeric>\n", argv[0]);
-	return 1;
+		p = strdup(p);
+		free(eq);
+	}
+
+	return p;
 }
 
+int main(int argc, char *argv[]) {
+	char *ret, *a, *b;
+
+	if(argc == 3 && (ret = strmul(argv[1], argv[2]))) {
+		a = argv[1];
+		if(*a == '+') a++;
+		b = argv[2];
+		if(*b == '+') b++;
+		printf("%s x %s = %s\n", a, b, ret);
+		free(ret);
+		return 0;
+	} else {
+		printf("usage: %s <numeric> <numeric>\n", argv[0]);
+		return 1;
+	}
+}
