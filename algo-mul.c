@@ -16,7 +16,6 @@ char *strmul(char *astr, char *bstr) {
 
 valid:
 	if(*p == '+' || *p == '-') p++;
-	if(*p == '0') return NULL;
 	ap0 = p;
 	for(; *p>='0' && *p<='9'; p++);
 	if(*p || p == ap0) return NULL;
@@ -40,8 +39,8 @@ valid:
 
 		c = a + b;
 		eq = (char*) malloc(c + 1); // 运算结果的内存分配
-		for(i = 0; i < c; i++) eq[i] = '0';
-		eq[c] = '\0';
+		memset(eq, '0', c);
+		*(eq+c) = '\0';
 
 		ap0 = astr; // 操作数a的最高数
 		if(*ap0 == '-') {
@@ -75,11 +74,11 @@ valid:
 	
 		// 最后整理结果
 		for(p = eq; *p == '0'; p++);
-		if(astr[0] == '-') {
-			if(bstr[0] != '-') {
+		if(*astr == '-') {
+			if(*bstr != '-') {
 				*--p = '-';
 			}
-		} else if(bstr[0] == '-') {
+		} else if(*bstr == '-') {
 			*--p = '-';
 		}
 
@@ -91,13 +90,35 @@ valid:
 }
 
 int main(int argc, char *argv[]) {
-	char *ret, *a, *b;
+	char *ret, *a, *b, *p, *p0, flag;
 
 	if(argc == 3 && (ret = strmul(argv[1], argv[2]))) {
 		a = argv[1];
 		if(*a == '+') a++;
 		b = argv[2];
 		if(*b == '+') b++;
+
+		p = a;
+		flag = 1;
+	fmt:
+		if(*p == '-') {
+			p++;
+		}
+		p0 = p;
+		while(*p == '-'|| *p == '0') p++;
+		if(p0 != p) {
+			while(*p) *p0++ = *p++;
+		#if 1
+			while(*p0) *p0++ = '\0';
+		#else
+			*p0 = '\0';
+		#endif
+		}
+		if(flag) {
+			flag = 0;
+			p = b;
+			goto fmt;
+		}
 		printf("%s x %s = %s\n", a, b, ret);
 		free(ret);
 		return 0;
