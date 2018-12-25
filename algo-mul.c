@@ -16,6 +16,7 @@ char *strmul(char *astr, char *bstr) {
 
 valid:
 	if(*p == '+' || *p == '-') p++;
+	if(*p<'1' || *p>'9') return NULL;
 	ap0 = p;
 	for(; *p>='0' && *p<='9'; p++);
 	if(*p || p == ap0) return NULL;
@@ -28,7 +29,7 @@ valid:
 	if(*astr == '+') astr++;
 	if(*bstr == '+') bstr++;
 	
-	if(!strcmp(astr, "0") || !strcmp(bstr, "0")) {
+	if(!strcmp(astr, "0") || !strcmp(astr, "-0") || !strcmp(bstr, "0") || !strcmp(bstr, "-0")) {
 		p = strdup("0");
 	} else {
 		a = strlen(astr);
