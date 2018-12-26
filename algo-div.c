@@ -33,19 +33,6 @@ valid:
 	if(!strcmp(astr, "0") || !strcmp(astr, "-0") || !strcmp(bstr, "0") || !strcmp(bstr, "-0")) {
 		p = strdup("0");
 	} else {
-		// a操作数
-		p = astr;
-		if(*astr == '-') {
-			p++;
-			flag++;
-		}
-		an = strlen(p);
-		ap = (unsigned char *) malloc(an);
-		p0 = ap;
-		while(*p) {
-			*p0++ = *p++ - '0';
-		}
-		
 		// b操作数
 		p = bstr;
 		if(*bstr == '-') {
@@ -58,6 +45,21 @@ valid:
 		while(*p) {
 			*p0++ = *p++ - '0';
 		}
+
+		// a操作数
+		p = astr;
+		if(*astr == '-') {
+			p++;
+			flag++;
+		}
+		an = strlen(p);
+		n = (bn>an?bn:an) + 1;
+		ap = (unsigned char *) malloc(n);
+		p0 = ap;
+		while(*p) {
+			*p0++ = *p++ - '0';
+		}
+		for(i=an; i<n; i++) *p0++ = '\0';
 
 		// e结果
 		n = an + 1 - bn;
@@ -86,36 +88,48 @@ valid:
 		}
 	
 	divmod:
-		while(n>=bn) {
-			if(n == bn && memcmp(ap+i, bp, bn)<0) n++;
-			
-		subbp:
-			*p0 += 1;
-			p = ap+i+n-1;
-			for(j=bn-1; j>=0; j--) {
-				if(*p>=bp[j]) {
-					*p -= bp[j];
-					p--;
-					continue;
+		if(n<bn) {
+			n++;
+			p0++;
+		} else {
+			while(n>=bn) {
+				if(n == bn && memcmp(ap+i, bp, bn)<0) {
+					n++;
+
+					if(i+n>an) {
+						p0++;
+						break;
+					}
 				}
-				*p = 10 + *p - bp[j];
-				p--;
-				*p -= 1;
-			}
-			for(p = ap+i; n>0 && i<an && p < ap+i+n && *p == '\0'; n--,i++,p++);
-			if(n == bn) {
-				if(memcmp(ap+i, bp, bn)>=0) goto subbp;
-				n++;
-				p0++;
-			} else if(n > bn) {
-				goto subbp;
-			} else {
-				do {
+				
+			subbp:
+				*p0 += 1;
+				p = ap+i+n-1;
+				for(j=bn-1; j>=0; j--) {
+					if(*p>=bp[j]) {
+						*p -= bp[j];
+						p--;
+						continue;
+					}
+					*p = 10 + *p - bp[j];
+					p--;
+					*p -= 1;
+				}
+				for(p = ap+i; n>0 && i<an && p < ap+i+n && *p == '\0'; n--,i++,p++);
+				if(n == bn) {
+					if(memcmp(ap+i, bp, bn)>=0) goto subbp;
 					n++;
 					p0++;
-				} while(n<bn && i+n<=an);
+				} else if(n > bn) {
+					goto subbp;
+				} else {
+					do {
+						n++;
+						p0++;
+					} while(n<bn && i+n<=an);
+				}
+				if(i+n>an) break;
 			}
-			if(i+n>an) break;
 		}
 		
 		if(scale) { // 小数
@@ -125,6 +139,10 @@ valid:
 					flag = 1;
 				}
 				scale--;
+				if(n<=bn+1 && n>an) {
+					an++;
+					goto divmod;
+				}
 				while(i+n>an) {
 					for(j=i; j<an; j++) ap[j-1] = ap[j];
 					ap[an-1] = '\0';
