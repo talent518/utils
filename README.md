@@ -45,6 +45,7 @@
   * algo-mul.c => 大数乘法
   * algo-div.c => 大数除法(包括余数和小数两种功能)
   * narcissistic-number.c => 水仙花数
+  * prime-factor.c => 正整数分解质因数
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
