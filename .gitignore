@@ -1,11 +1,6 @@
 *.s
-*.S
 *.e
-*.E
 *.o
-*.O
-*.a
-*.so
 cpu-memory-info
 nonRepetitiveSequence
 crypt
@@ -19,4 +14,13 @@ mac
 cpuid
 greatestCommonDivisor
 rftp
+ftp.E
+ftp.O
+ftp.S
+PI
+PI1000
+time
+hanoi
+algo-mul
+algo-div
 
