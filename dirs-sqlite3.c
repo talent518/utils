@@ -146,9 +146,9 @@ int main(int argc, char *argv[]){
 		"BEGIN TRANSACTION",
 		"DROP TABLE IF EXISTS directories",
 		"DROP INDEX IF EXISTS i_directories_parentId_dirName",
-		"DELETE FROM sqlite_sequence",
 		"CREATE TABLE directories(dirId INTEGER PRIMARY KEY AUTOINCREMENT, parentId BIGINT, dirName VARCHAR(255), pathName VARCHAR(4096), linkTarget VARCHAR(4096), nlinks INTEGER, dirMode UNSIGNED MEDIUMINT, dirType ENUM CHECK(dirType IN('REG','DIR','CHR','BLK','FIFO','LNK','SOCK')), uid UNSIGNED INTEGER, gid UNSIGNED INTEGER, size UNSIGNED BIGINT, accessTime DATETIME, modifyTime DATETIME, changeTime DATETIME)",
 		"CREATE UNIQUE INDEX i_directories_parentId_dirName ON directories (parentId, dirName)",
+		"DELETE FROM sqlite_sequence",
 		"COMMIT",
 		"PRAGMA foreign_keys=ON"
 	};
