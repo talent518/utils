@@ -25,3 +25,5 @@ algo-mul
 algo-div
 narcissistic-number
 prime-factor
+dirs-sqlite3
+
