@@ -213,6 +213,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 
 int main(int argc, char *argv[]){
 	const char *dbfile, *path, *name;
+	char sPath[PATH_MAX];
 	int ret = 0, i;
 	char *errmsg = NULL;
 	sqlite3 *db = NULL;
@@ -240,8 +241,6 @@ int main(int argc, char *argv[]){
 	if(argc < 3) goto usage;
 	
 	dbfile = argv[1];
-	name = basename(argv[2]);
-	path = dirname(argv[2]);
 	
 	ret = sqlite3_open(dbfile, &db);
 	if(ret != SQLITE_OK){
@@ -259,7 +258,6 @@ int main(int argc, char *argv[]){
 	
 	sqlite3_prepare_v2(db, "INSERT INTO directory_type_counts(dirType, nCounts)VALUES(?, 0)", -1, &stmt, NULL);
 	for(i=0; types[i]; i++) {
-		// printf("Type: %s\n", types[i]);
 		STMT_STR(stmt, types[i], goto stmterr, "dirType %s", types[i]);
 	}
 	sqlite3_finalize(stmt);
@@ -267,7 +265,6 @@ int main(int argc, char *argv[]){
 	
 	sqlite3_prepare_v2(db, "INSERT INTO directory_mode_counts(dirMode, nCounts)VALUES(?, 0)", -1, &stmt, NULL);
 	for(i=0; i<=07777; i++) {
-		// printf("Mode: 0%04o\n", i);
 		STMT(stmt, int, i, goto stmterr, "dirMode 0%04o", i);
 	}
 	sqlite3_finalize(stmt);
@@ -278,10 +275,20 @@ int main(int argc, char *argv[]){
 	sqlite3_prepare_v2(db, "UPDATE directory_type_counts SET nCounts = nCounts + 1 WHERE dirType=?", -1, &stmtType, NULL);
 	sqlite3_prepare_v2(db, "UPDATE directory_mode_counts SET nCounts = nCounts + 1 WHERE dirMode=?", -1, &stmtMode, NULL);
 	
-	sqlite3_prepare_v2(db, "INSERT INTO directories (parentId, dirName, pathName, linkTarget, nlinks, dirMode, dirType, uid, gid, size, accessTime, modifyTime, changeTime)VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL); // ????
-	ret = recursion_directory(db, stmt, path, name, 0);
+	sqlite3_prepare_v2(db, "INSERT INTO directories (parentId, dirName, pathName, linkTarget, nlinks, dirMode, dirType, uid, gid, size, accessTime, modifyTime, changeTime)VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
 	
-	ret = sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg); // ????
+	for(i=2; i<argc; i++) {
+		strcpy(sPath, argv[i]);
+		name = basename(sPath);
+		path = dirname(sPath);
+		if(!strcmp(name, ".")) {
+			name = "";
+		}
+		ret = recursion_directory(db, stmt, path, name, 0);
+		if(ret) break;
+	}
+	
+	ret = sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg);
 	if(ret != SQLITE_OK) {
 		fprintf(stderr, "SQL: COMMIT\nError: %s\n", errmsg);
 		goto stmterr;
