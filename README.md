@@ -46,7 +46,8 @@
   * algo-div.c => 大数除法(包括余数和小数两种功能)
   * narcissistic-number.c => 水仙花数
   * prime-factor.c => 正整数分解质因数
-  * dirs-sqlite3.c => 目录或文件递归创建数据
+  * dirs-sqlite3.c => 基于Ｃ语言实现的sqlite3数据库目录或文件递归索引
+  * rows-sqlite3.php => 列出sqlite3所有表的总记录数
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
