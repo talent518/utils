@@ -9,10 +9,75 @@
 #include <libgen.h>
 #include <time.h>
 
+#define RETRANSACTION(i, err) { \
+	for(i=0; transactionSqls[i]; i++) { \
+		ret = sqlite3_exec(db, transactionSqls[i], NULL, NULL, &errmsg); \
+		if(ret != SQLITE_OK) { \
+			fprintf(stderr, "SQL: %s\nError: %s\n", transactionSqls[i], errmsg); \
+			err; \
+		} \
+	} \
+}
+
+#define STMT(stmt, t, i, err, fmt, args...) { \
+	sqlite3_bind_##t(stmt, 1, i); \
+	ret = sqlite3_step(stmt); \
+	sqlite3_reset(stmt); \
+	if(ret != SQLITE_DONE) { \
+		switch(ret) { \
+			case SQLITE_BUSY: \
+				fprintf(stderr, fmt " BUSY\n", args); \
+				break; \
+			case SQLITE_ROW: \
+				fprintf(stderr, fmt " ROW\n", args); \
+				break; \
+			case SQLITE_ERROR: \
+				fprintf(stderr, fmt " ERROR\n", args); \
+				break; \
+			case SQLITE_MISUSE: \
+				fprintf(stderr, fmt " MISUSE\n", args); \
+				break; \
+			default: \
+				fprintf(stderr, fmt " UNKNOWN\n", args); \
+				break; \
+		} \
+		err; \
+	} \
+}
+
+#define STMT_STR(stmt, s, err, fmt, args...) { \
+	sqlite3_bind_text(stmt, 1, s, strlen(s), NULL); \
+	ret = sqlite3_step(stmt); \
+	sqlite3_reset(stmt); \
+	if(ret != SQLITE_DONE) { \
+		switch(ret) { \
+			case SQLITE_BUSY: \
+				fprintf(stderr, fmt " BUSY\n", args); \
+				break; \
+			case SQLITE_ROW: \
+				fprintf(stderr, fmt " ROW\n", args); \
+				break; \
+			case SQLITE_ERROR: \
+				fprintf(stderr, fmt " ERROR\n", args); \
+				break; \
+			case SQLITE_MISUSE: \
+				fprintf(stderr, fmt " MISUSE\n", args); \
+				break; \
+			default: \
+				fprintf(stderr, fmt " UNKNOWN\n", args); \
+				break; \
+		} \
+		err; \
+	} \
+}
+
 static const char *transactionSqls[] = {
 	"COMMIT", // 提交事务
-	"BEGIN TRANSACTION" // 开启事务
+	"BEGIN TRANSACTION", // 开启事务
+	NULL
 };
+static sqlite3_stmt *stmtType = NULL;
+static sqlite3_stmt *stmtMode = NULL;
 
 int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const char *name, sqlite3_uint64 parentId) {
 	static char linkTarget[PATH_MAX];
@@ -29,7 +94,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 	
 	ret = lstat(sPath, &st);
 	if(ret) {
-		printf("%s STAT\n", sPath);
+		fprintf(stderr, "%s STAT\n", sPath);
 		return ret;
 	}
 	
@@ -94,19 +159,19 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 	if(ret != SQLITE_DONE) {
 		switch(ret) {
 			case SQLITE_BUSY:
-				printf("%s BUSY\n", sPath);
+				fprintf(stderr, "%s BUSY\n", sPath);
 				break;
 			case SQLITE_ROW:
-				printf("%s ROW\n", sPath);
+				fprintf(stderr, "%s ROW\n", sPath);
 				break;
 			case SQLITE_ERROR:
-				printf("%s ERROR\n", sPath);
+				fprintf(stderr, "%s ERROR\n", sPath);
 				break;
 			case SQLITE_MISUSE:
-				printf("%s MISUSE\n", sPath);
+				fprintf(stderr, "%s MISUSE\n", sPath);
 				break;
 			default:
-				printf("%s UNKNOWN\n", sPath);
+				fprintf(stderr, "%s UNKNOWN\n", sPath);
 				break;
 		}
 		
@@ -115,14 +180,11 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 
 	dirId = sqlite3_last_insert_rowid(db);
 	if(dirId&1024) {
-		for(i=0; i<sizeof(transactionSqls)/sizeof(char*); i++) {
-			ret = sqlite3_exec(db, transactionSqls[i], NULL, NULL, &errmsg);
-			if(ret != SQLITE_OK) {
-				fprintf(stderr, "SQL: %s\nError: %s\n", transactionSqls[i], errmsg);
-				return ret;
-			}
-		}
+		RETRANSACTION(i, return ret);
 	}
+	
+	STMT_STR(stmtType, dirType, return ret, "%s dirType %s", sPath, dirType);
+	STMT(stmtType, int, (unsigned short) (st.st_mode & 07777), return ret, "%s dirMode 0%04o", sPath, (unsigned short) (st.st_mode & 07777));
 	
 	if(S_ISLNK(st.st_mode)) {
 		printf("%s %s => %s\n", sPath, dirType, linkTarget);
@@ -136,7 +198,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 
 	dir = opendir(sPath);
 	if(!dir) {
-		printf("%s NOT DIR\n", sPath);
+		fprintf(stderr, "%s NOT DIR\n", sPath);
 		return 1;
 	}
 	
@@ -163,11 +225,17 @@ int main(int argc, char *argv[]){
 		"DROP INDEX IF EXISTS i_directories_parentId_dirName",
 		"CREATE TABLE directories(dirId INTEGER PRIMARY KEY AUTOINCREMENT, parentId BIGINT, dirName VARCHAR(255), pathName VARCHAR(4096), linkTarget VARCHAR(4096), nlinks INTEGER, dirMode UNSIGNED MEDIUMINT, dirType ENUM CHECK(dirType IN('REG','DIR','CHR','BLK','FIFO','LNK','SOCK')), uid UNSIGNED INTEGER, gid UNSIGNED INTEGER, size UNSIGNED BIGINT, accessTime DATETIME, modifyTime DATETIME, changeTime DATETIME)",
 		"CREATE UNIQUE INDEX i_directories_parentId_dirName ON directories (parentId, dirName)",
+		"DROP TABLE IF EXISTS directory_type_counts",
+		"CREATE TABLE directory_type_counts(dirType ENUM CHECK(dirType IN('REG','DIR','CHR','BLK','FIFO','LNK','SOCK')) PRIMARY KEY, nCounts UNSIGNED BIGINT)",
+		"DROP TABLE IF EXISTS directory_mode_counts",
+		"CREATE TABLE directory_mode_counts(dirMode UNSIGNED MEDIUMINT PRIMARY KEY, nCounts UNSIGNED BIGINT)",
 		"DELETE FROM sqlite_sequence",
 		"COMMIT", // 提交事务
 		"BEGIN TRANSACTION", // 开启事务
-		"PRAGMA foreign_keys=ON"
+		"PRAGMA foreign_keys=ON",
+		NULL
 	};
+	const char *types[] = {"REG", "DIR", "CHR", "BLK", "FIFO", "LNK", "SOCK", NULL};
 	
 	if(argc < 3) goto usage;
 	
@@ -181,7 +249,7 @@ int main(int argc, char *argv[]){
 		goto err;
 	}
 	
-	for(i=0; i<sizeof(sqls)/sizeof(char*); i++) {
+	for(i=0; sqls[i]; i++) {
 		ret = sqlite3_exec(db, sqls[i], NULL, NULL, &errmsg);
 		if(ret != SQLITE_OK) {
 			fprintf(stderr, "SQL: %s\nError: %s\n", sqls[i], errmsg);
@@ -189,22 +257,47 @@ int main(int argc, char *argv[]){
 		}
 	}
 	
+	sqlite3_prepare_v2(db, "INSERT INTO directory_type_counts(dirType, nCounts)VALUES(?, 0)", -1, &stmt, NULL);
+	for(i=0; types[i]; i++) {
+		// printf("Type: %s\n", types[i]);
+		STMT_STR(stmt, types[i], goto stmterr, "dirType %s", types[i]);
+	}
+	sqlite3_finalize(stmt);
+	stmt = NULL;
+	
+	sqlite3_prepare_v2(db, "INSERT INTO directory_mode_counts(dirMode, nCounts)VALUES(?, 0)", -1, &stmt, NULL);
+	for(i=0; i<=07777; i++) {
+		// printf("Mode: 0%04o\n", i);
+		STMT(stmt, int, i, goto stmterr, "dirMode 0%04o", i);
+	}
+	sqlite3_finalize(stmt);
+	stmt = NULL;
+	
+	RETRANSACTION(i, goto dberr);
+	
+	sqlite3_prepare_v2(db, "UPDATE directory_type_counts SET nCounts = nCounts + 1 WHERE dirType=?", -1, &stmtType, NULL);
+	sqlite3_prepare_v2(db, "UPDATE directory_mode_counts SET nCounts = nCounts + 1 WHERE dirMode=?", -1, &stmtMode, NULL);
+	
 	sqlite3_prepare_v2(db, "INSERT INTO directories (parentId, dirName, pathName, linkTarget, nlinks, dirMode, dirType, uid, gid, size, accessTime, modifyTime, changeTime)VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL); // ????
 	ret = recursion_directory(db, stmt, path, name, 0);
-	sqlite3_finalize(stmt);
 	
 	ret = sqlite3_exec(db, "COMMIT", NULL, NULL, &errmsg); // ????
 	if(ret != SQLITE_OK) {
 		fprintf(stderr, "SQL: COMMIT\nError: %s\n", errmsg);
-		goto dberr;
+		goto stmterr;
 	}
+
+stmterr:
+	sqlite3_finalize(stmt);
 	
 dberr:
+	sqlite3_finalize(stmtType);
+	sqlite3_finalize(stmtMode);
 	sqlite3_free(errmsg);
 	sqlite3_close(db);
 err:
 	return -ret;
 usage:
-	printf("usage: %s <dbfile> <directory>\n", argv[0]);
+	fprintf(stderr, "usage: %s <dbfile> <directory>\n", argv[0]);
 	return 2;
 }
