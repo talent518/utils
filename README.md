@@ -48,6 +48,7 @@
   * prime-factor.c => 正整数分解质因数
   * dirs-sqlite3.c => 基于Ｃ语言实现的sqlite3数据库目录或文件递归索引
   * rows-sqlite3.php => 列出sqlite3所有表的总记录数
+  * human.php => 使用对数函数计算并格式化友好文件大小
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
