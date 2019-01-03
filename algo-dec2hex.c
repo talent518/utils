@@ -4,12 +4,6 @@
 
 static char hex[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 
-int hex2dec(char h) {
-	if(h>='0' && h<='9') return h - '0';
-	if(h>='A' && h<='F') return h - 'A';
-	if(h>='a' && h<='f') return h - 'a';
-	return 0;
-}
 int main(int argc, char *argv[]) {
 	register char *p, *pp, *p0;
 	register int n;
@@ -20,10 +14,10 @@ int main(int argc, char *argv[]) {
 	}
 	
 	p = argv[1];
-	if(*p < '1' || *p > '9' && *p < 'A' || *p > 'F' && *p < 'a' || *p > 'f') {
+	if(*p < '1' || *p > '9') {
 		goto usage;
 	}
-	while(*p >= '0' && *p <= '9' || *p >= 'A' && *p <= 'F' || *p >= 'a' && *p <= 'f') p++;
+	while(*p >= '0' && *p <= '9') p++;
 	if(*p) goto usage;
 	
 	ap = strdup(argv[1]);
@@ -44,9 +38,9 @@ loop:
 	n = 0;
 	for(; *p; p++) {
 		if(n) {
-			n = n * 10 + hex2dec(*p);
+			n = n * 10 + (*p - '0');
 		} else {
-			n = hex2dec(*p);
+			n = *p - '0';
 		}
 		*p0++ = hex[n / 16];
 		n = n % 16;
