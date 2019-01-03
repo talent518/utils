@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[]) {
 	register char *p, *pp, *p0;
-	register char n;
+	register int n;
 	char *ap, *bp, *bin;
 	
 	if(argc != 2) {
