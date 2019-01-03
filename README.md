@@ -44,7 +44,7 @@
   * hanoi.c => 河内塔算法
   * algo-mul.c => 大数乘法
   * algo-div.c => 大数除法(包括余数和小数两种功能)
-  * algo-dec2bin.c => 十进制转二进制
+  * algo-dec2bin.c => 大数十进制转二进制
   * narcissistic-number.c => 水仙花数
   * prime-factor.c => 正整数分解质因数
   * dirs-sqlite3.c => 基于Ｃ语言实现的sqlite3数据库目录或文件递归索引
