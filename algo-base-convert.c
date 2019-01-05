@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 	p0 = bp;
 	*p0 = '\0';
 	
-	if(fbase > tbase) n = (int)((float) n * logf(fbase * 2) / logf(tbase));
+	if(fbase > tbase) n = n * (int) ceil(logf(fbase * 2) / logf(tbase));
 
 	bin = (char *) malloc(n+1);
 	pp = bin + n;

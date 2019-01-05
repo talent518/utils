@@ -137,4 +137,5 @@ test: url greatestCommonDivisor
 
 clean:
 	@echo $@
-	@rm -f *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex
+	@rm -vf *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex
+
