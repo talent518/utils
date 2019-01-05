@@ -2,10 +2,10 @@ CC = gcc
 AR = ar
 RL = ranlib
 
-CFLAGS = -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
-LFLAGS = -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
+CFLAGS = -g -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+LFLAGS = -g -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
-all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex algo-base-convert
+all: cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor libftp.a libftp.so rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex algo-base-convert dirs
 
 cpu-memory-info: cpu-memory-info.o
 	@echo LD $@
@@ -119,6 +119,10 @@ algo-base-convert: algo-base-convert.o
 	@echo LD $@
 	@$(CC) -o $@ $^ -O3 $(LFLAGS)
 
+dirs: dirs.o
+	@echo LD $@
+	@$(CC) -o $@ $^ -O3 $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
@@ -137,5 +141,5 @@ test: url greatestCommonDivisor
 
 clean:
 	@echo $@
-	@rm -vf *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex
+	@rm -vf *.o *.O *.s *.S *.e *.E *.a *.so cpu-memory-info nonRepetitiveSequence crypt url 9x9 3Angle YangHuiTriangle BubbleSort 5AngleStar mac cpuid greatestCommonDivisor rftp PI PI1000 time hanoi algo-mul algo-div narcissistic-number prime-factor dirs-sqlite3 algo-dec2bin algo-dec2oct algo-dec2hex dirs
 

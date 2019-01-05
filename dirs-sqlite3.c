@@ -184,7 +184,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 	}
 	
 	STMT_STR(stmtType, dirType, return ret, "%s dirType %s", sPath, dirType);
-	STMT(stmtType, int, (unsigned short) (st.st_mode & 07777), return ret, "%s dirMode 0%04o", sPath, (unsigned short) (st.st_mode & 07777));
+	STMT(stmtMode, int, (unsigned short) (st.st_mode & 07777), return ret, "%s dirMode 0%04o", sPath, (unsigned short) (st.st_mode & 07777));
 	
 	if(S_ISLNK(st.st_mode)) {
 		printf("%s %s => %s\n", sPath, dirType, linkTarget);
@@ -305,6 +305,6 @@ dberr:
 err:
 	return -ret;
 usage:
-	fprintf(stderr, "usage: %s <dbfile> <directory>\n", argv[0]);
+	fprintf(stderr, "usage: %s <dbfile> <directory>...\n", argv[0]);
 	return 2;
 }
