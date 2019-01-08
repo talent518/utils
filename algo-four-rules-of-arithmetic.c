@@ -67,7 +67,7 @@ typedef enum _rule_t {
 void free_ast(ast_t *ast);
 
 int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
-	ast_t left = {.t = NULL_T, .val = {.t=0,.l=0}, .left = NULL, .right = NULL}, right = {.t = NULL_T, .val = {.t=0,.l=0}, .left = NULL, .right = NULL};
+	ast_t left = {NULL_T, {0,0}, NULL, NULL}, right = {NULL_T, {0,0}, NULL, NULL};
 	int ret = 0, i2;
 	ast_type_t t;
 
@@ -466,7 +466,7 @@ void calc_ast(ast_t *ast) {
 }
 
 int main(int argc, char *argv[]) {
-	ast_t ast = {.t = NULL_T, .val = {.t=0,.l=0}, .left = NULL,.right = NULL};
+	ast_t ast = {NULL_T, {0,0}, NULL, NULL};
 	char buf[1024];
 	int i;
 
