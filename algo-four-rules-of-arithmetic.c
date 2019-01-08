@@ -56,13 +56,17 @@ typedef struct _ast_t {
 
 #define WORDS 100
 
-#define R_VAL 0 // 数值: 1 或 2.0
-#define R_LR 1 // 括号: ()
-#define R_SIGN 2 // 正负号: + -
-#define R_MUL_DIV 3 // 乘除运算
-#define R_ADD_SUB 4 // 加减运算
+typedef enum _rule_t {
+	R_VAL=0, // 数值: 1 或 2.0
+	R_LR, // 括号: ()
+	R_SIGN, // 正负号: + -
+	R_MUL_DIV, // 乘除运算
+	R_ADD_SUB // 加减运算
+} rule_t;
 
-int _parse_ast(word_t *words, int i, int n, int r, ast_t *ast) {
+void free_ast(ast_t *ast);
+
+int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 	ast_t left = {.t = NULL_T, .val = {.t=0,.l=0}, .left = NULL, .right = NULL}, right = {.t = NULL_T, .val = {.t=0,.l=0}, .left = NULL, .right = NULL};
 	int ret = 0, i2;
 	ast_type_t t;
@@ -126,8 +130,8 @@ int _parse_ast(word_t *words, int i, int n, int r, ast_t *ast) {
 			}
 			break;
 		}
-		case R_ADD_SUB:
-		case R_MUL_DIV: {
+		case R_MUL_DIV:
+		case R_ADD_SUB: {
 			i2 = i;
 			t = NULL_T;
 			ret = _parse_ast(words, i, n, r == R_MUL_DIV ? R_SIGN : R_MUL_DIV, &left);
@@ -145,6 +149,10 @@ int _parse_ast(word_t *words, int i, int n, int r, ast_t *ast) {
 
 				left = *ast;
 				left.t = t;
+				
+				right.t = NULL_T;
+				right.left = NULL;
+				right.right = NULL;
 
 				ast->left = NULL;
 				ast->right = NULL;
@@ -305,7 +313,7 @@ int parse_ast(const char *s, ast_t *ast) {
 	return i;
 }
 
-int free_ast(ast_t *ast) {
+void free_ast(ast_t *ast) {
 	if(ast->left) {
 		free_ast(ast->left);
 		free(ast->left);

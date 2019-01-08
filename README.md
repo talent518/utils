@@ -48,7 +48,7 @@
   * algo-dec2oct.c => 大数十进制转八进制
   * algo-dec2hex.c => 大数十进制转十六进制
   * algo-base-convert.c => 大数n进制转n进制(n大于等于2且小于等于36)
-  * algo-four-rules-of-arithmetic.c => 四则运算(正、负、加、减、乘、除和括号)
+  * algo-four-rules-of-arithmetic.c => 四则运算(AST语法规则: 正、负、加、减、乘、除和括号)
   * narcissistic-number.c => 水仙花数
   * prime-factor.c => 正整数分解质因数
   * dirs-sqlite3.c => 基于Ｃ语言实现的sqlite3数据库目录或文件递归索引

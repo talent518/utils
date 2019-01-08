@@ -265,11 +265,12 @@ err:
 		free(tmp);
 	}
 	
+	printf("\n");
 	for(i=0; i<=0777; i++) {
 		if(modeCount[i]) printf("%05d: %u\n", i, modeCount[i]);
 	}
 
-	printf("REG: %u\nDIR: %u\nCHR: %u\nBLK: %u\nFIFO: %u\nLNK: %u\nSOCK: %u\n", typeCount.REG, typeCount.DIR, typeCount.CHR, typeCount.BLK, typeCount.FIFO, typeCount.LNK, typeCount.SOCK);
+	printf("\nREG: %u\nDIR: %u\nCHR: %u\nBLK: %u\nFIFO: %u\nLNK: %u\nSOCK: %u\n", typeCount.REG, typeCount.DIR, typeCount.CHR, typeCount.BLK, typeCount.FIFO, typeCount.LNK, typeCount.SOCK);
 	
 	return -ret;
 usage:
