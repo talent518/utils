@@ -428,23 +428,23 @@ void calc_ast(ast_t *ast) {
 			calc_ast(ast->left);
 			calc_ast(ast->right);
 			if(ast->left->val.t == LNG_T && ast->right->val.t == LNG_T) {
-				ast->val.t = LNG_T;
-				ast->val.l = ast->left->val.l / ast->right->val.l;
+				ast->val.t = DBL_T;
+				ast->val.f = (double) ast->left->val.l / (double) ast->right->val.l;
 
 				dprintf("DIV_T: %ldL / %ldL = %ldL\n", ast->left->val.l, ast->right->val.l, ast->val.l);
 			} else if(ast->left->val.t == DBL_T && ast->right->val.t == DBL_T) {
 				ast->val.t = DBL_T;
-				ast->val.f = ast->left->val.f / ast->right->val.f;
+				ast->val.f = ast->left->val.f / (double) ast->right->val.f;
 
 				dprintf("DIV_T: %gF / %gF = %gF\n", ast->left->val.f, ast->right->val.f, ast->val.f);
 			} else if(ast->left->val.t == LNG_T) {
 				ast->val.t = DBL_T;
-				ast->val.f = ast->left->val.l / ast->right->val.f;
+				ast->val.f = (double) ast->left->val.l / ast->right->val.f;
 
 				dprintf("DIV_T: %ldL / %gF = %gF\n", ast->left->val.l, ast->right->val.f, ast->val.f);
 			} else {
 				ast->val.t = DBL_T;
-				ast->val.f = ast->left->val.f / ast->right->val.l;
+				ast->val.f = ast->left->val.f / (double) ast->right->val.l;
 
 				dprintf("DIV_T: %gF / %ld = %gF\n", ast->left->val.f, ast->right->val.l, ast->val.f);
 			}
@@ -471,7 +471,7 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	if(argc < 2) {
-		while(scanf("%s", buf) && strcmp(buf, "q")) {
+		while(printf("Enter an expression to evaluate or exit q：") && scanf("%s", buf) && strcmp(buf, "q")) {
 			if(parse_ast(buf, &ast)<=0) continue;
 			calc_ast(&ast);
 			if(ast.val.t == LNG_T) {
