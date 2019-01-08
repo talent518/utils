@@ -471,8 +471,7 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	if(argc < 2) {
-		scanf("%s", buf);
-		while(strlen(buf) == 0) {
+		while(scanf("%s", buf) && strcmp(buf, "q")) {
 			if(parse_ast(buf, &ast)<=0) continue;
 			calc_ast(&ast);
 			if(ast.val.t == LNG_T) {
@@ -480,7 +479,6 @@ int main(int argc, char *argv[]) {
 			} else {
 				printf("%s = %g\n", buf, ast.val.f);
 			}
-			scanf("%s", buf);
 		}
 	} else {
 		for(i=1; i<argc; i++) {
