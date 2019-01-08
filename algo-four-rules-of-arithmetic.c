@@ -47,7 +47,7 @@ typedef struct _ast_t {
 	struct _ast_t *right;
 } ast_t;
 
-#define PARSE_AST_DEBUG 1
+#define PARSE_AST_DEBUG 0
 #if PARSE_AST_DEBUG
 	#define dprintf(args...) printf(args)
 #else
