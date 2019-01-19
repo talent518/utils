@@ -32,3 +32,5 @@ algo-dec2hex
 algo-base-convert
 dirs
 algo-four-rules-of-arithmetic
+algo-sqrt
+
