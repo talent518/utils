@@ -114,21 +114,16 @@ char *str_sqrt(const char *str, int scale) {
 	register char *p, *pv;
 	register char i = 0;
 	char *nstr, *vstr, *tstr;
-	int an = 0, bn = 0, sign = 0, n = 0;
+	int an = 0, bn = 0, n = 0;
 	const int N = 4;
-	char *val = NULL;
+	char *val = NULL, isdot;
 	
 	if(scale <= 0) {
 		return NULL;
 	}
 	
 	p = (char*) str;
-	
-	if(*p == '-') {
-		p++;
-		sign = 1;
-	}
-	
+
 	while(*p >= '0' && *p <= '9') {
 		p++;
 		an++;
@@ -156,16 +151,12 @@ char *str_sqrt(const char *str, int scale) {
 	if(*p) return NULL;
 	
 	if(an == 1 && bn == 0) {
-		if((sign == 0 && *str == '0' || sign && *(str+1) == '0')) {
+		if(*str == '0') {
 			return strdup("0");
-		} else if(sign == 0 && *str == '1') {
+		} else if(*str == '1') {
 			return strdup("1");
-		} else if(sign == 1 && *(str+1) == '1') {
-			return strdup("-1");
 		}
 	}
-	
-	if(sign) n++;
 	
 	if(an) {
 		n += (an+1)/2;
@@ -192,19 +183,13 @@ char *str_sqrt(const char *str, int scale) {
 	pv = val;
 	p = (char*) str;
 	
-	if(sign) {
-		*pv = '-';
-		pv++;
-		p++;
-	}
-	
-	sign = 1;
+	isdot = 1;
 	if(an == 1 && *p == '0') {
 		an--;
 		p += 2;
 		*pv++ = '0';
 		*pv++ = '.';
-		sign = 0;
+		isdot = 0;
 	}
 	
 loop:
@@ -229,9 +214,9 @@ loop:
 			free(tstr);
 			return val;
 		}
-		if(sign) {
+		if(isdot) {
 			*pv++ = '.';
-			sign = 0;
+			isdot = 0;
 		}
 		if(bn > 1) {
 			strncat(nstr, p, 2);
@@ -249,9 +234,9 @@ loop:
 		free(tstr);
 		return val;
 	} else {
-		if(sign) {
+		if(isdot) {
 			*pv++ = '.';
-			sign = 0;
+			isdot = 0;
 		}
 		strncat(nstr, "00", 2);
 		scale--;
