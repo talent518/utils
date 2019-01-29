@@ -49,7 +49,8 @@
   * algo-dec2hex.c => 大数十进制转十六进制
   * algo-base-convert.c => 大数n进制转n进制(n大于等于2且小于等于36)
   * algo-four-rules-of-arithmetic.c => 四则运算(AST语法规则: 正、负、加、减、乘、除和括号)
-  * algo-sqrt.c => 大数开方算法
+  * algo-sqrt.c => 大数开平方算法
+  * algo-cbrt.c => 大数开立方算法
   * narcissistic-number.c => 水仙花数
   * prime-factor.c => 正整数分解质因数
   * dirs-sqlite3.c => 基于Ｃ语言实现的sqlite3数据库目录或文件递归索引
@@ -59,5 +60,6 @@
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
-![开方算法](algo-sqrt.jpg "开方算法")
+![开平方算法](algo-sqrt.jpg "开平方算法")
+![开立方算法](algo-cbrt.jpg "开立方算法")
 
