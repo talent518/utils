@@ -258,7 +258,7 @@ loop:
 			p+=an % 3;
 			an-=an % 3;
 		} else {
-			strncat(nstr, p, 2);
+			strncat(nstr, p, 3);
 			an-=3;
 			p+=3;
 		}
