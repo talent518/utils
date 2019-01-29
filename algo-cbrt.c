@@ -81,6 +81,18 @@ int str_val(char *tstr, char *vstr, char i, char *nstr) {
 		free(vp3);
 	}
 	
+	if(i == 9) {
+		tp1 = nstr;
+		while(*tp1 == '0') tp1++;
+		if(*tp1 && tp1>nstr) {
+			tp2 = nstr;
+			while(*tp1) *tp2++=*tp1++;
+			*tp2 = '\0';
+		} else if(!*tp1) {
+			*nstr = '\0';
+		}
+	}
+	
 	tn = strlen(tstr);
 	nn = strlen(nstr);
 	if(tn == nn) {
@@ -239,6 +251,7 @@ char *str_cbrt(const char *str, int scale) {
 	
 loop:
 	if(!strcmp(nstr, "0")) *nstr = '\0';
+	if(!strcmp(vstr, "0")) *vstr = '\0';
 	if(an) {
 		if(an % 3) {
 			strncpy(nstr, p, an % 3);

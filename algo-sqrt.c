@@ -51,6 +51,18 @@ int str_val(char *tstr, char *vstr, char i, char *nstr) {
 		}
 	}
 	
+	if(i == 9) {
+		tp = nstr;
+		while(*tp == '0') tp++;
+		if(*tp && tp>nstr) {
+			vp = nstr;
+			while(*tp) *vp++=*tp++;
+			*vp = '\0';
+		} else if(!*tp) {
+			*nstr = '\0';
+		}
+	}
+	
 	tn = strlen(tstr);
 	nn = strlen(nstr);
 	if(tn == nn) {
