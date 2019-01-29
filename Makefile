@@ -160,6 +160,11 @@ algo-sqrt: algo-sqrt.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: algo-cbrt
+algo-cbrt: algo-cbrt.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

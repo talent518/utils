@@ -90,6 +90,7 @@ valid:
 	return p;
 }
 
+#ifndef HAVE_STRMUL
 int main(int argc, char *argv[]) {
 	char *ret, *a, *b, *p, *p0, flag;
 
@@ -128,3 +129,5 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 }
+#endif
+
