@@ -362,6 +362,7 @@ int main(int argc, char *argv[]) {
 	
 	ftpbuf_t *ftp = ftp_open(host, port, 90);
 	if(!ftp) {
+		fprintf(stderr, "connect %s:%d failure\n", host, port);
 		goto optEnd;
 	}
 	
@@ -370,7 +371,14 @@ int main(int argc, char *argv[]) {
 	ftp->use_ssl = use_ssl;
 #endif
 	if(!ftp_login(ftp, user, strlen(user), password, strlen(password))) {
+		fprintf(stderr, "user %s login failure\n", user);
 		goto ftpQuit;
+	}
+	
+	if(ftp_pasv(ftp, 1)) {
+		fprintf(stderr, "passive mode on\n");
+	} else {
+		fprintf(stderr, "passive mode off\n");
 	}
 
 	// {{{ format remote
