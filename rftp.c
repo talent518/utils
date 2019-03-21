@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 
 #include "getcmdopt.h"
 #include "ftp.h"
@@ -22,6 +23,7 @@ static const opt_struct OPTIONS[] = {
 	{'l', 1, "local"},
 	{'r', 1, "remote"},
 	{'t', 1, "try"},
+	{'T', 1, "timeout"},
 	{'s', 0, "ssl"},
 
 	{'-', 0, NULL} /* end of args */
@@ -51,6 +53,7 @@ static void usage(char *argv0) {
 		"  -l local, --local local           Local working directory\n"
 		"  -r remote, --remote remote        Remote working directory\n"
 		"  -t try, --try try                 Failure try times(default: 3)\n"
+		"  -T timeout, --timeout timeout     Timeout(default: 3 seconds)\n"
 		"  -s, --ssl                         Use ssl\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
 		, prog);
@@ -222,20 +225,18 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 		} else if(S_ISREG(st.st_mode)) {
 			printf("-: %s => %s\n", plocal, premote);
 			
-			tries = 0;
-		tryput:
 			size = ftp_size(ftp, premote, strlen(premote));
 			fp = NULL;
-			if(st.st_size != size && (fp=fopen(plocal, "r")) && !ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size<0?0:(fseek(fp, size, SEEK_SET)!=size?0:size))) {
-				if(++tries < TRIES) {
-					fclose(fp);
-					goto tryput;
+			if(st.st_size != size && (fp=fopen(plocal, "r"))) {
+				tries = 0;
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size) && ftp->resp != 1024 && ++tries < TRIES);
+				if(fp) fclose(fp);
+				nTRIES += tries;
+				if(ftp->resp == 1024 || tries >= TRIES) {
+					fprintf(stderr, "Upload file %s failed\n", plocal);
+					ret = 1;
 				}
-				fprintf(stderr, "Upload file %s failed\n", plocal);
-				ret = 1;
 			}
-			if(fp) fclose(fp);
-			nTRIES += tries;
 		} else {
 			char type;
 			switch(st.st_mode & S_IFMT) {
@@ -320,6 +321,7 @@ int main(int argc, char *argv[]) {
 #ifdef HAVE_FTP_SSL
 	int use_ssl = 0;
 #endif
+	int timeout = 3;
 	char *host = NULL, *user = NULL, *password = NULL, *method = NULL, *local = NULL, *remote = NULL;
 
 	if(argc == 1) {
@@ -353,6 +355,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 't':
 				TRIES = atoi((const char *)optarg);
+				break;
+			case 'T':
+				timeout = atoi((const char *)optarg);
 				break;
 		#ifdef HAVE_FTP_SSL
 			case 's':
@@ -396,7 +401,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
-	ftpbuf_t *ftp = ftp_open(host, port, 90);
+	ftpbuf_t *ftp = ftp_open(host, port, timeout);
 	if(!ftp) {
 		fprintf(stderr, "connect %s:%d failure\n", host, port);
 		goto optEnd;
@@ -480,7 +485,7 @@ int main(int argc, char *argv[]) {
 	}
 
 ftpQuit:
-	ftp_quit(ftp);
+	//ftp_quit(ftp);
 	ftp_close(ftp);
 
 optEnd:
@@ -493,6 +498,7 @@ optEnd:
 		}
 	}
 	
+	if(errno) fprintf(stderr, "Error: %s\n", strerror(errno));
 	fprintf(stderr, "Total try times is %lu\n", nTRIES);
 
 	return exit_status;
