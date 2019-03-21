@@ -1419,12 +1419,18 @@ ftp_put(ftpbuf_t *ftp, const char *path, const size_t path_len, php_stream *inst
 		if (!ftp_getresp(ftp) || (ftp->resp != 350)) {
 			goto bail;
 		}
+		if (fseek(instream, startpos, SEEK_SET)) {
+			goto bail;
+		}
 	}
 
+	ch = 0;
+trystor:
 	if (!ftp_putcmd(ftp, "STOR", sizeof("STOR")-1, path, path_len)) {
 		goto bail;
 	}
 	if (!ftp_getresp(ftp) || (ftp->resp != 150 && ftp->resp != 125)) {
+		if(ftp->resp == 0 && ++ch < 16) goto trystor;
 		goto bail;
 	}
 	if ((data = data_accept(data, ftp)) == NULL) {
@@ -1458,6 +1464,7 @@ ftp_put(ftpbuf_t *ftp, const char *path, const size_t path_len, php_stream *inst
 	ftp->data = data = data_close(ftp, data);
 
 	if (!ftp_getresp(ftp) || (ftp->resp != 226 && ftp->resp != 250 && ftp->resp != 200)) {
+		if(ftp->resp == 0) ftp->resp = 1024;
 		goto bail;
 	}
 	return 1;
