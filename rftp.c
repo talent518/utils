@@ -9,6 +9,9 @@
 #include "getcmdopt.h"
 #include "ftp.h"
 
+static int TRIES = 3;
+static unsigned long int nTRIES = 0;
+
 static const opt_struct OPTIONS[] = {
 	{'H', 0, "hide-args"},
 	{'h', 1, "host"},
@@ -18,6 +21,7 @@ static const opt_struct OPTIONS[] = {
 	{'m', 1, "method"},
 	{'l', 1, "local"},
 	{'r', 1, "remote"},
+	{'t', 1, "try"},
 	{'s', 0, "ssl"},
 
 	{'-', 0, NULL} /* end of args */
@@ -46,6 +50,7 @@ static void usage(char *argv0) {
 		"  -m method, --method method        FTP operation method(get, put, rls, del)\n"
 		"  -l local, --local local           Local working directory\n"
 		"  -r remote, --remote remote        Remote working directory\n"
+		"  -t try, --try try                 Failure try times(default: 3)\n"
 		"  -s, --ssl                         Use ssl\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
 		, prog);
@@ -68,13 +73,18 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t fu
 	unsigned long int size;
 	char dt1[4]="", dt2[3]="", dt3[6]="", datetime[13]="", name[256]="", link[256]="";
 	char *ptr;
+	int tries = 0;
 	
+trylst:
 	lines = ftp_list(ftp, path, len, 0);
 	if(!lines) {
+		if(++tries < TRIES) goto trylst;
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
 		return 1;
 	}
+	
+	nTRIES += tries;
 	
 	int ret = 0;
 	while(line=lines[n++]) {
@@ -116,7 +126,10 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 	
 	asprintf(&plocal, "%s/%s", local, name);
 	asprintf(&premote, "%s/%s", remote, name);
+
+	int tries = 0;
 	
+tryget:
 	i = lstat(plocal, &st);
 	
 	if(type == 'd') {
@@ -144,6 +157,10 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 			FILE *fp = fopen(plocal, "a");
 			if(fp) {
 				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 ? st.st_size : 0)) {
+					if(++tries < TRIES) {
+						fclose(fp);
+						goto tryget;
+					}
 					fprintf(stderr, "Download file %s failed\n", plocal);
 					ret = 1;
 				}
@@ -159,6 +176,8 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 	
 	free(plocal);
 	free(premote);
+	
+	nTRIES += tries;
 	
 	return ret;
 }
@@ -183,6 +202,7 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	struct stat st;
 	FILE *fp;
 	int ret = 0;
+	int tries;
 	
 	while(ret == 0 && (dir=readdir(dh))) {
 		if(!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) {
@@ -201,13 +221,21 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 			ret = ftpput(ftp, plocal, premote);
 		} else if(S_ISREG(st.st_mode)) {
 			printf("-: %s => %s\n", plocal, premote);
+			
+			tries = 0;
+		tryput:
 			size = ftp_size(ftp, premote, strlen(premote));
 			fp = NULL;
 			if(st.st_size != size && (fp=fopen(plocal, "r")) && !ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size<0?0:(fseek(fp, size, SEEK_SET)!=size?0:size))) {
+				if(++tries < TRIES) {
+					fclose(fp);
+					goto tryput;
+				}
 				fprintf(stderr, "Upload file %s failed\n", plocal);
 				ret = 1;
 			}
 			if(fp) fclose(fp);
+			nTRIES += tries;
 		} else {
 			char type;
 			switch(st.st_mode & S_IFMT) {
@@ -238,6 +266,7 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 	
 	char *premote = NULL;
 	int ret = 0;
+	int tries = 0;
 	
 	asprintf(&premote, "%s/%s", remote, name);
 	
@@ -248,13 +277,17 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 			ret = 1;
 		}
 	} else {
+	trydel:
 		if(!ftp_delete(ftp, premote, strlen(premote))) {
+			if(++tries < TRIES) goto trydel;
 			fprintf(stderr, "Deletion of file %s failed\n", premote);
 			ret = 1;
 		}
 	}
 	
 	free(premote);
+	
+	nTRIES += tries;
 	
 	return ret;
 }
@@ -317,6 +350,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'r':
 				remote = strdup((const char *)optarg);
+				break;
+			case 't':
+				TRIES = atoi((const char *)optarg);
 				break;
 		#ifdef HAVE_FTP_SSL
 			case 's':
@@ -456,6 +492,8 @@ optEnd:
 			}
 		}
 	}
+	
+	fprintf(stderr, "Total try times is %lu\n", nTRIES);
 
 	return exit_status;
 }
