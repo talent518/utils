@@ -55,7 +55,7 @@ if(!isset($options['H']) && PHP_OS !== 'WINNT') {
 
 @ftp_login($ftp, $options['u'], $options['w']) or die(FAILURE_COLOR . 'Login failed' . CLEAR_COLOR . PHP_EOL);
 
-if(strncmp($options['r'], '/') && ($pwd = ftp_pwd($ftp))) {
+if(strncmp($options['r'], '/', 1) && ($pwd = ftp_pwd($ftp))) {
 	$options['r'] = rtrim($pwd, '/') . '/' . $options['r'];
 }
 
