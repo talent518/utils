@@ -88,6 +88,12 @@ typedef struct ftpbuf {
 	SSL             *ssl_handle;      /* handle for control connection */
 	int             ssl_active;		  /* ssl active on control conn */
 #endif
+	int             debug; // show controll send and recv message
+	char            prompt[FTP_BUFSIZE];
+	char            *host;
+	int             port;
+	const char      *user;
+	const char      *pass;
 } ftpbuf_t;
 
 
@@ -95,7 +101,7 @@ typedef struct ftpbuf {
 /* open a FTP connection, returns ftpbuf (NULL on error)
  * port is the ftp port in network byte order, or 0 for the default
  */
-ftpbuf_t*	ftp_open(const char *host, short port, zend_long timeout_sec);
+ftpbuf_t*	ftp_open(const char *host, short port, zend_long timeout_sec, int debug);
 
 /* quits from the ftp session (it still needs to be closed)
  * return true on success, false on error
