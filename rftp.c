@@ -71,7 +71,7 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t fu
 	char *line;
 	int len = asprintf(&path, "-a %s", remote);
 	
-	char perms[12]="";
+	char perms[11]="";
 	int number, owner, group;
 	unsigned long int size;
 	char dt1[4]="", dt2[3]="", dt3[6]="", datetime[13]="", name[256]="", link[256]="";
@@ -94,7 +94,12 @@ trylst:
 		if(line[0] == 'd' && (ptr = strrchr(line, ' ')) && (!strcmp(ptr+1, ".") || !strcmp(ptr+1, ".."))) {
 			continue;
 		}
-		sscanf(line, "%12s %d %d %d %lu %s %s %s %n", perms, &number, &owner, &group, &size, dt1, dt2, dt3, &len);
+		ret = sscanf(line, "%[^ ] %d %d %d %lu %s %s %s %n", perms, &number, &owner, &group, &size, dt1, dt2, dt3, &len);
+		if(ret == 2) {
+			ret = sscanf(line, "%[^ ] %d %*[^ ] %*[^ ] %lu %s %s %s %n", perms, &number, &size, dt1, dt2, dt3, &len);
+			owner = 1000;
+			group = 1000;
+		}
 		if(line[0] == 'l' && (ptr = strstr(line+len, " -> "))) {
 			strncpy(name, line+len, ptr-line-len);
 			strcpy(link, ptr+4);
@@ -107,6 +112,7 @@ trylst:
 		strcat(datetime, dt2);
 		strcat(datetime, " ");
 		strcat(datetime, dt3);
+		ret = 0;
 		if(func(ftp, local, remote, line, perms[0], perms, number, owner, group, size, datetime, name, link)) {
 			ret = 1;
 			break;
@@ -190,9 +196,11 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 trymkdir:
 	if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
 		if(++tries < TRIES) goto trymkdir;
+		nTRIES += tries;
 		fprintf(stderr, "Failed to create remote directory %s\n", remote);
 		return 1;
 	}
+	nTRIES += tries;
 	
 	if(*local || *remote) printf("d: %s => %s\n", local, remote);
 	
@@ -324,7 +332,7 @@ int main(int argc, char *argv[]) {
 	int use_ssl = 0;
 #endif
 	int timeout = 3;
-	char *host = NULL, *user = NULL, *password = NULL, *method = NULL, *local = NULL, *remote = NULL;
+	char *host = NULL, *user = strdup("anonymous"), *password = strdup("anonymous"), *method = NULL, *local = NULL, *remote = NULL;
 
 	if(argc == 1) {
 		usage(argv[0]);
@@ -458,7 +466,7 @@ int main(int argc, char *argv[]) {
 	
 	struct stat st;
 	
-	i = strcmp(method, "del") ? lstat(local, &st) : 0;
+	i = strcmp(method, "del") && strcmp(method, "rls") ? lstat(local, &st) : 0;
 	
 	if(!strcmp(method, "get")) {
 		if(i == 0 && !S_ISDIR(st.st_mode)) {
