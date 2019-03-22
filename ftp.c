@@ -456,6 +456,7 @@ skip_bind:
 				}
 			}
 #endif
+
 			n = php_network_connect_socket(sock, sa, socklen, asynchronous,
 					timeout ? &working_timeout : NULL,
 					error_string, error_code);
