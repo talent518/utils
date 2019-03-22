@@ -186,7 +186,10 @@ tryget:
 }
 
 int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
+	int tries = 0;
+trymkdir:
 	if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
+		if(++tries < TRIES) goto trymkdir;
 		fprintf(stderr, "Failed to create remote directory %s\n", remote);
 		return 1;
 	}
@@ -205,7 +208,6 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	struct stat st;
 	FILE *fp;
 	int ret = 0;
-	int tries;
 	
 	while(ret == 0 && (dir=readdir(dh))) {
 		if(!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) {
