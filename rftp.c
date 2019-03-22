@@ -241,7 +241,7 @@ trymkdir:
 			fp = NULL;
 			if(st.st_size != size && (fp=fopen(plocal, "r"))) {
 				tries = 0;
-				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size) && ftp->resp != 1024 && ++tries < TRIES);
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size) && (errno==ETIMEDOUT || ftp->resp != 1024) && ++tries < TRIES);
 				if(fp) fclose(fp);
 				nTRIES += tries;
 				if(ftp->resp == 1024 || tries >= TRIES) {
