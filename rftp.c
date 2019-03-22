@@ -24,6 +24,7 @@ static const opt_struct OPTIONS[] = {
 	{'r', 1, "remote"},
 	{'t', 1, "try"},
 	{'T', 1, "timeout"},
+	{'d', 0, "debug"},
 	{'s', 0, "ssl"},
 
 	{'-', 0, NULL} /* end of args */
@@ -54,6 +55,7 @@ static void usage(char *argv0) {
 		"  -r remote, --remote remote        Remote working directory\n"
 		"  -t try, --try try                 Failure try times(default: 3)\n"
 		"  -T timeout, --timeout timeout     Timeout(default: 3 seconds)\n"
+		"  -d, --debug                       Print debug info to stderr\n"
 		"  -s, --ssl                         Use ssl\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
 		, prog);
@@ -332,6 +334,7 @@ int main(int argc, char *argv[]) {
 	int use_ssl = 0;
 #endif
 	int timeout = 3;
+	int debug = 0;
 	char *host = NULL, *user = strdup("anonymous"), *password = strdup("anonymous"), *method = NULL, *local = NULL, *remote = NULL;
 
 	if(argc == 1) {
@@ -369,6 +372,9 @@ int main(int argc, char *argv[]) {
 			case 'T':
 				timeout = atoi((const char *)optarg);
 				break;
+			case 'd':
+				debug = 1;
+				break;
 		#ifdef HAVE_FTP_SSL
 			case 's':
 				use_ssl = 1;
@@ -393,10 +399,13 @@ int main(int argc, char *argv[]) {
 			"  method   = \"%s\"\n"
 			"  local    = \"%s\"\n"
 			"  remote   = \"%s\"\n"
+			"  TRIES    = %d\n"
+			"  timeout  = %d\n"
+			"  debug  = %d\n"
 		#ifdef HAVE_FTP_SSL
 			"  ssl      = %d\n"
 		#endif
-			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:""
+			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:"", TRIES, timeout, debug
 		#ifdef HAVE_FTP_SSL
 			, use_ssl
 		#endif
@@ -411,7 +420,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
-	ftpbuf_t *ftp = ftp_open(host, port, timeout);
+	ftpbuf_t *ftp = ftp_open(host, port, timeout, debug);
 	if(!ftp) {
 		fprintf(stderr, "connect %s:%d failure\n", host, port);
 		goto optEnd;
@@ -493,6 +502,8 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "Deletion of directory %s failed\n", remote);
 		}
 	}
+	
+	exit_status = -errno;
 
 ftpQuit:
 	//ftp_quit(ftp);

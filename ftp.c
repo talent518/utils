@@ -559,7 +559,7 @@ PHPAPI int php_sockaddr_size(php_sockaddr_storage *addr)
 /* {{{ ftp_open
  */
 ftpbuf_t*
-ftp_open(const char *host, short port, zend_long timeout_sec)
+ftp_open(const char *host, short port, zend_long timeout_sec, int debug)
 {
 	ftpbuf_t		*ftp;
 	socklen_t		 size;
@@ -572,12 +572,17 @@ ftp_open(const char *host, short port, zend_long timeout_sec)
 	tv.tv_sec = timeout_sec;
 	tv.tv_usec = 0;
 
+	ftp->host = host;
+	ftp->port = port ? port : 21;
+
 	ftp->fd = php_network_connect_socket_to_host(host,
-			(unsigned short) (port ? port : 21), SOCK_STREAM,
+			(unsigned short) (ftp->port), SOCK_STREAM,
 			0, &tv, NULL, NULL, NULL, 0, STREAM_SOCKOP_NONE);
 	if (ftp->fd == -1) {
 		goto bail;
 	}
+	ftp->debug = debug;
+	if(debug) snprintf(ftp->prompt, FTP_BUFSIZE, "...@%s:%d", host, port?port:21);
 
 	/* Default Settings */
 	ftp->timeout_sec = timeout_sec;
@@ -822,6 +827,9 @@ ftp_login(ftpbuf_t *ftp, const char *user, const size_t user_len, const char *pa
 	if (!ftp_getresp(ftp)) {
 		return 0;
 	}
+	ftp->user = user;
+	ftp->pass = pass;
+	if(ftp->debug && ftp->resp == 230) snprintf(ftp->prompt, FTP_BUFSIZE, "%s@%s:%d", ftp->user, ftp->host, ftp->port);
 	return (ftp->resp == 230);
 }
 /* }}} */
@@ -915,6 +923,7 @@ ftp_pwd(ftpbuf_t *ftp)
 		return NULL;
 	}
 	ftp->pwd = estrndup(pwd, end - pwd);
+	if(ftp->debug) snprintf(ftp->prompt, FTP_BUFSIZE, "%s@%s:%d%s", ftp->user, ftp->host, ftp->port, ftp->pwd);
 
 	return ftp->pwd;
 }
@@ -1710,6 +1719,7 @@ ftp_putcmd(ftpbuf_t *ftp, const char *cmd, const size_t cmd_len, const char *arg
 	/* Clear the extra-lines buffer */
 	ftp->extra = NULL;
 
+	if(ftp->debug) fprintf(stderr, "%s > %s", ftp->prompt, data);
 	if (my_send(ftp, ftp->fd, data, size) != size) {
 		return 0;
 	}
@@ -1748,6 +1758,7 @@ ftp_readline(ftpbuf_t *ftp)
 				if ((ftp->extralen = --rcvd) == 0) {
 					ftp->extra = NULL;
 				}
+				if(ftp->debug) fprintf(stderr, "%s < %s\n", ftp->prompt, data);
 				return 1;
 			} else if (*eol == '\n') {
 				*eol = 0;
@@ -1755,6 +1766,7 @@ ftp_readline(ftpbuf_t *ftp)
 				if ((ftp->extralen = --rcvd) == 0) {
 					ftp->extra = NULL;
 				}
+				if(ftp->debug) fprintf(stderr, "%s < %s\n", ftp->prompt, data);
 				return 1;
 			}
 		}
