@@ -164,10 +164,10 @@ tryget:
 			ret = 1;
 		}
 	} else {
-		if((i==0 && S_ISREG(st.st_mode) && st.st_size != size) || i == -1) {
-			FILE *fp = fopen(plocal, "a");
+		if((i==0 && S_ISREG(st.st_mode) && (st.st_size != size || (size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime))) || i == -1) {
+			FILE *fp = fopen(plocal, st.st_size < size ? "a" : "w");
 			if(fp) {
-				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 ? st.st_size : 0)) {
+				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 && st.st_size < size ? st.st_size : 0)) {
 					if(++tries < TRIES) {
 						fclose(fp);
 						goto tryget;
@@ -239,9 +239,15 @@ trymkdir:
 			
 			size = ftp_size(ftp, premote, strlen(premote));
 			fp = NULL;
-			if(st.st_size != size && (fp=fopen(plocal, "r"))) {
+		tryput:
+			if(st.st_size == size) {
+				if(size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime) {
+					size = 0;
+					goto tryput;
+				}
+			} else if((fp=fopen(plocal, "r"))) {
 				tries = 0;
-				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, size) && (errno==ETIMEDOUT || ftp->resp != 1024) && ++tries < TRIES);
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && (errno==ETIMEDOUT || ftp->resp != 1024) && ++tries < TRIES);
 				if(fp) fclose(fp);
 				nTRIES += tries;
 				if(ftp->resp == 1024 || tries >= TRIES) {
@@ -524,4 +530,3 @@ optEnd:
 
 	return exit_status;
 }
-
