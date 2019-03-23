@@ -603,7 +603,7 @@ void ftp_progress(ftpbuf_t *ftp, databuf_t *data, size_t rcvd, size_t sent)
 {
 	static int dd=-1;
 	
-	if(ftp->debug) {
+	if(ftp->debug && ftp->total) {
 		ftp->rcvd += rcvd;
 		ftp->sent += sent;
 		int d = (rcvd?ftp->rcvd:ftp->sent)*100/ftp->total;
@@ -632,6 +632,9 @@ ftp_open(const char *host, short port, zend_long timeout_sec, int debug)
 	ftp->reconnect = 0;
 	ftp->pasv = 0;
 	ftp->progress = ftp_progress;
+	ftp->total = 0;
+	ftp->rcvd = 0;
+	ftp->sent =0;
 	
 	if(!_ftp_open(ftp)) goto bail;
 
