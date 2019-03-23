@@ -241,7 +241,7 @@ trymkdir:
 			fp = NULL;
 		tryput:
 			if(st.st_size == size) {
-				if(size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime) {
+				if(size>0 && ftp_mdtm(ftp, premote, strlen(premote)) < st.st_mtime) {
 					size = 0;
 					goto tryput;
 				}
