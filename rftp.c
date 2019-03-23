@@ -167,6 +167,7 @@ tryget:
 		if((i==0 && S_ISREG(st.st_mode) && (st.st_size != size || (size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime))) || i == -1) {
 			FILE *fp = fopen(plocal, st.st_size < size ? "a" : "w");
 			if(fp) {
+				ftp_set_total(ftp, size, st.st_size < size ? st.st_size : 0, 0);
 				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 && st.st_size < size ? st.st_size : 0)) {
 					if(++tries < TRIES && ftp_reconnect(ftp)) {
 						fclose(fp);
@@ -247,7 +248,8 @@ trymkdir:
 				}
 			} else if((fp=fopen(plocal, "r"))) {
 				tries = 0;
-				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && ++tries < TRIES && ftp_reconnect(ftp));
+				ftp_set_total(ftp, st.st_size, 0, st.st_size > size && size > 0 ? size : 0);
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && ++tries < TRIES && ftp_reconnect(ftp)) size = ftp->sent;
 				if(fp) fclose(fp);
 				nTRIES += tries;
 				if(ftp->resp == 1024 || tries >= TRIES) {
