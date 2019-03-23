@@ -83,7 +83,7 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, list_func_t fu
 trylst:
 	lines = ftp_list(ftp, path, len, 0);
 	if(!lines) {
-		if(++tries < TRIES) goto trylst;
+		if(++tries < TRIES && ftp_reconnect(ftp)) goto trylst;
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
 		return 1;
@@ -168,7 +168,7 @@ tryget:
 			FILE *fp = fopen(plocal, st.st_size < size ? "a" : "w");
 			if(fp) {
 				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 && st.st_size < size ? st.st_size : 0)) {
-					if(++tries < TRIES) {
+					if(++tries < TRIES && ftp_reconnect(ftp)) {
 						fclose(fp);
 						goto tryget;
 					}
@@ -197,7 +197,7 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	int tries = 0;
 trymkdir:
 	if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
-		if(++tries < TRIES) goto trymkdir;
+		if(++tries < TRIES && ftp_reconnect(ftp)) goto trymkdir;
 		nTRIES += tries;
 		fprintf(stderr, "Failed to create remote directory %s\n", remote);
 		return 1;
@@ -247,7 +247,7 @@ trymkdir:
 				}
 			} else if((fp=fopen(plocal, "r"))) {
 				tries = 0;
-				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && (errno==ETIMEDOUT || ftp->resp != 1024) && ++tries < TRIES);
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && ++tries < TRIES && ftp_reconnect(ftp));
 				if(fp) fclose(fp);
 				nTRIES += tries;
 				if(ftp->resp == 1024 || tries >= TRIES) {
@@ -290,15 +290,17 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 	asprintf(&premote, "%s/%s", remote, name);
 	
 	if(type == 'd') {
+	tryrmdir:
 		ret = ftplist(ftp, local, premote, ftpremove_func);
 		if(!ret && !ftp_rmdir(ftp, premote, strlen(premote))) {
+			if(++tries < TRIES && ftp_reconnect(ftp)) goto tryrmdir;
 			fprintf(stderr, "Deletion of directory %s failed\n", premote);
 			ret = 1;
 		}
 	} else {
 	trydel:
 		if(!ftp_delete(ftp, premote, strlen(premote))) {
-			if(++tries < TRIES) goto trydel;
+			if(++tries < TRIES && ftp_reconnect(ftp)) goto trydel;
 			fprintf(stderr, "Deletion of file %s failed\n", premote);
 			ret = 1;
 		}
@@ -512,7 +514,8 @@ int main(int argc, char *argv[]) {
 	exit_status = -errno;
 
 ftpQuit:
-	//ftp_quit(ftp);
+	if(ftp->reconnect) fprintf(stderr, "Reconnected times is %d\n", ftp->reconnect);
+	ftp_quit(ftp);
 	ftp_close(ftp);
 
 optEnd:
