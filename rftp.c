@@ -249,7 +249,7 @@ trymkdir:
 			} else if((fp=fopen(plocal, "r"))) {
 				tries = 0;
 				ftp_set_total(ftp, st.st_size, 0, st.st_size > size && size > 0 ? size : 0);
-				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size ? size : 0) && ++tries < TRIES && ftp_reconnect(ftp)) size = ftp->sent;
+				while(!ftp_put(ftp, premote, strlen(premote), fp, FTPTYPE_IMAGE, st.st_size > size && size > 0 ? size : 0) && ++tries < TRIES && ftp_reconnect(ftp)) size = ftp->sent;
 				if(fp) fclose(fp);
 				nTRIES += tries;
 				if(ftp->resp == 1024 || tries >= TRIES) {

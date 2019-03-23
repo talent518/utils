@@ -1288,15 +1288,11 @@ ftp_pasv(ftpbuf_t *ftp, int pasv)
 		struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) sa;
 		char *endptr, delimiter;
 
-		n = 0;
-	tryepsv:
 		/* try EPSV first */
 		if (!ftp_putcmd(ftp, "EPSV", sizeof("EPSV")-1, NULL, (size_t) 0)) {
 			return 0;
 		}
 		if (!ftp_getresp(ftp)) {
-			if(++n<3) goto tryepsv;
-			if(ftp->pasv)ftp->disconnect = 1;
 			return 0;
 		}
 		if (ftp->resp == 229) {
@@ -1324,14 +1320,10 @@ ftp_pasv(ftpbuf_t *ftp, int pasv)
 	/* fall back to PASV */
 #endif
 
-	n = 0;
-trypasv:
 	if (!ftp_putcmd(ftp, "PASV",  sizeof("PASV")-1, NULL, (size_t) 0)) {
 		return 0;
 	}
 	if (!ftp_getresp(ftp) || ftp->resp != 227) {
-		if(++n<3) goto trypasv;
-		if(!ftp->resp && ftp->pasv)ftp->disconnect = 1;
 		return 0;
 	}
 	/* parse out the IP and port */
@@ -1910,7 +1902,7 @@ my_send(ftpbuf_t *ftp, php_socket_t s, void *buf, size_t len)
 			if (n == 0) {
 				errno = ETIMEDOUT;
 			}
-			if(ftp->fd == s && n<0) ftp->disconnect = 1;
+			if(ftp->fd == s) ftp->disconnect = 1;
 			return -1;
 		}
 
@@ -1995,7 +1987,7 @@ my_recv(ftpbuf_t *ftp, php_socket_t s, void *buf, size_t len)
 		if (n == 0) {
 			errno = ETIMEDOUT;
 		}
-		if(ftp->fd == s && n<0) ftp->disconnect = 1;
+		if(ftp->fd == s) ftp->disconnect = 1;
 		return -1;
 	}
 
@@ -2066,7 +2058,7 @@ data_available(ftpbuf_t *ftp, php_socket_t s)
 		if (n == 0) {
 			errno = ETIMEDOUT;
 		}
-		if(ftp->fd == s  && n<0) ftp->disconnect = 1;
+		if(ftp->fd == s) ftp->disconnect = 1;
 		return 0;
 	}
 
@@ -2085,7 +2077,7 @@ data_writeable(ftpbuf_t *ftp, php_socket_t s)
 		if (n == 0) {
 			errno = ETIMEDOUT;
 		}
-		if(ftp->fd == s && n<0) ftp->disconnect = 1;
+		if(ftp->fd == s) ftp->disconnect = 1;
 		return 0;
 	}
 
@@ -2105,7 +2097,7 @@ my_accept(ftpbuf_t *ftp, php_socket_t s, struct sockaddr *addr, socklen_t *addrl
 		if (n == 0) {
 			errno = ETIMEDOUT;
 		}
-		if(ftp->fd == s && n<0) ftp->disconnect = 1;
+		if(ftp->fd == s) ftp->disconnect = 1;
 		return -1;
 	}
 
