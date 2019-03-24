@@ -472,6 +472,7 @@ int main(int argc, char *argv[]) {
 	ftpbuf_t *ftp = ftp_open(host, port, timeout, debug);
 	if(!ftp) {
 		fprintf(stderr, "connect %s:%d failure\n", host, port);
+		exit_status = ret;
 		goto optEnd;
 	}
 	
@@ -481,6 +482,7 @@ int main(int argc, char *argv[]) {
 #endif
 	if(!ftp_login(ftp, user, strlen(user), password, strlen(password))) {
 		fprintf(stderr, "user %s login failure\n", user);
+		exit_status = ret;
 		goto ftpQuit;
 	}
 	
@@ -526,6 +528,7 @@ int main(int argc, char *argv[]) {
 		outFd = fopen(outFile, "w");
 		if(!outFd) {
 			fprintf(stderr, "fopen %s file failed\n", outFile);
+			exit_status = ret;
 			goto ftpQuit;
 		}
 	}
@@ -635,8 +638,11 @@ int main(int argc, char *argv[]) {
 			}
 			
 			fclose(inFd);
+
+			exit_status = ret;
 		} else {
 			fprintf(stderr, "fopen %s file failed\n", inFile);
+			exit_status = 1;
 		}
 	} else if(!strcmp(method, "get")) {
 		struct stat st;
@@ -644,28 +650,28 @@ int main(int argc, char *argv[]) {
 		i = lstat(local, &st);
 		if(i == 0 && !S_ISDIR(st.st_mode)) {
 			fprintf(stderr, "%s is not a directory\n");
+			exit_status = 1;
 		} else {
 			if(i != 0 && mkdir(local, 0755) != 0) {
-				fprintf(stderr, "Failed to create directory %s\n", local);
+				exit_status = fprintf(stderr, "Failed to create directory %s\n", local);
 			} else {
-				ftplist(ftp, local, remote, "GET", ftpget_func);
+				exit_status = ftplist(ftp, local, remote, "GET", ftpget_func);
 			}
 		}
 	} else if(!strcmp(method, "put")) {
-		ftpput(ftp, local, remote);
+		exit_status = ftpput(ftp, local, remote);
 	} else if(!strcmp(method, "rls")) {
 		if(*remote) printf("d: %s\n", remote);
-		ftplist(ftp, NULL, remote, "RLS", ftplist_func);
+		exit_status = ftplist(ftp, NULL, remote, "RLS", ftplist_func);
 	} else {
 		if(*remote) printf("d: %s\n", remote);
 		if(ftplist(ftp, NULL, remote, "DEL", ftpremove_func) || (*remote && !ftp_rmdir(ftp, remote, strlen(remote)))) {
 			fprintf(stderr, "Deletion of directory %s failed\n", remote);
+			exit_status = 1;
 		}
 	}
 	
 	if(outFd) fclose(outFd);
-	
-	exit_status = -errno;
 
 ftpQuit:
 	if(ftp->reconnect) fprintf(stderr, "Reconnected times is %d\n", ftp->reconnect);
