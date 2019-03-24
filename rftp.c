@@ -472,7 +472,7 @@ int main(int argc, char *argv[]) {
 	ftpbuf_t *ftp = ftp_open(host, port, timeout, debug);
 	if(!ftp) {
 		fprintf(stderr, "connect %s:%d failure\n", host, port);
-		exit_status = ret;
+		exit_status = 1;
 		goto optEnd;
 	}
 	
@@ -482,7 +482,7 @@ int main(int argc, char *argv[]) {
 #endif
 	if(!ftp_login(ftp, user, strlen(user), password, strlen(password))) {
 		fprintf(stderr, "user %s login failure\n", user);
-		exit_status = ret;
+		exit_status = 1;
 		goto ftpQuit;
 	}
 	
@@ -528,7 +528,7 @@ int main(int argc, char *argv[]) {
 		outFd = fopen(outFile, "w");
 		if(!outFd) {
 			fprintf(stderr, "fopen %s file failed\n", outFile);
-			exit_status = ret;
+			exit_status = 1;
 			goto ftpQuit;
 		}
 	}
