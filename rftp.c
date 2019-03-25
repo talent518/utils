@@ -698,7 +698,7 @@ optEnd:
 		}
 	}
 	
-	if(errno) fprintf(stderr, "Error: %s\n", strerror(errno));
+	if(exit_status && errno) fprintf(stderr, "Error: %s\n", strerror(errno));
 	fprintf(stderr, "Total try times is %lu\n", nTRIES);
 
 	return exit_status;
