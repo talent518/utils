@@ -607,10 +607,19 @@ int main(int argc, char *argv[]) {
 						fprintf(stderr, "Input file error, Not usage function is %s in 4 columns\n", func);
 						ret = 1;
 					} else {
+						c = 0;
 						if(ret) {
-							if(outFd) fprintf(outFd, "%s\t%s\t%s\t%s\n", func, plocal, premote, pmethod);
+							c = 1;
 						} else if(!strcmp(pmethod, "GET")) {
-							ret = ftplist(ftp, plocal, premote, pmethod, ftpget_func);
+							struct stat st;
+							i = lstat(plocal, &st);
+							if(i != 0 && mkdir(plocal, 0755) != 0) {
+								fprintf(stderr, "Failed to create directory %s\n", plocal);
+								ret = 1;
+								c = 1;
+							} else {
+								ret = ftplist(ftp, plocal, premote, pmethod, ftpget_func);
+							}
 						} else if(!strcmp(pmethod, "DEL")) {
 							ret = ftplist(ftp, plocal, premote, pmethod, ftpremove_func);
 						} else if(!strcmp(pmethod, "RLS")) {
@@ -619,6 +628,7 @@ int main(int argc, char *argv[]) {
 							fprintf(stderr, "Input file error, Not usage method is %s in 4 columns\n", pmethod);
 							ret = 1;
 						}
+						if(c && outFd) fprintf(outFd, "%s\t%s\t%s\t%s\n", func, plocal, premote, pmethod);
 					}
 				} else if(i == 3) {
 					if(strcmp(func, "PUT")) {
