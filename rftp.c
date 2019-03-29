@@ -397,6 +397,10 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'w':
 				password = strdup((const char *)optarg);
+				{
+					char *p = (char*) optarg;
+					while(*p) *p++ = '*';
+				}
 				break;
 			case 'm':
 				method = strdup((const char *)optarg);
