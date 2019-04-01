@@ -271,6 +271,7 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 		
 		size = ftp_size(ftp, remote, strlen(remote));
 		fp = NULL;
+		tries = 0;
 		tryput:
 		if(st.st_size == size) {
 			if(size>0 && ftp_mdtm(ftp, remote, strlen(remote)) < st.st_mtime) {
@@ -278,14 +279,19 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 				goto tryput;
 			}
 		} else if((fp=fopen(local, "r"))) {
-			tries = 0;
 			ftp_set_total(ftp, st.st_size, 0, st.st_size > size && size > 0 ? size : 0);
-			while((ret=!ftp_put(ftp, remote, strlen(remote), fp, FTPTYPE_IMAGE, st.st_size > size && size > 0 ? size : 0)) && ++tries < TRIES && ftp_reconnect(ftp)) size = ftp->sent;
-			if(fp) fclose(fp);
-			nTRIES += tries;
-			if(ret) {
+			if(!ftp_put(ftp, remote, strlen(remote), fp, FTPTYPE_IMAGE, st.st_size > size && size > 0 ? size : 0)) {
+				if(++tries < TRIES && ftp_reconnect(ftp)) {
+					fclose(fp);
+					fp = NULL;
+					size = ftp_size(ftp, remote, strlen(remote));
+					goto tryput;
+				}
 				fprintf(stderr, "Upload file %s failed\n", local);
+				ret = 1;
 			}
+			fclose(fp);
+			nTRIES += tries;
 		} else {
 			fprintf(stderr, "fopen %s file failed\n", local);
 			ret = 1;
