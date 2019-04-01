@@ -182,9 +182,9 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 		}
 	} else {
 		if((i==0 && S_ISREG(st.st_mode) && (st.st_size != size || (size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime))) || i == -1) {
-			FILE *fp = fopen(plocal, st.st_size < size ? "a" : "w");
+			FILE *fp = fopen(plocal, i==0 && st.st_size < size ? "a" : "w");
 			if(fp) {
-				ftp_set_total(ftp, size, st.st_size < size ? st.st_size : 0, 0);
+				ftp_set_total(ftp, size, i==0 && st.st_size < size ? st.st_size : 0, 0);
 				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 && st.st_size < size ? st.st_size : 0)) {
 					if(++tries < TRIES && ftp_reconnect(ftp)) {
 						fclose(fp);
