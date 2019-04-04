@@ -1875,6 +1875,7 @@ ftp_reconnect(ftpbuf_t *ftp)
 	ftp->disconnect = 0;
 	ftp->reconnect++;
 	ftp->data = data_close(ftp, ftp->data);
+	ftp->type = 0;
 	
 	return _ftp_open(ftp) && ftp_login(ftp, ftp->user, ftp->user_len, ftp->pass, ftp->pass_len);
 }
