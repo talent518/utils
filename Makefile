@@ -2,7 +2,7 @@ CC = gcc
 AR = ar
 RL = ranlib
 
-CFLAGS = -O3 -I. -Wno-unused-result -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+CFLAGS = -O3 -I. -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
 LFLAGS = -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
 all: cpu-memory-info

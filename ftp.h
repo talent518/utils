@@ -42,9 +42,6 @@ typedef long zend_long;
 typedef FILE php_stream;
 typedef int php_socket_t;
 typedef struct sockaddr_storage php_sockaddr_storage;
-typedef struct ftpbuf ftpbuf_t;
-typedef struct databuf databuf_t;
-typedef void (*progress_func_t)(ftpbuf_t *ftp, databuf_t *data, size_t rcvd, size_t sent);
 
 typedef enum ftptype {
 	FTPTYPE_ASCII=1,
@@ -101,12 +98,13 @@ typedef struct ftpbuf {
 	int             user_len;
 	char            *pass;
 	int             pass_len;
-	progress_func_t   progress;
+	void (*progress)(struct ftpbuf *ftp, databuf_t *data, size_t rcvd, size_t sent);
 	size_t                     total;
 	size_t                     rcvd;
 	size_t                     sent;
 } ftpbuf_t;
 
+typedef void (*progress_func_t)(ftpbuf_t *ftp, databuf_t *data, size_t rcvd, size_t sent);
 static inline void ftp_set_progress(ftpbuf_t *ftp, progress_func_t  progress)
 {
 	ftp->progress = progress;
