@@ -415,7 +415,7 @@ int main(int argc, char *argv[]){
 						if(dtime>0) {
 							printf("%d-", dtime);
 						}
-						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, proc[n].etime%60);
+						printf("%02d:%02d:%02d\n", htime%24, mtime%60, proc[n].etime%60);
 						printf("  Command: %s\n", procArgStr[n]);
 					} else {
 						nn --;
