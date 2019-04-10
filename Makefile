@@ -4,8 +4,8 @@ CC = gcc
 AR = ar
 RL = ranlib
 
-CFLAGS = -O3 -I. -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
-LFLAGS = -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
+CFLAGS := -O3 -I. -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+LFLAGS := -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
 CFLAGS += $(call cc-option,-Wno-unused-result,)
 
