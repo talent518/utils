@@ -146,7 +146,7 @@ typedef struct {
 	long int cutime; // Amount of time that this process's waited-for children have been scheduled in user mode, measured in clock ticks
 	long int cstime; // Amount of time that this process's waited-for children have been scheduled in kernel mode, measured in clock ticks
 	
-	double etime; // runned time for seconds
+	unsigned long int etime; // runned time for seconds
 } process_t;
 
 //获取第N项开始的指针
@@ -254,10 +254,11 @@ int getprocessinfo(int pid, process_t *proc) {
 
 	fclose(fp);
 	
-	double uptime = 0;
-	sscanf(buff, "%lf", &uptime);
+	unsigned long int uptime = 0;
+	sscanf(buff, "%llu", &uptime);
 	
-	proc->etime = uptime - (double) (etime) / (double) sysconf(_SC_CLK_TCK);
+	int tck = sysconf(_SC_CLK_TCK);
+	proc->etime = uptime - etime / tck;
 
 	snprintf(fname, sizeof(fname), "/proc/%d/status", pid);
 
@@ -410,11 +411,11 @@ int main(int argc, char *argv[]){
 						unsigned int mtime = proc[n].etime/60;
 						unsigned int htime = mtime/60;
 						unsigned int dtime = htime/24;
-						printf("%d:\n  Run Time: ", pid[n]);
+						printf("%d:\n  Run Time:(%llu seconds) ", pid[n], proc[n].etime);
 						if(dtime>0) {
 							printf("%d-", dtime);
 						}
-						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, (float)(proc[n].etime - mtime*60));
+						printf("%02d:%02d:%04.2f\n", htime%24, mtime%60, proc[n].etime%60);
 						printf("  Command: %s\n", procArgStr[n]);
 					} else {
 						nn --;
