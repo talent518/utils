@@ -65,7 +65,7 @@ loop:
 	p = bin;
 	while(*p == '0') p++;
 	
-	printf("%d scale number %s of %d scale number is %s\n", fbase, argv[1], tbase, p);
+	printf("Convert a large base-%d number %s to base-%d is %s\n", fbase, argv[1], tbase, p);
 	
 	free(ap);
 	free(bp);
