@@ -90,7 +90,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 	struct tm tm;
 	time_t t;
 	
-	if(sprintf(sPath, "%s/%s", path, name) <= 0) return 1;
+	if(*name && sprintf(sPath, "%s/%s", path, name) <= 0 || !*name && !strcpy(sPath, path)) return 1;
 	
 	ret = lstat(sPath, &st);
 	if(ret) {
@@ -278,12 +278,15 @@ int main(int argc, char *argv[]){
 	sqlite3_prepare_v2(db, "INSERT INTO directories (parentId, dirName, pathName, linkTarget, nlinks, dirMode, dirType, uid, gid, size, accessTime, modifyTime, changeTime)VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
 	
 	for(i=2; i<argc; i++) {
-		strcpy(sPath, argv[i]);
-		name = basename(sPath);
-		path = dirname(sPath);
-		if(!strcmp(name, ".")) {
+		if(strcmp(".", argv[i]) && strcmp("..", argv[i])) {
+			strcpy(sPath, argv[i]);
+			name = basename(sPath);
+			path = dirname(sPath);
+		} else {
 			name = "";
+			path = argv[i];
 		}
+		
 		ret = recursion_directory(db, stmt, path, name, 0);
 		if(ret) break;
 	}
@@ -292,6 +295,22 @@ int main(int argc, char *argv[]){
 	if(ret != SQLITE_OK) {
 		fprintf(stderr, "SQL: COMMIT\nError: %s\n", errmsg);
 		goto stmterr;
+	}
+
+	sqlite3_finalize(stmtMode);
+	stmtMode = NULL;
+	sqlite3_prepare_v2(db, "SELECT dirMode, nCounts FROM directory_mode_counts WHERE nCounts>0", -1, &stmtMode, NULL);
+	printf("\n");
+	while(sqlite3_step(stmtMode) == SQLITE_ROW) {
+		printf("%05o: %u\n", sqlite3_column_int(stmtMode, 0), sqlite3_column_int(stmtMode, 1));
+	}
+
+	sqlite3_finalize(stmtType);
+	stmtType = NULL;
+	sqlite3_prepare_v2(db, "SELECT dirType, nCounts FROM directory_type_counts WHERE nCounts>0", -1, &stmtType, NULL);
+	printf("\n");
+	while(sqlite3_step(stmtType) == SQLITE_ROW) {
+		printf("%4s: %u\n", sqlite3_column_text(stmtType, 0), sqlite3_column_int(stmtType, 1));
 	}
 
 stmterr:

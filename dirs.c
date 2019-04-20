@@ -57,7 +57,7 @@ int recursion_directory(const char *path, const char *name, unsigned int parentI
 	struct tm tm;
 	time_t t;
 	
-	if(sprintf(sPath, "%s/%s", path, name) <= 0) return 1;
+	if(*name && sprintf(sPath, "%s/%s", path, name) <= 0 || !*name && !strcpy(sPath, path)) return 1;
 	
 	ret = lstat(sPath, &st);
 	if(ret) {
@@ -193,6 +193,12 @@ int main(int argc, char *argv[]) {
 				ret = 4;
 				goto rerr;
 			}
+
+			if(!strcmp(dir.dirType, "LNK")) {
+				printf("%s %s => %s\n", dir.pathName, dir.dirType, dir.linkTarget);
+			} else {
+				printf("%s %s\n", dir.pathName, dir.dirType);
+			}
 			
 			rdir = (rdir_t*)malloc(sizeof(rdir_t));
 			memcpy(rdir, &dir, RDIR_BLOCK_SIZE);
@@ -220,14 +226,19 @@ int main(int argc, char *argv[]) {
 		
 	rerr:
 		fclose(fp);
+
+		printf("Readed data file from %s\n", dbfile);
 	} else {
 		for(i=2; i<argc; i++) {
-			strcpy(sPath, argv[i]);
-			name = basename(sPath);
-			path = dirname(sPath);
-			if(!strcmp(name, ".")) {
+			if(strcmp(".", argv[i]) && strcmp("..", argv[i])) {
+				strcpy(sPath, argv[i]);
+				name = basename(sPath);
+				path = dirname(sPath);
+			} else {
 				name = "";
+				path = argv[i];
 			}
+
 			ret = recursion_directory(path, name, 0);
 			if(ret) break;
 		}
@@ -259,7 +270,7 @@ int main(int argc, char *argv[]) {
 err:
 	rdir = headDir;
 	while(rdir) {
-		printf("\ndirId: %u\nparentId: %u\ndirName: %s\npathName: %s\nlinkTarget: %s\nnlinks: %u\ndirMode: %05o\ndirType: %s\nuid: %u\ngid: %u\nsize: %lu\naccessTime: %s\nmodifyTime: %s\nchangeTime: %s\n", rdir->dirId, rdir->parentId, rdir->dirName, rdir->pathName, rdir->linkTarget, rdir->nlinks, rdir->dirMode, rdir->dirType, rdir->uid, rdir->gid, rdir->size, rdir->accessTime, rdir->modifyTime, rdir->changeTime);
+		fprintf(stderr, "\ndirId: %u\nparentId: %u\ndirName: %s\npathName: %s\nlinkTarget: %s\nnlinks: %u\ndirMode: %05o\ndirType: %s\nuid: %u\ngid: %u\nsize: %lu\naccessTime: %s\nmodifyTime: %s\nchangeTime: %s\n", rdir->dirId, rdir->parentId, rdir->dirName, rdir->pathName, rdir->linkTarget, rdir->nlinks, rdir->dirMode, rdir->dirType, rdir->uid, rdir->gid, rdir->size, rdir->accessTime, rdir->modifyTime, rdir->changeTime);
 		tmp = rdir;
 		rdir = rdir->next;
 		free(tmp);
@@ -267,10 +278,15 @@ err:
 	
 	printf("\n");
 	for(i=0; i<=0777; i++) {
-		if(modeCount[i]) printf("%05d: %u\n", i, modeCount[i]);
+		if(modeCount[i]) printf("%05o: %u\n", i, modeCount[i]);
 	}
 
-	printf("\nREG: %u\nDIR: %u\nCHR: %u\nBLK: %u\nFIFO: %u\nLNK: %u\nSOCK: %u\n", typeCount.REG, typeCount.DIR, typeCount.CHR, typeCount.BLK, typeCount.FIFO, typeCount.LNK, typeCount.SOCK);
+	const char *types[] = {"REG", "DIR", "CHR", "BLK", "FIFO", "LNK", "SOCK"};
+	unsigned int *typeCounts = (unsigned int *) &typeCount;
+	printf("\n");
+	for(i=0; i<7; i++) {
+		if(typeCounts[i]) printf("%4s: %u\n", types[i], typeCounts[i]);
+	}
 	
 	return -ret;
 usage:
