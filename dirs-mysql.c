@@ -222,7 +222,7 @@ int main(int argc, char *argv[]){
 	const char *path, *name;
 	char sPath[PATH_MAX];
 	int ret = 0, i;
-	MYSQL *db = mysql_init(NULL);
+	MYSQL *db = NULL;
 	MYSQL_STMT *stmt = NULL;
 	const char *sqls[] = {
 		"DROP TABLE IF EXISTS directories",
@@ -274,6 +274,8 @@ int main(int argc, char *argv[]){
 
 	unix_socket = getenv("DBSOCK");
 
+	mysql_library_init(0, NULL, NULL);
+	db = mysql_init(NULL);
 	if(!mysql_real_connect(db, host, user, pass, dbname, port, unix_socket, 0)) {
 		fprintf(stderr, "connect to mysql failure: %s\n", mysql_error(db));
 		ret = mysql_errno(db);
@@ -377,8 +379,9 @@ stmterr:
 dberr:
 	mysql_stmt_close(stmtType);
 	mysql_stmt_close(stmtMode);
-	mysql_close(db);
 err:
+	mysql_close(db);
+	mysql_library_end();
 	return ret;
 usage:
 	fprintf(stderr, "usage: %s <directory>...\n"
