@@ -86,7 +86,7 @@ libftp.so: ftp.O
 all: rftp
 rftp: getcmdopt.o rftp.o libftp.a
 	@echo LD $@
-	@$(CC) -o $@ $(filter %.o, $^) -lftp $(LFLAGS)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: PI
 PI: PI.o
