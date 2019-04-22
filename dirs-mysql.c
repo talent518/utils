@@ -180,7 +180,7 @@ int recursion_directory(MYSQL *db, MYSQL_STMT *stmt, const char *path, const cha
 	mysql_stmt_bind_param(stmt, stmtBind);
 	ret = mysql_stmt_execute(stmt);
 	if(ret) {
-		fprintf(stderr, "%s: %s\n", mysql_error(db));
+		fprintf(stderr, "%s: %s\n", sPath, mysql_error(db));
 		
 		return ret;
 	}
