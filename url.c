@@ -68,7 +68,7 @@ url_t *url_parse(char const *str)
 url_t *url_parse_ex(char const *str, size_t length)
 {
 	char port_buf[6];
-	url_t *ret = (url_t *)malloc(sizeof(url_t));
+	url_t *ret = (url_t *)calloc(sizeof(url_t), 1);
 	char const *s, *e, *p, *pp, *ue;
 
 	s = str;
