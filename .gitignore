@@ -36,3 +36,4 @@ algo-sqrt
 algo-cbrt
 *.a
 *.so
+dirs-mysql
