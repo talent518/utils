@@ -4,8 +4,8 @@ CC = gcc
 AR = ar
 RL = ranlib
 
-CFLAGS := -O3 -I. -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
-LFLAGS := -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
+CFLAGS := $(CFLAGS) -O3 -I. -Wno-format -D_GNU_SOURCE # -DHAVE_FTP_SSL
+LFLAGS := $(LFLAGS) -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
 CFLAGS += $(call cc-option,-Wno-unused-result,)
 
@@ -137,6 +137,23 @@ all: dirs-sqlite3
 dirs-sqlite3: dirs-sqlite3.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lsqlite3
+
+ifeq ($(MYSQL_CONFIG),)
+MYSQL_CONFIG := $(shell which mysql_config 2>/dev/null)
+ifeq ($(MYSQL_CONFIG),)
+$(error Not found mysql_config command)
+endif
+endif
+ifeq ($(shell $(MYSQL_CONFIG) --version 2>/dev/null),)
+$(error $(MYSQL_CONFIG) not runnable)
+endif
+
+CFLAGS += $(shell $(MYSQL_CONFIG) --cflags)
+
+all: dirs-mysql
+dirs-mysql: dirs-mysql.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -Wl,-rpath,$(shell $(MYSQL_CONFIG) --variable=pkglibdir) $(shell $(MYSQL_CONFIG) --libs)
 
 all: algo-dec2bin
 algo-dec2bin: algo-dec2bin.o

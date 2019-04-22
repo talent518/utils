@@ -179,7 +179,7 @@ int recursion_directory(sqlite3 *db, sqlite3_stmt *stmt, const char *path, const
 	}
 
 	dirId = sqlite3_last_insert_rowid(db);
-	if(dirId&1024) {
+	if(dirId%1024 == 1023) {
 		RETRANSACTION(i, return ret);
 	}
 	
