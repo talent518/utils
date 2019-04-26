@@ -111,7 +111,7 @@ int recursion_directory(MYSQL *db, MYSQL_STMT *stmt, const char *path, const cha
 	struct tm tm;
 	time_t t;
 	
-	if(*name && sprintf(sPath, "%s/%s", path, name) <= 0 || !*name && !strcpy(sPath, path)) return 1;
+	if(sprintf(sPath, "%s/%s", strcmp(path, "/") ? path : "", name) <= 0) return 1;
 	
 	ret = lstat(sPath, &st);
 	if(ret) {
@@ -219,8 +219,7 @@ int recursion_directory(MYSQL *db, MYSQL_STMT *stmt, const char *path, const cha
 }
 
 int main(int argc, char *argv[]){
-	const char *path, *name;
-	char sPath[PATH_MAX];
+	char sPath[PATH_MAX], *path, *name;
 	int ret = 0, i;
 	MYSQL *db = NULL;
 	MYSQL_STMT *stmt = NULL;
@@ -321,15 +320,12 @@ int main(int argc, char *argv[]){
 	mysql_stmt_prepare(stmt, STRARG("INSERT INTO directories (parentId, dirName, pathName, linkTarget, nlinks, dirMode, dirType, uid, gid, size, accessTime, modifyTime, changeTime)VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 	
 	for(i=1; i<argc; i++) {
-		if(strcmp(".", argv[i]) && strcmp("..", argv[i])) {
-			strcpy(sPath, argv[i]);
-			name = basename(sPath);
-			path = dirname(sPath);
-		} else {
-			name = "";
-			path = argv[i];
-		}
-		
+		path = realpath(argv[i], sPath);
+		if(!path) continue;
+		name = strrchr(path, '/');
+		if(!name) continue;
+		*name++ = '\0';
+
 		ret = recursion_directory(db, stmt, path, name, 0);
 		if(ret) break;
 	}
