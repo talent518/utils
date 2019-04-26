@@ -37,3 +37,4 @@ algo-cbrt
 *.a
 *.so
 dirs-mysql
+re
