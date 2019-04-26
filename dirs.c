@@ -57,7 +57,7 @@ int recursion_directory(const char *path, const char *name, unsigned int parentI
 	struct tm tm;
 	time_t t;
 	
-	if(*name && sprintf(sPath, "%s/%s", path, name) <= 0 || !*name && !strcpy(sPath, path)) return 1;
+	if(sprintf(sPath, "%s/%s", strcmp(path, "/") ? path : "", name) <= 0) return 1;
 	
 	ret = lstat(sPath, &st);
 	if(ret) {
@@ -166,8 +166,8 @@ int recursion_directory(const char *path, const char *name, unsigned int parentI
 }
 
 int main(int argc, char *argv[]) {
-	const char *dbfile, *path, *name;
-	char sPath[PATH_MAX];
+	const char *dbfile;
+	char sPath[PATH_MAX], *path, *name;
 	int ret = 0, i;
 	rdir_t *rdir, dir, *tmp;
 	FILE *fp;
@@ -229,15 +229,13 @@ int main(int argc, char *argv[]) {
 
 		printf("Readed data file from %s\n", dbfile);
 	} else {
+		char *p;
 		for(i=2; i<argc; i++) {
-			if(strcmp(".", argv[i]) && strcmp("..", argv[i])) {
-				strcpy(sPath, argv[i]);
-				name = basename(sPath);
-				path = dirname(sPath);
-			} else {
-				name = "";
-				path = argv[i];
-			}
+			path = realpath(argv[i], sPath);
+			if(!path) continue;
+			name = strrchr(path, '/');
+			if(!name) continue;
+			*name++ = '\0';
 
 			ret = recursion_directory(path, name, 0);
 			if(ret) break;
