@@ -190,6 +190,11 @@ algo-cbrt: algo-cbrt.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: re
+re: re.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
@@ -202,9 +207,10 @@ algo-cbrt: algo-cbrt.o
 	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $^
 	@$(CC) $(CFLAGS) -fpic -fPIC -c $^ -o $@
 
-test: url greatestCommonDivisor
+test: url greatestCommonDivisor re
 	./url 'https://github.com/talent518/calc?as=23&ew=23#fdsdasdf'
 	./greatestCommonDivisor 319 377
+	./re 1w a123@456.com.cn .as123-12@zdd.com a.as@qee.cn '.'
 
 clean:
 	@echo $@
