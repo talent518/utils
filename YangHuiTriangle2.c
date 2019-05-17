@@ -15,10 +15,11 @@ int main(int argc, char *argv[]) {
 
 	A = (unsigned long int*) malloc(sizeof(unsigned long int)*N);
 
-	sprintf(fmt, "%%%dlu", N/3);
+	sprintf(fmt, "%%%dlu", (N+2)/3);
 
 	for(n=1; n<=N; n++) {
-		for(i=n-1; i>=0; i--) {
+		A[n-1] = 1;
+		for(i=n-2; i>0; i--) {
 			if(i == 0 || i == n-1) {
 				A[i] = 1;
 			} else {
