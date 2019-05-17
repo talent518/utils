@@ -195,6 +195,11 @@ re: re.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: YangHuiTriangle2
+YangHuiTriangle2: YangHuiTriangle2.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
