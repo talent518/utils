@@ -200,6 +200,11 @@ YangHuiTriangle2: YangHuiTriangle2.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: xiaotou
+xiaotou: xiaotou.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
