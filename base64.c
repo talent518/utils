@@ -118,7 +118,7 @@ int base64_decode(const unsigned char *src, int slen, unsigned char **dst, int *
 
 	x=n=0;
 	p=*dst;
-	for(i=0;i<slen;i++){
+	for(i=0;i<slen;i++,src++){
 		if(SRC_CHECK) {
 			continue;
 		}
@@ -128,7 +128,6 @@ int base64_decode(const unsigned char *src, int slen, unsigned char **dst, int *
 			*p++ = (unsigned char)(x>>(n-8));
 			n-=8;
 		}
-		src++;
 	}
 	*p = 0;
 	*dlen=p-*dst;
