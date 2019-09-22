@@ -62,6 +62,7 @@
   * diff.sh => 比较两个目录并显示不同的文件
   * re.c => POSIX正则表达式验证邮件地址
   * xiaotou.c => 小偷偷窃算法
+  * msg.c => 消息队列(msgget,msgsnd,msgrcv,msgctl)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

@@ -205,6 +205,11 @@ xiaotou: xiaotou.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: msg
+msg: msg.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
