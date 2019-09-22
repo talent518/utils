@@ -210,6 +210,16 @@ msg: msg.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: sem
+sem: sem.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
+
+all: mmap-mutex
+mmap-mutex: mmap-mutex.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

@@ -63,6 +63,8 @@
   * re.c => POSIX正则表达式验证邮件地址
   * xiaotou.c => 小偷偷窃算法
   * msg.c => 消息队列(msgget,msgsnd,msgrcv,msgctl)
+  * sem.c => 私有信号量(sem_init,sem_wait,sem_post,pthread_create,pthread_mutex_*)
+  * mmap-mutex.c => 进程间互斥量(mmap,fork,pthread_mutex)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
