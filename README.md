@@ -65,6 +65,7 @@
   * msg.c => 消息队列(msgget,msgsnd,msgrcv,msgctl)
   * sem.c => 私有信号量(sem_init,sem_wait,sem_post,pthread_create,pthread_mutex_*)
   * mmap-mutex.c => 进程间互斥量(mmap,fork,pthread_mutex)
+  * fork.c => 新进程与线程的关系(fork,pthread_create)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
