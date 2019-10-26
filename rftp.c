@@ -141,7 +141,8 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 		strcat(datetime, dt2);
 		strcat(datetime, " ");
 		strcat(datetime, dt3);
-		if(ret || ((ret = func(ftp, local, remote, method, perms[0], size, name, link)) && perms[0] != 'd')) {
+		if(ret || ((ret = func(ftp, local, remote, method, perms[0], size, name, link)) && (perms[0] != 'd' || ret == 2))) {
+			ret = 1;
 			if(outFd) fprintf(outFd, "ITEM\t%s\t%s\t%s\t%c\t%lu\t%s\t%s\n", local?local:"", remote, method, perms[0], size, name, link);
 		}
 	}
@@ -173,10 +174,10 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 			ret = ftplist(ftp, plocal, premote, method, ftpget_func);
 		} else if(i==0) {
 			fprintf(stderr, "%s is not a directory\n", plocal);
-			ret = 1;
+			ret = 2;
 		} else {
 			fprintf(stderr, "Failed to create directory %s\n", plocal);
-			ret = 1;
+			ret = 2;
 		}
 	} else if(type == 'l') {
 		if((i==0 && S_ISLNK(st.st_mode)) || (i == -1 && symlink(link, plocal) == 0)) {
@@ -233,8 +234,8 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 		if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
 			if(++tries < TRIES && ftp_reconnect(ftp)) goto trymkdir;
 			nTRIES += tries;
-			fprintf(stderr, "Failed to create remote directory %s\n", remote);
 			if(outFd) fprintf(outFd, "PUT\t%s\t%s\n", local, remote);
+			fprintf(stderr, "Failed to create remote directory %s\n", remote);
 			return 1;
 		}
 		nTRIES += tries;
@@ -245,6 +246,7 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	
 		DIR *dh = opendir(local);
 		if(!dh) {
+			if(outFd) fprintf(outFd, "PUT\t%s\t%s\n", local, remote);
 			fprintf(stderr, "Failed to open directory %s\n", local);
 			return 1;
 		}
@@ -341,7 +343,7 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 		if(!ret && !ftp_rmdir(ftp, premote, strlen(premote))) {
 			if(++tries < TRIES && ftp_reconnect(ftp)) goto tryrmdir;
 			fprintf(stderr, "Deletion of directory %s failed\n", premote);
-			ret = 1;
+			ret = 2;
 		}
 	} else {
 		trydel:
@@ -618,7 +620,10 @@ int main(int argc, char *argv[]) {
 							ret = 1;
 							c = 0;
 						}
-						if(ret && c && outFd) fprintf(outFd, "%s\t%s\t%s\t%s\t%c\t%lu\t%s\t%s\n", func, plocal, premote, pmethod, type, size, name, link);
+						if(ret && (c || ret == 2) && outFd) {
+							ret = 1;
+							fprintf(outFd, "%s\t%s\t%s\t%s\t%c\t%lu\t%s\t%s\n", func, plocal, premote, pmethod, type, size, name, link);
+						}
 					}
 				} else if(i == 4) {
 					if(strcmp(func, "LST")) {
@@ -633,8 +638,7 @@ int main(int argc, char *argv[]) {
 							i = lstat(plocal, &st);
 							if(i != 0 && mkdir(plocal, 0755) != 0) {
 								fprintf(stderr, "Failed to create directory %s\n", plocal);
-								ret = 1;
-								c = 1;
+								ret = 2;
 							} else {
 								ret = ftplist(ftp, plocal, premote, pmethod, ftpget_func);
 							}
@@ -646,7 +650,10 @@ int main(int argc, char *argv[]) {
 							fprintf(stderr, "Input file error, Not usage method is %s in 4 columns\n", pmethod);
 							ret = 1;
 						}
-						if(c && outFd) fprintf(outFd, "%s\t%s\t%s\t%s\n", func, plocal, premote, pmethod);
+						if((c || ret == 2) && outFd) {
+							ret = 1;
+							fprintf(outFd, "%s\t%s\t%s\t%s\n", func, plocal, premote, pmethod);
+						}
 					}
 				} else if(i == 3) {
 					if(strcmp(func, "PUT")) {
