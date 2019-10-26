@@ -33,6 +33,12 @@ static const opt_struct OPTIONS[] = {
 	{'-', 0, NULL} /* end of args */
 };
 
+#ifdef HAVE_FTP_SSL
+	#define USAGE_FTP_SSL " [-s]"
+#else
+	#define USAGE_FTP_SSL
+#endif
+
 /* {{{ usage
  */
 static void usage(char *argv0) {
@@ -61,14 +67,16 @@ static void usage(char *argv0) {
 		"  -t try, --try try                 Failure try times(default: 3)\n"
 		"  -T timeout, --timeout timeout     Timeout(default: 3 seconds)\n"
 		"  -d, --debug                       Print debug info to stderr\n"
+	#ifdef HAVE_FTP_SSL
 		"  -s, --ssl                         Use ssl\n"
+	#endif
 		"  -H, --hide-args                   Hidden cmd args\n"
 		"example:\n"
-		"  %s -h host [-p port] [-u user] [-w password] -m get -r remote -l local [-o file] [-s] [-d]\n"
-		"  %s -h host [-p port] [-u user] [-w password] -m put -r remote -l local [-o file] [-s] [-d]\n"
-		"  %s -h host [-p port] [-u user] [-w password] -m del -r remote [-o file] [-s] [-d]\n"
-		"  %s -h host [-p port] [-u user] [-w password] -m rls -r remote [-o file] [-s] [-d]\n"
-		"  %s -h host [-p port] [-u user] [-w password] -i file [-o file] [-s] [-d]\n"
+		"  %s -h host [-p port] [-u user] [-w password] -m get -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
+		"  %s -h host [-p port] [-u user] [-w password] -m put -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
+		"  %s -h host [-p port] [-u user] [-w password] -m del -r remote [-o file]" USAGE_FTP_SSL " [-d]\n"
+		"  %s -h host [-p port] [-u user] [-w password] -m rls -r remote [-o file]" USAGE_FTP_SSL " [-d]\n"
+		"  %s -h host [-p port] [-u user] [-w password] -i file [-o file]" USAGE_FTP_SSL " [-d]\n"
 		, prog, prog, prog, prog, prog, prog);
 }
 /* }}} */
