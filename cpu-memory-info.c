@@ -247,7 +247,7 @@ int getprocessinfo(int pid, process_t *proc) {
 	q = get_items(q, 3);
 	
 	unsigned long int etime = 0;
-	sscanf(q, "%llu", &etime);
+	sscanf(q, "%lu", &etime);
 	
 	fp = fopen("/proc/uptime", "r");
 	fgets(buff, sizeof(buff) - 1, fp);
@@ -255,7 +255,7 @@ int getprocessinfo(int pid, process_t *proc) {
 	fclose(fp);
 	
 	unsigned long int uptime = 0;
-	sscanf(buff, "%llu", &uptime);
+	sscanf(buff, "%lu", &uptime);
 	
 	int tck = sysconf(_SC_CLK_TCK);
 	proc->etime = uptime - etime / tck;
@@ -411,11 +411,11 @@ int main(int argc, char *argv[]){
 						unsigned int mtime = proc[n].etime/60;
 						unsigned int htime = mtime/60;
 						unsigned int dtime = htime/24;
-						printf("%d:\n  Run Time:(%llu seconds) ", pid[n], proc[n].etime);
+						printf("%d:\n  Run Time:(%lu seconds) ", pid[n], proc[n].etime);
 						if(dtime>0) {
 							printf("%d-", dtime);
 						}
-						printf("%02d:%02d:%02d\n", htime%24, mtime%60, proc[n].etime%60);
+						printf("%02d:%02d:%02ld\n", htime%24, mtime%60, proc[n].etime%60);
 						printf("  Command: %s\n", procArgStr[n]);
 					} else {
 						nn --;

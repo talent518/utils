@@ -684,7 +684,7 @@ int main(int argc, char *argv[]) {
 		
 		i = lstat(local, &st);
 		if(i == 0 && !S_ISDIR(st.st_mode)) {
-			fprintf(stderr, "%s is not a directory\n");
+			fprintf(stderr, "%s is not a directory\n", local);
 			exit_status = 1;
 		} else {
 			if(i != 0 && mkdir(local, 0755) != 0) {

@@ -24,10 +24,13 @@
 
 #if 1
 	#define IFMT
+	#define VFMT(i)
 #elif 0
 	#define IFMT "{%d}"
+	#define VFMT(i) , i
 #else
 	#define IFMT "\033[37m{%d}\033[0m"
+	#define VFMT(i) , i
 #endif
 
 #if 0
@@ -105,26 +108,26 @@ int main(int argc, char *argv[]) {
 			for(i=n2&1; i<n-1; i+=2) {
 				m += a[i];
 				if(plus++) printf(BFMT);
-				printf("%2d"IFMT, a[i], i);
+				printf("%2d"IFMT, a[i] VFMT(i));
 			}
 
 			m += a[n];
 			if(plus++) printf(BFMT);
-			printf("%2d"IFMT, a[n], n);
+			printf("%2d"IFMT, a[n] VFMT(n));
 
 			if(n+n3 < N) {
 				m += a[n+n3];
 				if(plus++) printf(NFMT);
-				printf("%2d"IFMT, a[n+n3], n+n3);
+				printf("%2d"IFMT, a[n+n3] VFMT(n+n3));
 
 				for(i=(n2>>1)+n+n3+2; i<N; i+=2) {
 					m += a[i];
 					if(plus++) printf(AFMT);
-					printf("%2d"IFMT, a[i], i);
+					printf("%2d"IFMT, a[i] VFMT(i));
 				}
 			}
 
-			printf(" = %d"IFMT"\n", m, plus);
+			printf(" = %d"IFMT"\n", m VFMT(plus));
 			if(m>max) max = m;
 		}
 	}

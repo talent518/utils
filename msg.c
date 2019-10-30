@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
 		if(buf.type != 2) perror("msgrcv error");
 
-		printf("====== buf.type: %d, buf.len: %d, Completed ======\n", buf.type, buf.len);
+		printf("====== buf.type: %ld, buf.len: %d, Completed ======\n", buf.type, buf.len);
 
 		return errno;
 	}
