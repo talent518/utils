@@ -258,7 +258,7 @@ int parse_ast(const char *s, ast_t *ast) {
 					}
 				}
 				if(p0 == p) {
-					fprintf(stderr, "Column %d in %s should be dot(.) or digit(0~9)\n", p-s, s);
+					fprintf(stderr, "Column %lu in %s should be dot(.) or digit(0~9)\n", p-s, s);
 					return -1;
 				}
 				break;

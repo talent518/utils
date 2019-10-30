@@ -19,7 +19,7 @@
 
 #define MICRO_IN_SEC 1000000.00
 
-inline double microtime()
+static inline double microtime()
 {
 	struct timeval tp = {0};
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 	char *enc, *dec = NULL;
 	enc = crypt_encode(str, strlen(str), "123456", 0);
 	
-	printf("encode(%d): %s\n", strlen(enc), enc);
+	printf("encode(%ld): %s\n", strlen(enc), enc);
 
 	int len = crypt_decode(enc, &dec, "123456", 0);
 

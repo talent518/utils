@@ -73,7 +73,7 @@ sort:
 		if(flag) break;
 	}
 	
-	printf(" after:", j);
+	printf(" after:");
 	for(i=0; i<N; i++) {
 		printf(" %4d", a[i]);
 	}

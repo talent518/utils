@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 		:"=m"(s1),"=m"(s2)
 	);
 
-	sprintf((char *)p1, "-%08X-%08X-", s1, s2);
+	sprintf((char *)p1, "-%08lX-%08lX-", s1, s2);
 	snprintf(szCpuId+12, 20, "%s", (char *)p1);
 
 	asm volatile (
@@ -39,10 +39,10 @@ int main(int argc, char* argv[]) {
 		:"=m"(s3),"=m"(s4)
 	);
 
-	sprintf((char *)p2, "%08X-%08X\n", s3, s4);
+	sprintf((char *)p2, "%08lX-%08lX\n", s3, s4);
 	snprintf(szCpuId+31, 19, "%s", (char *)p2);
 
-	printf((char*)szCpuId);
+	printf("%s\n", (char*)szCpuId);
 
 	return 0;
 }
