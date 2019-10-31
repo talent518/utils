@@ -235,6 +235,11 @@ exec: exec.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: fork2
+fork2: fork2.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
