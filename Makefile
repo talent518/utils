@@ -225,6 +225,11 @@ fork: fork.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
 
+all: dup
+dup: dup.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

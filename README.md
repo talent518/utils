@@ -66,6 +66,7 @@
   * sem.c => 私有信号量(sem_init,sem_wait,sem_post,pthread_create,pthread_mutex_*)
   * mmap-mutex.c => 进程间互斥量(mmap,fork,pthread_mutex)
   * fork.c => 新进程与线程的关系(fork,pthread_create)
+  * dup.c => dup、dup2和fcntl(fp,F_DUPFD,...)函数的使用
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
