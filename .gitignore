@@ -44,3 +44,4 @@ msg
 sem
 mmap-mutex
 fork
+dup
