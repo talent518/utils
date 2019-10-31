@@ -67,6 +67,7 @@
   * mmap-mutex.c => 进程间互斥量(mmap,fork,pthread_mutex)
   * fork.c => 新进程与线程的关系(fork,pthread_create)
   * dup.c => dup、dup2和fcntl(fp,F_DUPFD,...)函数的使用
+  * exec.c => execl、execlp、execle、execv、execvp和execvpe三个函数的使用，这些函数执行成功后以指定命令进行数据段、代码段、堆和栈等的替换，exec函数之后的代码不会执行
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

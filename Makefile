@@ -230,6 +230,11 @@ dup: dup.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: exec
+exec: exec.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

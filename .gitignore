@@ -45,3 +45,4 @@ sem
 mmap-mutex
 fork
 dup
+exec
