@@ -48,9 +48,13 @@ int main(int argc, char *argv[]) {
 		tv.tv_sec = 0;
 		tv.tv_usec = 200;
 		char buf[1024];
+		const int infd = infds[WRI];
 		const int outfd = outfds[RDI];
 		const int errfd = errfds[RDI];
-		const int infd = infds[WRI];
+
+		close(infds[RDI]);
+		close(outfds[WRI]);
+		close(errfds[WRI]);
 
 		fd_set readset;
 		FD_ZERO(&readset);
@@ -82,6 +86,7 @@ int main(int argc, char *argv[]) {
 #endif
 			if (FD_ISSET(outfd, &readset)) {
 				ret = read(outfd, buf, sizeof(buf));
+				if(ret <= 0) return 0;
 				write(STDOUT_FILENO, "\033[32m", 5);
 				write(STDOUT_FILENO, buf, ret);
 				write(STDOUT_FILENO, "\033[m", 3);
@@ -95,6 +100,7 @@ int main(int argc, char *argv[]) {
 
 			if (FD_ISSET(errfd, &readset)) {
 				ret = read(errfd, buf, sizeof(buf) - 1);
+				if(ret <= 0) return 0;
 				write(STDOUT_FILENO, "\033[31m", 5);
 				write(STDOUT_FILENO, buf, ret);
 				write(STDOUT_FILENO, "\033[m", 3);
@@ -114,6 +120,10 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	} else {
+		close(infds[WRI]);
+		close(outfds[RDI]);
+		close(errfds[RDI]);
+
 		dup2(infds[RDI], STDIN_FILENO);
 		dup2(outfds[WRI], STDOUT_FILENO);
 		dup2(errfds[WRI], STDERR_FILENO);
@@ -132,6 +142,7 @@ int main(int argc, char *argv[]) {
 			"}"
 			"usleep(1);"
 			"echo \"end\n\";", NULL);
+		perror("execlp error");
 	}
 
 	return 0;
