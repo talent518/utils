@@ -245,6 +245,11 @@ fork3: fork3.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: fork4
+fork4: fork4.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
