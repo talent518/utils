@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 			perror("execlp wc error");
 			return 5;
 		} else {
-			// 这里的两close方法必须存在，不然不能操作pipe的单向流操作。
+			// 这里的两close方法必须存在，不然不能保证pipe的单向流操作（正确：1读和1写，错误：多读多写）。
 			close(rfd);
 			close(wfd);
 
