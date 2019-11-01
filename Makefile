@@ -255,6 +255,11 @@ fork5: fork5.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: fifo
+fifo: fifo.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
