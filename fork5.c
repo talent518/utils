@@ -18,10 +18,11 @@ int main(int argc, char *argv[]) {
 		perror("fork error");
 		return 2;
 	} else if (pid == 0) {
-		close(rfd);
-		dup2(wfd, STDOUT_FILENO);
-		execlp("ls", "ls", NULL);
-		perror("execlp ls error");
+		// 单核单CPU时第一个子进程优先被执行
+		close(wfd);
+		dup2(rfd, STDIN_FILENO);
+		execlp("wc", "wc", "-l", NULL);
+		perror("execlp wc error");
 		return 3;
 	} else {
 		pid = fork();
@@ -29,10 +30,11 @@ int main(int argc, char *argv[]) {
 			perror("fork error");
 			return 4;
 		} else if (pid == 0) {
-			close(wfd);
-			dup2(rfd, STDIN_FILENO);
-			execlp("wc", "wc", "-l", NULL);
-			perror("execlp wc error");
+			// 单核单CPU时第二个子进程比第一个子进程滞后执行
+			close(rfd);
+			dup2(wfd, STDOUT_FILENO);
+			execlp("ls", "ls", NULL);
+			perror("execlp ls error");
 			return 5;
 		} else {
 			// 这里的两close方法必须存在，不然不能保证pipe的单向流操作（正确：1读和1写，错误：多读多写）。
