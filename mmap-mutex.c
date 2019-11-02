@@ -23,30 +23,13 @@ int main(int argc, char *argv[]) {
 	struct mt* mm;
 	pid_t pid;
 
-	/*
-	 // 创建映射区文件
-	 int fd = open("mt_test",O_CREAT|O_RDWR,0777);
-	 if( fd == -1 )
-	 {
-	 perror("open file:");
-	 exit(1);
-	 }
-	 ftruncate(fd,sizeof(*mm));
-	 mm = mmap(NULL,sizeof(*mm),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-	 close(fd);
-	 unlink("mt_test");
-	 */
-
 	// 建立映射区
 	mm = mmap(NULL, sizeof(*mm), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
 
-	// printf("-------before memset------\n");
 	memset(mm, 0x00, sizeof(*mm));
-	// printf("-------after memset------\n");
 
 	pthread_mutexattr_init(&mm->mutexattr);         // 初始化 mutex 属性
 	pthread_mutexattr_setpshared(&mm->mutexattr, PTHREAD_PROCESS_SHARED); // 修改属性为进程间共享
-
 	pthread_mutex_init(&mm->mutex, &mm->mutexattr);      // 初始化一把 mutex 锁
 
 	pid = fork();
@@ -66,10 +49,13 @@ int main(int argc, char *argv[]) {
 			printf("--------parent------num+=2   %d\n", mm->num);
 			pthread_mutex_unlock(&mm->mutex);
 		}
-		wait(NULL);
 	}
 	pthread_mutexattr_destroy(&mm->mutexattr);  // 销毁 mutex 属性对象
 	pthread_mutex_destroy(&mm->mutex);          // 销毁 mutex 锁
+	if(pid > 0) {
+		wait(NULL);
+		munmap(mm, sizeof(*mm));
+	}
 
 	return 0;
 }
