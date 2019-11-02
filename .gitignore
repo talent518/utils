@@ -58,3 +58,4 @@ alarm2
 setitimer
 timer
 sigset
+sigaction

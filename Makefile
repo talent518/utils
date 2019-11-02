@@ -295,6 +295,11 @@ sigset: sigset.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: sigaction
+sigaction: sigaction.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
