@@ -54,3 +54,4 @@ fifo
 mmap-file
 alarm
 kill-block
+alarm2

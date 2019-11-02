@@ -74,7 +74,8 @@
   * fork4.c => 使用fork,pipe,dup2和execlp实现**ls | wc -l**的shell命令的管道操作
   * fork5.c => 与fork4.c功能相同，使用两兄弟进程方式实现
   * fifo.c => 有名管道通信，进行无关进程间通信
-  * alarm.c => alarm定时器(信号：SIGALRM)
+  * alarm.c => alarm定时器(信号：SIGALRM)，数一秒钟的数
+  * alarm2.c => alarm定时器(信号：SIGALRM)，每秒打印时间、信号ID、信号描述，直到按Enter键退出
   * kill-block.c => kill一个阻塞的进程，信号来临时会提前中断sleep，但read函数系统会自动重启调用
 
 ## 图片
