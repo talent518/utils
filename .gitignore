@@ -55,3 +55,4 @@ mmap-file
 alarm
 kill-block
 alarm2
+setitimer

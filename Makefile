@@ -275,6 +275,11 @@ alarm2: alarm2.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: setitimer
+setitimer: setitimer.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 all: kill-block
 kill-block: kill-block.o
 	@echo LD $@
