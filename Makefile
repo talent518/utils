@@ -220,6 +220,11 @@ mmap-mutex: mmap-mutex.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
 
+all: mmap-file
+mmap-file: mmap-file.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
+
 all: fork
 fork: fork.o
 	@echo LD $@
