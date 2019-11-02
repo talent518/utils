@@ -280,6 +280,11 @@ setitimer: setitimer.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: timer
+timer: timer.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lrt
+
 all: kill-block
 kill-block: kill-block.o
 	@echo LD $@
