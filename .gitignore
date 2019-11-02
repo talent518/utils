@@ -53,3 +53,4 @@ fork5
 fifo
 mmap-file
 alarm
+kill-block
