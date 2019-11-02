@@ -80,6 +80,7 @@
   * timer.c => 使用timer_create和timer_settime实现定时器
   * kill-block.c => kill一个阻塞的进程，信号来临时会提前中断sleep，但read函数系统会自动重启调用
   * sigset.c => 信号集与阻塞信号集的操作
+  * sigaction.c => 在处理指定信号阻塞其他指定的多个信号
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
