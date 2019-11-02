@@ -270,6 +270,11 @@ alarm: alarm.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: kill-block
+kill-block: kill-block.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
