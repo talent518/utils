@@ -265,6 +265,11 @@ fifo: fifo.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: alarm
+alarm: alarm.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
