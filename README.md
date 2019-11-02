@@ -64,7 +64,8 @@
   * xiaotou.c => 小偷偷窃算法
   * msg.c => 消息队列(msgget,msgsnd,msgrcv,msgctl)
   * sem.c => 私有信号量(sem_init,sem_wait,sem_post,pthread_create,pthread_mutex_*)
-  * mmap-mutex.c => 进程间互斥量(mmap,fork,pthread_mutex)
+  * mmap-mutex.c => 使用mmap进行匿名内存映射，这种只能工作在父子进程间通信(mmap,fork,pthread_mutex)进行数值的累加运算测试(不写入磁盘)
+  * mmap-file.c => 使用mmap对磁盘文件进行内存映射实现无关的进程间通信，互斥量与信号量进行数值的累加运算测试(会写入磁盘)
   * fork.c => 新进程与线程的关系(fork,pthread_create)
   * dup.c => dup、dup2和fcntl(fp,F_DUPFD,...)函数的使用
   * exec.c => execl、execlp、execle、execv、execvp和execvpe三个函数的使用，这些函数执行成功后以指定命令进行数据段、代码段、堆和栈等的替换，exec函数之后的代码不会执行
