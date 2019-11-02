@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 	setitimer(ITIMER_REAL, &itv, NULL);
 
 	printf("Press enter key to exit\n");
-	printf("%s - startted\n", gettimeofstr());
+	printf("%s - started\n", gettimeofstr());
 	getchar();
 	printf("%s - stopped\n", gettimeofstr());
 }
