@@ -300,6 +300,11 @@ sigaction: sigaction.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: sig-thread
+sig-thread: sig-thread.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

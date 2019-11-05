@@ -59,3 +59,4 @@ setitimer
 timer
 sigset
 sigaction
+sig-thread
