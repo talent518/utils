@@ -53,6 +53,11 @@ BubbleSort: BubbleSort.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: BinaryTreeSort
+BinaryTreeSort: BinaryTreeSort.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 all: 5AngleStar
 5AngleStar: 5AngleStar.o
 	@echo LD $@
