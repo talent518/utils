@@ -310,6 +310,11 @@ sig-thread: sig-thread.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lpthread
 
+all: 8queen
+8queen: 8queen.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

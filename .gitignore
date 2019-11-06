@@ -61,3 +61,4 @@ sigset
 sigaction
 sig-thread
 BinaryTreeSort
+8queen
