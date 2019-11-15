@@ -57,6 +57,7 @@
   * prime-factor.c => 正整数分解质因数
   * dirs-mysql.c => 基于C语言实现的mysql数据库目录或文件递归索引
   * dirs-sqlite3.c => 基于C语言实现的sqlite3数据库目录或文件递归索引
+  * dirs-mongo.c => 基于C语言实现的mongo数据库目录或文件递归索引
   * dirs.c => 基于C语言实现的结构体目录或文件递归索引
   * rows-sqlite3.php => 列出sqlite3所有表的总记录数
   * human.php => 使用对数函数计算并格式化友好文件大小
