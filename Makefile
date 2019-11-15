@@ -160,6 +160,13 @@ dirs-mysql: dirs-mysql.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -Wl,-rpath,$(shell $(MYSQL_CONFIG) --variable=pkglibdir) $(shell $(MYSQL_CONFIG) --libs)
 
+CFLAGS += $(shell pkg-config --cflags libmongoc-1.0)
+
+all: dirs-mongo
+dirs-mongo: dirs-mongo.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs libmongoc-1.0)
+
 all: algo-dec2bin
 algo-dec2bin: algo-dec2bin.o
 	@echo LD $@
