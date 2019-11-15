@@ -10,8 +10,12 @@
 #include <bson.h>
 #include <mongoc.h>
 
+#ifndef NO_USE_BULK
+int insert_type(mongoc_bulk_operation_t *bulk, int i, const char *type) {
+#else
 int insert_type(mongoc_collection_t *collection, int i, const char *type) {
-	int ret;
+#endif
+	int ret = 0;
 	bson_error_t error;
 	bson_t *doc = bson_new();
 
@@ -19,31 +23,55 @@ int insert_type(mongoc_collection_t *collection, int i, const char *type) {
 	BSON_APPEND_UTF8(doc, "dirType", type);
 	BSON_APPEND_INT64(doc, "nCounts", 0);
 
+#ifndef NO_USE_BULK
+	mongoc_bulk_operation_insert(bulk, doc);
+#else
 	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
 		fprintf(stderr, "insert failure: %s\n", error.message);
 		ret = 1;
 	}
+#endif
 
 	bson_destroy(doc);
 
-	return 0;
+	return ret;
 }
 
 int update_type(mongoc_collection_t *collection, const char *type) {
-	int ret = 0;
+#ifndef NO_USE_BULK
+	static mongoc_bulk_operation_t *bulk = NULL;
+	static int bulks = 0;
 	bson_error_t error;
-	bson_t *update, *query;
+	if(!type) {
+		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
+		mongoc_bulk_operation_destroy(bulk);
+		bulk = NULL;
+		bulks = 0;
 
-	query = BCON_NEW ("dirType", BCON_UTF8(type));
-	update = BCON_NEW (
-		"$inc", "{",
-			"nCounts", BCON_INT64(1),
-		"}"
-	);
-	if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
-		fprintf (stderr, "%s\n", error.message);
+		if (r)
+			fprintf(stderr, "Error: %s\n", error.message);
+
+		return r;
+	}
+#else
+	bson_error_t error;
+#endif
+	bson_t *update, *query;
+	int ret = 0;
+
+	query = BCON_NEW("dirType", BCON_UTF8(type));
+	update = BCON_NEW("$inc", "{", "nCounts", BCON_INT64(1), "}");
+
+#ifndef NO_USE_BULK
+	if(!bulk)
+		bulk = mongoc_collection_create_bulk_operation (collection, true, NULL);
+	mongoc_bulk_operation_update (bulk, query, update, false);
+#else
+	if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
+		fprintf(stderr, "%s\n", error.message);
 		ret = 1;
 	}
+#endif
 
 	bson_destroy(update);
 	bson_destroy(query);
@@ -51,8 +79,12 @@ int update_type(mongoc_collection_t *collection, const char *type) {
 	return ret;
 }
 
+#ifndef NO_USE_BULK
+int insert_mode(mongoc_bulk_operation_t *bulk, int mode) {
+#else
 int insert_mode(mongoc_collection_t *collection, int mode) {
-	int ret;
+#endif
+	int ret = 0;
 	bson_error_t error;
 	bson_t *doc = bson_new();
 
@@ -60,32 +92,55 @@ int insert_mode(mongoc_collection_t *collection, int mode) {
 	BSON_APPEND_INT32(doc, "dirMode", mode);
 	BSON_APPEND_INT64(doc, "nCounts", 0);
 
+#ifndef NO_USE_BULK
+	mongoc_bulk_operation_insert(bulk, doc);
+#else
 	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
 		fprintf(stderr, "insert failure: %s\n", error.message);
 		ret = 1;
 	}
+#endif
 
 	bson_destroy(doc);
 
-	return 0;
+	return ret;
 }
 
 int update_mode(mongoc_collection_t *collection, int mode) {
-	int ret = 0;
+#ifndef NO_USE_BULK
+	static mongoc_bulk_operation_t *bulk = NULL;
+	static int bulks = 0;
 	bson_error_t error;
+	if(mode < 0) {
+		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
+		mongoc_bulk_operation_destroy(bulk);
+		bulk = NULL;
+		bulks = 0;
+
+		if (r)
+			fprintf(stderr, "Error: %s\n", error.message);
+
+		return r;
+	}
+#else
+	bson_error_t error;
+#endif
+	int ret = 0;
 	bson_t *update, *query;
 
-	query = BCON_NEW ("dirMode", BCON_INT64(mode));
-	update = BCON_NEW (
-		"$inc", "{",
-			"nCounts", BCON_INT64(1),
-		"}"
-	);
+	query = BCON_NEW("dirMode", BCON_INT64(mode));
+	update = BCON_NEW("$inc", "{", "nCounts", BCON_INT64(1), "}");
 
-	if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
-		fprintf (stderr, "%s\n", error.message);
+#ifndef NO_USE_BULK
+	if(!bulk)
+		bulk = mongoc_collection_create_bulk_operation (collection, true, NULL);
+	mongoc_bulk_operation_update (bulk, query, update, false);
+#else
+	if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
+		fprintf(stderr, "%s\n", error.message);
 		ret = 1;
 	}
+#endif
 
 	bson_destroy(update);
 	bson_destroy(query);
@@ -93,11 +148,30 @@ int update_mode(mongoc_collection_t *collection, int mode) {
 	return ret;
 }
 
-
 static int64_t maxDirId = 0;
 
 int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *typecollect, mongoc_collection_t *modecollect, const char *path, const char *name, int64_t parentId) {
 	static char linkTarget[PATH_MAX];
+#ifndef NO_USE_BULK
+	static mongoc_bulk_operation_t *bulk = NULL;
+	static int bulks = 0;
+
+	bson_error_t error;
+	if (!path && !name && parentId < 0 && bulks > 0) {
+		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
+		mongoc_bulk_operation_destroy(bulk);
+		bulk = NULL;
+		bulks = 0;
+
+		if (r)
+			fprintf(stderr, "Error: %s\n", error.message);
+
+		return r;
+	}
+#else
+	if (!path && !name && parentId < 0 && bulks > 0)
+		return 0;
+#endif
 
 	int ret = 0, i;
 	DIR *dir;
@@ -108,18 +182,21 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 	time_t t;
 
 	int64_t dirId = ++maxDirId;
+#ifdef NO_USE_BULK
 	bson_error_t error;
+#endif
 	bson_t *doc = bson_new();
 
-	if(sprintf(sPath, "%s/%s", strcmp(path, "/") ? path : "", name) <= 0) return 1;
+	if (sprintf(sPath, "%s/%s", strcmp(path, "/") ? path : "", name) <= 0)
+		return 1;
 
 	ret = lstat(sPath, &st);
-	if(ret) {
+	if (ret) {
 		fprintf(stderr, "%s STAT\n", sPath);
 		return ret;
 	}
 
-	switch(st.st_mode & S_IFMT) {
+	switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
 			dirType = "DIR";
 			break;
@@ -161,7 +238,7 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 	BSON_APPEND_INT64(doc, "parentId", parentId);
 	BSON_APPEND_UTF8(doc, "dirName", name);
 	BSON_APPEND_UTF8(doc, "pathName", sPath);
-	if(S_ISLNK(st.st_mode)) {
+	if (S_ISLNK(st.st_mode)) {
 		linkTarget[0] = '\0';
 		readlink(sPath, linkTarget, PATH_MAX);
 		BSON_APPEND_UTF8(doc, "linkTarget", linkTarget);
@@ -169,47 +246,71 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 		BSON_APPEND_NULL(doc, "linkTarget");
 	}
 	BSON_APPEND_INT64(doc, "nlinks", st.st_nlink);
-	BSON_APPEND_INT32(doc, "dirMode", (int32_t) (st.st_mode & 07777));
+	BSON_APPEND_INT32(doc, "dirMode", (int32_t ) (st.st_mode & 07777));
 	BSON_APPEND_UTF8(doc, "dirType", dirType);
-	BSON_APPEND_INT32(doc, "uid", (int) st.st_uid);
-	BSON_APPEND_INT32(doc, "gid", (int) st.st_gid);
+	BSON_APPEND_INT32(doc, "uid", (int ) st.st_uid);
+	BSON_APPEND_INT32(doc, "gid", (int ) st.st_gid);
 	BSON_APPEND_INT64(doc, "size", st.st_size);
 	BSON_APPEND_UTF8(doc, "accessTime", atime);
 	BSON_APPEND_UTF8(doc, "modifyTime", mtime);
 	BSON_APPEND_UTF8(doc, "changeTime", ctime);
 
+#ifndef NO_USE_BULK
+	if (bulk == NULL)
+		bulk = mongoc_collection_create_bulk_operation(collection, true, NULL);
+
+	mongoc_bulk_operation_insert(bulk, doc);
+	bson_destroy(doc);
+
+	if (++bulks == 10000) {
+		ret = mongoc_bulk_operation_execute(bulk, NULL, &error);
+		mongoc_bulk_operation_destroy(bulk);
+		bulk = NULL;
+		bulks = 0;
+		if (ret) {
+			ret = 0;
+		} else {
+			fprintf(stderr, "Error: %s\n", error.message);
+			return 1;
+		}
+	}
+#else
 	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
 		bson_destroy(doc);
 		fprintf(stderr, "insert failure: %s\n", error.message);
 		return 1;
 	}
 	bson_destroy(doc);
+#endif
 
 	// type count
-	if(update_type(typecollect, dirType)) return 1;
+	if (update_type(typecollect, dirType))
+		return 1;
 
 	// mode count
-	if(update_mode(modecollect, (int32_t) (st.st_mode & 07777))) return 1;
+	if (update_mode(modecollect, (int32_t) (st.st_mode & 07777)))
+		return 1;
 
-	if(S_ISLNK(st.st_mode)) {
+	if (S_ISLNK(st.st_mode)) {
 		printf("%s %s => %s\n", sPath, dirType, linkTarget);
 	} else {
 		printf("%s %s\n", sPath, dirType);
 	}
 
-	if(!S_ISDIR(st.st_mode)) {
+	if (!S_ISDIR(st.st_mode)) {
 		return 0;
 	}
 
 	dir = opendir(sPath);
-	if(!dir) {
+	if (!dir) {
 		fprintf(stderr, "%s NOT DIR\n", sPath);
 		return 1;
 	}
 
 	ret = 0;
-	while((d = readdir(dir)) != NULL) {
-		if(strcmp(d->d_name, ".") && strcmp(d->d_name, "..") && (ret = recursion_directory(collection, typecollect, modecollect, sPath, d->d_name, dirId)) != 0) break;
+	while ((d = readdir(dir)) != NULL) {
+		if (strcmp(d->d_name, ".") && strcmp(d->d_name, "..") && (ret = recursion_directory(collection, typecollect, modecollect, sPath, d->d_name, dirId)) != 0)
+			break;
 	}
 
 	closedir(dir);
@@ -221,17 +322,16 @@ int main(int argc, char *argv[]) {
 	mongoc_collection_t *type_collect, *mode_collect, *dir_collect;
 	bson_t *doc;
 	char sPath[PATH_MAX], *path, *name;
-	const char *types[] = {"REG", "DIR", "CHR", "BLK", "FIFO", "LNK", "SOCK", NULL};
+	const char *types[] = { "REG", "DIR", "CHR", "BLK", "FIFO", "LNK", "SOCK", NULL };
 	mongoc_index_opt_t opt;
 	bson_error_t error;
 	int i;
 	const char *uri = "mongodb://localhost:27017/";
-	if(argc >= 2 && !strncmp(argv[1], "mongodb://", 10))
+	if (argc >= 2 && !strncmp(argv[1], "mongodb://", 10))
 		uri = argv[1];
 
-	if(argc == 1 || (uri == argv[1] && argc == 2)) {
-		fprintf(stderr,
-			"usage: %s mongodb://localhost:27017/ directory...\n"
+	if (argc == 1 || (uri == argv[1] && argc == 2)) {
+		fprintf(stderr, "usage: %s mongodb://localhost:27017/ directory...\n"
 			"       %s directory...\n", argv[0], argv[0]);
 		return 1;
 	}
@@ -246,91 +346,128 @@ int main(int argc, char *argv[]) {
 	mode_collect = mongoc_client_get_collection(client, "test", "directory_mode_counts");
 	dir_collect = mongoc_client_get_collection(client, "test", "directories");
 
-	doc = bson_new ();
+	doc = bson_new();
 
 	// insert file type
 	// drop collection
-	if(!mongoc_collection_drop(type_collect, &error)) {
+	if (!mongoc_collection_drop(type_collect, &error)) {
 		fprintf(stderr, "drop type failure: %s\n", error.message);
 		goto err;
 	}
 	// insert
-	for(i=0; types[i]; i++) {
-		if(insert_type(type_collect, i, types[i])) goto err;
+#ifndef NO_USE_BULK
+	mongoc_bulk_operation_t *bulk = mongoc_collection_create_bulk_operation(type_collect, true, NULL);
+	for (i = 0; types[i]; i++) {
+		if (insert_type(bulk, i, types[i]))
+			goto err;
 	}
+	if(!mongoc_bulk_operation_execute(bulk, NULL, &error)) {
+		fprintf(stderr, "Error: %s\n", error.message);
+		mongoc_bulk_operation_destroy(bulk);
+		goto err;
+	}
+	mongoc_bulk_operation_destroy(bulk);
+#else
+	for (i = 0; types[i]; i++) {
+		if (insert_type(type_collect, i, types[i]))
+			goto err;
+	}
+#endif
 	// create index
 	BSON_APPEND_INT32(doc, "dirType", 1);
-	if(!mongoc_collection_create_index(type_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(type_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create dirType index failure: %s\n", error.message);
 		goto err;
 	}
 
-	bson_destroy (doc);
-	doc = bson_new ();
+	bson_destroy(doc);
+	doc = bson_new();
 
 	// insert file mode
 	// drop collection
-	if(!mongoc_collection_drop(mode_collect, &error)) {
+	if (!mongoc_collection_drop(mode_collect, &error)) {
 		fprintf(stderr, "drop mode failure: %s\n", error.message);
 		goto err;
 	}
 	// insert
-	for(i=0; i<=07777; i++) {
-		if(insert_mode(mode_collect, i)) goto err;
+#ifndef NO_USE_BULK
+	bulk = mongoc_collection_create_bulk_operation(mode_collect, true, NULL);
+	for (i = 0; i <= 07777; i++) {
+		if (insert_mode(bulk, i))
+			goto err;
 	}
+	if(!mongoc_bulk_operation_execute(bulk, NULL, &error)) {
+		fprintf(stderr, "Error: %s\n", error.message);
+		mongoc_bulk_operation_destroy(bulk);
+		goto err;
+	}
+	mongoc_bulk_operation_destroy(bulk);
+#else
+	for (i = 0; i <= 07777; i++) {
+		if (insert_mode(mode_collect, i))
+			goto err;
+	}
+#endif
 	// create index
 	BSON_APPEND_INT32(doc, "dirMode", 1);
-	if(!mongoc_collection_create_index(mode_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(mode_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create dirMode index failure: %s\n", error.message);
 		goto err;
 	}
 
-	bson_destroy (doc);
-	doc = bson_new ();
+	bson_destroy(doc);
+	doc = bson_new();
 
 	// recursion directory
 	// drop collection
-	if(!mongoc_collection_drop(dir_collect, &error)) {
+	if (!mongoc_collection_drop(dir_collect, &error)) {
 		fprintf(stderr, "drop dir failure: %s\n", error.message);
 		goto err;
 	}
 	// recursion insert
 	i = 1;
-	if(uri == argv[1]) i++;
-	for(; i<argc; i++) {
+	if (uri == argv[1])
+		i++;
+	for (; i < argc; i++) {
 		path = realpath(argv[i], sPath);
-		if(!path) continue;
+		if (!path)
+			continue;
 		name = strrchr(path, '/');
-		if(!name) continue;
+		if (!name)
+			continue;
 		*name++ = '\0';
 
-		if(recursion_directory(dir_collect, type_collect, mode_collect, path, name, 0)) goto err;
+		if (recursion_directory(dir_collect, type_collect, mode_collect, path, name, 0))
+			goto err;
 	}
+	recursion_directory(dir_collect, type_collect, mode_collect, NULL, NULL, -1);
+	update_type(type_collect, NULL);
+	update_mode(mode_collect, -1);
 	// create index
 	BSON_APPEND_INT32(doc, "dirId", 1);
-	if(!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create dirId index failure: %s\n", error.message);
 		goto err;
 	}
-	bson_destroy (doc);
-	doc = bson_new ();
+	bson_destroy(doc);
+	doc = bson_new();
 	BSON_APPEND_INT32(doc, "parentId", 1);
 	opt.unique = false;
-	if(!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create index failure: %s\n", error.message);
 		goto err;
 	}
-	bson_destroy (doc);
-	doc = bson_new ();
+	bson_destroy(doc);
+	doc = bson_new();
 	BSON_APPEND_INT32(doc, "dirName", 1);
-	if(!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create index failure: %s\n", error.message);
 		goto err;
 	}
-	bson_destroy (doc);
-	doc = bson_new ();
+	bson_destroy(doc);
+	doc = bson_new();
 	BSON_APPEND_INT32(doc, "pathName", 1);
-	if(!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
+	if (!mongoc_collection_create_index(dir_collect, doc, &opt, &error)) {
 		fprintf(stderr, "create index failure: %s\n", error.message);
 		goto err;
 	}
@@ -344,13 +481,13 @@ int main(int argc, char *argv[]) {
 
 	printf("\nCount: %ld - maxDirId\nCount: %ld - mongo\n\n", maxDirId, mongoc_collection_count(dir_collect, MONGOC_QUERY_NONE, NULL, 0, 0, NULL, &error));
 
-	query = BCON_NEW ("nCounts", "{", "$gt", BCON_INT64(0), "}");
+	query = BCON_NEW("nCounts", "{", "$gt", BCON_INT64(0), "}");
 	cursor = mongoc_collection_find(type_collect, MONGOC_QUERY_NONE, 0, 0, 0, query, NULL, NULL);
-	while(mongoc_cursor_more (cursor) && mongoc_cursor_next (cursor, &_doc)) {
+	while (mongoc_cursor_more(cursor) && mongoc_cursor_next(cursor, &_doc)) {
 		bson_iter_init(&iter, _doc);
-		if(bson_iter_find(&iter, "dirType")) {
+		if (bson_iter_find(&iter, "dirType")) {
 			printf("%5s: ", bson_iter_utf8(&iter, NULL));
-			if(bson_iter_find(&iter, "nCounts")) {
+			if (bson_iter_find(&iter, "nCounts")) {
 				n += bson_iter_int64(&iter);
 				printf("%ld\n", bson_iter_int64(&iter));
 			} else {
@@ -358,10 +495,10 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	if (mongoc_cursor_error (cursor, &error)) {
-		fprintf (stderr, "An error occurred: %s\n", error.message);
+	if (mongoc_cursor_error(cursor, &error)) {
+		fprintf(stderr, "An error occurred: %s\n", error.message);
 	}
-	if(n > 0) {
+	if (n > 0) {
 		printf("Count: %ld - mongo\n", n);
 		n = 0;
 	}
@@ -371,11 +508,11 @@ int main(int argc, char *argv[]) {
 	printf("\n");
 
 	cursor = mongoc_collection_find(mode_collect, MONGOC_QUERY_NONE, 0, 0, 0, query, NULL, NULL);
-	while(mongoc_cursor_more (cursor) && mongoc_cursor_next (cursor, &_doc)) {
+	while (mongoc_cursor_more(cursor) && mongoc_cursor_next(cursor, &_doc)) {
 		bson_iter_init(&iter, _doc);
-		if(bson_iter_find(&iter, "dirMode")) {
+		if (bson_iter_find(&iter, "dirMode")) {
 			printf("%05o: ", bson_iter_int32(&iter));
-			if(bson_iter_find(&iter, "nCounts")) {
+			if (bson_iter_find(&iter, "nCounts")) {
 				n += bson_iter_int64(&iter);
 				printf("%ld\n", bson_iter_int64(&iter));
 			} else {
@@ -383,10 +520,10 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	if (mongoc_cursor_error (cursor, &error)) {
-		fprintf (stderr, "An error occurred: %s\n", error.message);
+	if (mongoc_cursor_error(cursor, &error)) {
+		fprintf(stderr, "An error occurred: %s\n", error.message);
 	}
-	if(n > 0) {
+	if (n > 0) {
 		printf("Count: %ld - mongo\n", n);
 		n = 0;
 	}
@@ -394,8 +531,7 @@ int main(int argc, char *argv[]) {
 	bson_destroy(query);
 	mongoc_cursor_destroy(cursor);
 
-err:
-	bson_destroy (doc);
+	err: bson_destroy(doc);
 	mongoc_collection_destroy(dir_collect);
 	mongoc_collection_destroy(mode_collect);
 	mongoc_collection_destroy(type_collect);
