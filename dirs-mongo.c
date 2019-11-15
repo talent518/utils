@@ -32,41 +32,21 @@ int insert_type(mongoc_collection_t *collection, int i, const char *type) {
 int update_type(mongoc_collection_t *collection, const char *type) {
 	int ret = 0;
 	bson_error_t error;
-	bson_t *update = NULL, *query, *fields;
-	mongoc_cursor_t *cursor;
-	const bson_t *doc;
-	bson_iter_t iter;
+	bson_t *update, *query;
 
 	query = BCON_NEW ("dirType", BCON_UTF8(type));
-	fields = BCON_NEW ("nCounts", BCON_INT32(1));
-
-	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0, query, fields, NULL);
-	if(mongoc_cursor_more (cursor) && mongoc_cursor_next (cursor, &doc)) {
-		bson_iter_init(&iter, doc);
-		if(bson_iter_find(&iter, "nCounts")) {
-			update = BCON_NEW (
-				"$set", "{",
-					"nCounts", BCON_INT64(bson_iter_int64(&iter)+1),
-				"}"
-			);
-		}
-	}
-	if (!update && mongoc_cursor_error (cursor, &error)) {
-		fprintf (stderr, "An error occurred: %s\n", error.message);
-		ret = 1;
-	}
-
-	if(!update) {
-		ret = 1;
-		fprintf (stderr, "Not found nCounts field in type\n");
-	} else if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
+	update = BCON_NEW (
+		"$inc", "{",
+			"nCounts", BCON_INT64(1),
+		"}"
+	);
+	if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
 		fprintf (stderr, "%s\n", error.message);
 		ret = 1;
 	}
 
 	bson_destroy(update);
 	bson_destroy(query);
-	mongoc_cursor_destroy(cursor);
 
 	return ret;
 }
@@ -93,39 +73,22 @@ int insert_mode(mongoc_collection_t *collection, int mode) {
 int update_mode(mongoc_collection_t *collection, int mode) {
 	int ret = 0;
 	bson_error_t error;
-	bson_t *update = NULL, *query, *fields;
-	mongoc_cursor_t *cursor;
-	const bson_t *doc;
-	bson_iter_t iter;
+	bson_t *update, *query;
 
 	query = BCON_NEW ("dirMode", BCON_INT64(mode));
-	fields = BCON_NEW ("nCounts", BCON_INT32(1));
+	update = BCON_NEW (
+		"$inc", "{",
+			"nCounts", BCON_INT64(1),
+		"}"
+	);
 
-	cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE, 0, 0, 0, query, fields, NULL);
-	if(mongoc_cursor_more (cursor) && mongoc_cursor_next (cursor, &doc)) {
-		bson_iter_init(&iter, doc);
-		if(bson_iter_find(&iter, "nCounts")) {
-			update = BCON_NEW (
-				"$set", "{",
-					"nCounts", BCON_INT64(bson_iter_int64(&iter)+1),
-				"}"
-			);
-		}
-	}
-	if (mongoc_cursor_error (cursor, &error)) {
-		fprintf (stderr, "An error occurred: %s\n", error.message);
-		ret = 1;
-	} else if(!update) {
-		ret = 1;
-		fprintf (stderr, "Not found nCounts field in type\n");
-	} else if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
+	if (!mongoc_collection_update (collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
 		fprintf (stderr, "%s\n", error.message);
 		ret = 1;
 	}
 
 	bson_destroy(update);
 	bson_destroy(query);
-	mongoc_cursor_destroy(cursor);
 
 	return ret;
 }
