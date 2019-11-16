@@ -10,11 +10,110 @@
 #include <bson.h>
 #include <mongoc.h>
 
-#ifndef NO_USE_BULK
-int insert_type(mongoc_bulk_operation_t *bulk, int i, const char *type) {
-#else
-int insert_type(mongoc_collection_t *collection, int i, const char *type) {
+// #define NO_USE_BULK
+
+#ifndef BULK_SIZE
+#define BULK_SIZE 10000
 #endif
+
+#ifndef NO_USE_BULK
+#define BULK_PARAM mongoc_bulk_operation_t *bulk
+#define BULK_INSERT(doc) mongoc_bulk_operation_insert(bulk, doc)
+#define BULK_UPDATE_BEGIN(expr) \
+	static mongoc_bulk_operation_t *bulk = NULL; \
+	static int bulks = 0; \
+	bson_error_t error; \
+	if (expr) { \
+		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error); \
+		mongoc_bulk_operation_destroy(bulk); \
+		bulk = NULL; \
+		bulks = 0; \
+		if (r) fprintf(stderr, "%s bulk execute failure: %s\n", __func__, error.message); \
+		return r; \
+	}
+#define BULK_UPDATE_EXEC() \
+	if (!bulk) bulk = mongoc_collection_create_bulk_operation(collection, true, NULL); \
+	mongoc_bulk_operation_update(bulk, query, update, false); \
+	if (++bulks == BULK_SIZE) { \
+		ret = mongoc_bulk_operation_execute(bulk, NULL, &error); \
+		mongoc_bulk_operation_destroy(bulk); \
+		bulk = NULL; \
+		bulks = 0; \
+		if (ret) { \
+			ret = 0; \
+		} else { \
+			fprintf(stderr, "%s bulk execute failure: %s\n", __func__, error.message); \
+			return 1; \
+		} \
+	}
+#define BULK_INSERT_BEGIN() \
+	static mongoc_bulk_operation_t *bulk = NULL; \
+	static int bulks = 0; \
+	bson_error_t error; \
+	if (!path && !name && parentId < 0 && bulks > 0) { \
+		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error); \
+		mongoc_bulk_operation_destroy(bulk); \
+		bulk = NULL; \
+		bulks = 0; \
+		if (r) fprintf(stderr, "%s bulk execute failure: %s\n", __func__, error.message); \
+		return r; \
+	}
+#define BULK_INSERT_END() \
+	if (!bulk) bulk = mongoc_collection_create_bulk_operation(collection, true, NULL); \
+	mongoc_bulk_operation_insert(bulk, doc); \
+	bson_destroy(doc); \
+	if (++bulks == BULK_SIZE) { \
+		ret = mongoc_bulk_operation_execute(bulk, NULL, &error); \
+		mongoc_bulk_operation_destroy(bulk); \
+		bulk = NULL; \
+		bulks = 0; \
+		if (ret) { \
+			ret = 0; \
+		} else { \
+			fprintf(stderr, "%s bulk execute failure: %s\n", __func__, error.message); \
+			return 1; \
+		} \
+	}
+#define BULK_DEFINE() mongoc_bulk_operation_t *bulk
+#define BULK_VAR(collection) bulk = mongoc_collection_create_bulk_operation(collection, true, NULL)
+#define BULK_ARG(collection) bulk
+#define BULK_EXEC() \
+	if (!mongoc_bulk_operation_execute(bulk, NULL, &error)) { \
+		fprintf(stderr, "%s %d bulk execute failure: %s\n", __func__, __LINE__, error.message); \
+		mongoc_bulk_operation_destroy(bulk); \
+		goto err; \
+	} \
+	mongoc_bulk_operation_destroy(bulk)
+#else
+#define BULK_PARAM mongoc_collection_t *collection
+#define BULK_INSERT(doc) \
+	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) { \
+		fprintf(stderr, "%s failure: %s\n", __func__, error.message); \
+		ret = 1; \
+	}
+#define BULK_UPDATE_BEGIN(expr) bson_error_t error
+#define BULK_UPDATE_EXEC() \
+	if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) { \
+		fprintf(stderr, "%s update failure: %s\n", __func__, error.message); \
+		ret = 1; \
+	}
+#define BULK_INSERT_BEGIN() \
+	if (!path && !name && parentId < 0) return 0; \
+	bson_error_t error
+#define BULK_INSERT_END() \
+	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) { \
+		bson_destroy(doc); \
+		fprintf(stderr, "%s insert failure: %s\n", __func__, error.message); \
+		return 1; \
+	} \
+	bson_destroy(doc)
+#define BULK_DEFINE()
+#define BULK_VAR(collection)
+#define BULK_ARG(collection) collection
+#define BULK_EXEC()
+#endif
+
+int insert_type(BULK_PARAM, int i, const char *type) {
 	int ret = 0;
 	bson_error_t error;
 	bson_t *doc = bson_new();
@@ -23,14 +122,7 @@ int insert_type(mongoc_collection_t *collection, int i, const char *type) {
 	BSON_APPEND_UTF8(doc, "dirType", type);
 	BSON_APPEND_INT64(doc, "nCounts", 0);
 
-#ifndef NO_USE_BULK
-	mongoc_bulk_operation_insert(bulk, doc);
-#else
-	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
-		fprintf(stderr, "insert failure: %s\n", error.message);
-		ret = 1;
-	}
-#endif
+	BULK_INSERT(doc);
 
 	bson_destroy(doc);
 
@@ -38,40 +130,14 @@ int insert_type(mongoc_collection_t *collection, int i, const char *type) {
 }
 
 int update_type(mongoc_collection_t *collection, const char *type) {
-#ifndef NO_USE_BULK
-	static mongoc_bulk_operation_t *bulk = NULL;
-	static int bulks = 0;
-	bson_error_t error;
-	if(!type) {
-		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
-		mongoc_bulk_operation_destroy(bulk);
-		bulk = NULL;
-		bulks = 0;
-
-		if (r)
-			fprintf(stderr, "Error: %s\n", error.message);
-
-		return r;
-	}
-#else
-	bson_error_t error;
-#endif
+	BULK_UPDATE_BEGIN(!type);
 	bson_t *update, *query;
 	int ret = 0;
 
 	query = BCON_NEW("dirType", BCON_UTF8(type));
 	update = BCON_NEW("$inc", "{", "nCounts", BCON_INT64(1), "}");
 
-#ifndef NO_USE_BULK
-	if(!bulk)
-		bulk = mongoc_collection_create_bulk_operation (collection, true, NULL);
-	mongoc_bulk_operation_update (bulk, query, update, false);
-#else
-	if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
-		fprintf(stderr, "%s\n", error.message);
-		ret = 1;
-	}
-#endif
+	BULK_UPDATE_EXEC();
 
 	bson_destroy(update);
 	bson_destroy(query);
@@ -79,11 +145,7 @@ int update_type(mongoc_collection_t *collection, const char *type) {
 	return ret;
 }
 
-#ifndef NO_USE_BULK
-int insert_mode(mongoc_bulk_operation_t *bulk, int mode) {
-#else
-int insert_mode(mongoc_collection_t *collection, int mode) {
-#endif
+int insert_mode(BULK_PARAM, int mode) {
 	int ret = 0;
 	bson_error_t error;
 	bson_t *doc = bson_new();
@@ -92,14 +154,7 @@ int insert_mode(mongoc_collection_t *collection, int mode) {
 	BSON_APPEND_INT32(doc, "dirMode", mode);
 	BSON_APPEND_INT64(doc, "nCounts", 0);
 
-#ifndef NO_USE_BULK
-	mongoc_bulk_operation_insert(bulk, doc);
-#else
-	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
-		fprintf(stderr, "insert failure: %s\n", error.message);
-		ret = 1;
-	}
-#endif
+	BULK_INSERT(doc);
 
 	bson_destroy(doc);
 
@@ -107,40 +162,14 @@ int insert_mode(mongoc_collection_t *collection, int mode) {
 }
 
 int update_mode(mongoc_collection_t *collection, int mode) {
-#ifndef NO_USE_BULK
-	static mongoc_bulk_operation_t *bulk = NULL;
-	static int bulks = 0;
-	bson_error_t error;
-	if(mode < 0) {
-		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
-		mongoc_bulk_operation_destroy(bulk);
-		bulk = NULL;
-		bulks = 0;
-
-		if (r)
-			fprintf(stderr, "Error: %s\n", error.message);
-
-		return r;
-	}
-#else
-	bson_error_t error;
-#endif
+	BULK_UPDATE_BEGIN(mode<0);
 	int ret = 0;
 	bson_t *update, *query;
 
 	query = BCON_NEW("dirMode", BCON_INT64(mode));
 	update = BCON_NEW("$inc", "{", "nCounts", BCON_INT64(1), "}");
 
-#ifndef NO_USE_BULK
-	if(!bulk)
-		bulk = mongoc_collection_create_bulk_operation (collection, true, NULL);
-	mongoc_bulk_operation_update (bulk, query, update, false);
-#else
-	if (!mongoc_collection_update(collection, MONGOC_UPDATE_NONE, query, update, NULL, &error)) {
-		fprintf(stderr, "%s\n", error.message);
-		ret = 1;
-	}
-#endif
+	BULK_UPDATE_EXEC();
 
 	bson_destroy(update);
 	bson_destroy(query);
@@ -152,26 +181,7 @@ static int64_t maxDirId = 0;
 
 int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *typecollect, mongoc_collection_t *modecollect, const char *path, const char *name, int64_t parentId) {
 	static char linkTarget[PATH_MAX];
-#ifndef NO_USE_BULK
-	static mongoc_bulk_operation_t *bulk = NULL;
-	static int bulks = 0;
-
-	bson_error_t error;
-	if (!path && !name && parentId < 0 && bulks > 0) {
-		int r = !mongoc_bulk_operation_execute(bulk, NULL, &error);
-		mongoc_bulk_operation_destroy(bulk);
-		bulk = NULL;
-		bulks = 0;
-
-		if (r)
-			fprintf(stderr, "Error: %s\n", error.message);
-
-		return r;
-	}
-#else
-	if (!path && !name && parentId < 0 && bulks > 0)
-		return 0;
-#endif
+	BULK_INSERT_BEGIN();
 
 	int ret = 0, i;
 	DIR *dir;
@@ -182,9 +192,6 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 	time_t t;
 
 	int64_t dirId = ++maxDirId;
-#ifdef NO_USE_BULK
-	bson_error_t error;
-#endif
 	bson_t *doc = bson_new();
 
 	if (sprintf(sPath, "%s/%s", strcmp(path, "/") ? path : "", name) <= 0)
@@ -255,33 +262,7 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 	BSON_APPEND_UTF8(doc, "modifyTime", mtime);
 	BSON_APPEND_UTF8(doc, "changeTime", ctime);
 
-#ifndef NO_USE_BULK
-	if (bulk == NULL)
-		bulk = mongoc_collection_create_bulk_operation(collection, true, NULL);
-
-	mongoc_bulk_operation_insert(bulk, doc);
-	bson_destroy(doc);
-
-	if (++bulks == 10000) {
-		ret = mongoc_bulk_operation_execute(bulk, NULL, &error);
-		mongoc_bulk_operation_destroy(bulk);
-		bulk = NULL;
-		bulks = 0;
-		if (ret) {
-			ret = 0;
-		} else {
-			fprintf(stderr, "Error: %s\n", error.message);
-			return 1;
-		}
-	}
-#else
-	if (!mongoc_collection_insert(collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
-		bson_destroy(doc);
-		fprintf(stderr, "insert failure: %s\n", error.message);
-		return 1;
-	}
-	bson_destroy(doc);
-#endif
+	BULK_INSERT_END();
 
 	// type count
 	if (update_type(typecollect, dirType))
@@ -355,24 +336,13 @@ int main(int argc, char *argv[]) {
 		goto err;
 	}
 	// insert
-#ifndef NO_USE_BULK
-	mongoc_bulk_operation_t *bulk = mongoc_collection_create_bulk_operation(type_collect, true, NULL);
+	BULK_DEFINE();
+	BULK_VAR(type_collect);
 	for (i = 0; types[i]; i++) {
-		if (insert_type(bulk, i, types[i]))
+		if (insert_type(BULK_ARG(type_collect), i, types[i]))
 			goto err;
 	}
-	if(!mongoc_bulk_operation_execute(bulk, NULL, &error)) {
-		fprintf(stderr, "Error: %s\n", error.message);
-		mongoc_bulk_operation_destroy(bulk);
-		goto err;
-	}
-	mongoc_bulk_operation_destroy(bulk);
-#else
-	for (i = 0; types[i]; i++) {
-		if (insert_type(type_collect, i, types[i]))
-			goto err;
-	}
-#endif
+	BULK_EXEC();
 	// create index
 	BSON_APPEND_INT32(doc, "dirType", 1);
 	if (!mongoc_collection_create_index(type_collect, doc, &opt, &error)) {
@@ -390,24 +360,12 @@ int main(int argc, char *argv[]) {
 		goto err;
 	}
 	// insert
-#ifndef NO_USE_BULK
-	bulk = mongoc_collection_create_bulk_operation(mode_collect, true, NULL);
+	BULK_VAR(mode_collect);
 	for (i = 0; i <= 07777; i++) {
-		if (insert_mode(bulk, i))
+		if (insert_mode(BULK_ARG(mode_collect), i))
 			goto err;
 	}
-	if(!mongoc_bulk_operation_execute(bulk, NULL, &error)) {
-		fprintf(stderr, "Error: %s\n", error.message);
-		mongoc_bulk_operation_destroy(bulk);
-		goto err;
-	}
-	mongoc_bulk_operation_destroy(bulk);
-#else
-	for (i = 0; i <= 07777; i++) {
-		if (insert_mode(mode_collect, i))
-			goto err;
-	}
-#endif
+	BULK_EXEC();
 	// create index
 	BSON_APPEND_INT32(doc, "dirMode", 1);
 	if (!mongoc_collection_create_index(mode_collect, doc, &opt, &error)) {
