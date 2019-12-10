@@ -39,8 +39,6 @@ static const opt_struct OPTIONS[] = {
 	#define USAGE_FTP_SSL
 #endif
 
-/* {{{ usage
- */
 static void usage(char *argv0) {
 	char *prog;
 
@@ -79,18 +77,15 @@ static void usage(char *argv0) {
 		"  %s -h host [-p port] [-u user] [-w password] -i file [-o file]" USAGE_FTP_SSL " [-d]\n"
 		, prog, prog, prog, prog, prog, prog);
 }
-/* }}} */
 
 typedef int (*list_func_t)(ftpbuf_t *ftp, const char *local, const char *remote, const char *method, char type, unsigned long int size, const char *name, const char *link);
 
-/* {{{ return 1 is break or failure, 0 is complete
- */
 int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *method, list_func_t func) {
 	char *path = NULL;
 	char **lines;
 	char *line;
 	int len;
-	
+
 	char perms[11]="";
 	int number, owner, group;
 	unsigned long int size;
@@ -98,7 +93,7 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 	char *ptr;
 
 	int tries = 0;
-	
+
 	len = asprintf(&path, "-a %s", remote);
 	trylst:
 	lines = ftp_list(ftp, path, len, 0);
@@ -106,15 +101,15 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 		if(++tries < TRIES && ftp_reconnect(ftp)) goto trylst;
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
-		
+
 		if(outFd) fprintf(outFd, "LST\t%s\t%s\t%s\n", local?local:"", remote, method);
 		return 1;
 	}
-	
+
 	nTRIES += tries;
-	
+
 	int ret = 0, ret2, n = 0;
-	while(line=lines[n++]) {
+	while((line=lines[n++]) != NULL) {
 		if(line[0] == 'd' && (ptr = strrchr(line, ' ')) && (!strcmp(ptr+1, ".") || !strcmp(ptr+1, ".."))) {
 			continue;
 		}
@@ -146,29 +141,28 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 			if(outFd) fprintf(outFd, "ITEM\t%s\t%s\t%s\t%c\t%lu\t%s\t%s\n", local?local:"", remote, method, perms[0], size, name, link);
 		}
 	}
-	
+
 	free(path);
 	free(lines);
-	
+
 	return ret;
 }
-/* }}} */
 
 int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *method, char type, unsigned long int size, const char *name, const char *link) {
 	printf("%c: %s/%s <= %s/%s\n", type, local, name, remote, name);
-	
+
 	char *plocal = NULL, *premote = NULL;
 	struct stat st;
 	int i, ret = 0;
-	
+
 	asprintf(&plocal, "%s/%s", local, name);
 	asprintf(&premote, "%s/%s", remote, name);
 
 	int tries = 0;
-	
+
 	tryget:
 	i = lstat(plocal, &st);
-	
+
 	if(type == 'd') {
 		if((i==0 && S_ISDIR(st.st_mode)) || (i == -1 && mkdir(plocal, 0755) == 0)) {
 			ret = ftplist(ftp, plocal, premote, method, ftpget_func);
@@ -211,12 +205,12 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 			fprintf(stderr, "%s is not an ordinary file\n", plocal);
 		}
 	}
-	
+
 	free(plocal);
 	free(premote);
-	
+
 	nTRIES += tries;
-	
+
 	return ret;
 }
 
@@ -226,9 +220,9 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	FILE *fp;
 	int ret = 0;
 	int tries = 0;
-	
+
 	lstat(local, &st);
-		
+
 	if(S_ISDIR(st.st_mode)) {
 		trymkdir:
 		if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
@@ -239,46 +233,46 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 			return 1;
 		}
 		nTRIES += tries;
-	
+
 		if(*local || *remote) printf("d: %s => %s\n", local, remote);
 
 		struct dirent *dir;
-	
+
 		DIR *dh = opendir(local);
 		if(!dh) {
 			if(outFd) fprintf(outFd, "PUT\t%s\t%s\n", local, remote);
 			fprintf(stderr, "Failed to open directory %s\n", local);
 			return 1;
 		}
-	
+
 		char *plocal, *premote;
 		while((dir=readdir(dh))) {
 			if(!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) {
 				continue;
 			}
-		
+
 			plocal = NULL;
 			premote = NULL;
-		
+
 			asprintf(&plocal, "%s/%s", local, dir->d_name);
 			asprintf(&premote, "%s/%s", remote, dir->d_name);
-		
+
 			if(ret) {
 				if(outFd) fprintf(outFd, "PUT\t%s\t%s\n", plocal, premote);
 			} else {
 				ret = ftpput(ftp, plocal, premote);
 			}
-		
+
 			free(plocal);
 			free(premote);
 		}
-	
+
 		closedir(dh);
-		
+
 		return ret;
 	} else if(S_ISREG(st.st_mode)) {
 		printf("-: %s => %s\n", local, remote);
-		
+
 		size = ftp_size(ftp, remote, strlen(remote));
 		fp = NULL;
 		tries = 0;
@@ -322,21 +316,21 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 		fprintf(stderr, "File %s is an unsupported local file type\n", local);
 		ret = 1;
 	}
-	
+
 	if(ret && outFd) fprintf(outFd, "PUT\t%s\t%s\n", local, remote);
-	
+
 	return ret;
 }
 
 int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *method, char type, unsigned long int size, const char *name, const char *link) {
 	printf("%c: %s/%s\n", type, remote, name);
-	
+
 	char *premote = NULL;
 	int ret = 0;
 	int tries = 0;
-	
+
 	asprintf(&premote, "%s/%s", remote, name);
-	
+
 	if(type == 'd') {
 		tryrmdir:
 		ret = ftplist(ftp, local, premote, method, ftpremove_func);
@@ -353,29 +347,29 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 			ret = 1;
 		}
 	}
-	
+
 	free(premote);
-	
+
 	nTRIES += tries;
-	
+
 	return ret;
 }
 
 int ftplist_func(ftpbuf_t *ftp, const char *local, const char *remote, const char *method, char type, unsigned long int size, const char *name, const char *link) {
 	char *premote = NULL;
 	int ret = 0;
-	
+
 	asprintf(&premote, "%s/%s", remote, name);
-	
+
 	if(type == 'd') {
 		printf("%c: %s/%s\n", type, remote, name);
 		ret = ftplist(ftp, local, premote, method, ftplist_func);
 	} else {
 		printf("%c: %s/%s %lu\n", type, remote, name, size);
 	}
-	
+
 	free(premote);
-	
+
 	return ret;
 }
 
@@ -396,7 +390,7 @@ int main(int argc, char *argv[]) {
 
 	if(argc == 1) {
 		usage(argv[0]);
-		
+
 		return 1;
 	}
 
@@ -454,7 +448,7 @@ int main(int argc, char *argv[]) {
 				break;
 		}
 	}
-	
+
 	if(!host || port<=0 || (!inFile && !method) || (method && strcmp(method, "get") && strcmp(method, "put") && strcmp(method, "rls") && strcmp(method, "del")) || (method && !remote) || (method && !local && strcmp(method, "rls") && strcmp(method, "del"))) {
 		usage(argv[0]);
 		fprintf(stderr, "\n"
@@ -488,14 +482,14 @@ int main(int argc, char *argv[]) {
 			memset(argv[i], 0, strlen(argv[i]));
 		}
 	}
-	
+
 	ftpbuf_t *ftp = ftp_open(host, port, timeout, debug);
 	if(!ftp) {
 		fprintf(stderr, "connect %s:%d failure\n", host, port);
 		exit_status = 1;
 		goto optEnd;
 	}
-	
+
 	ftp->usepasvaddress = 1;
 #ifdef HAVE_FTP_SSL
 	ftp->use_ssl = use_ssl;
@@ -505,7 +499,7 @@ int main(int argc, char *argv[]) {
 		exit_status = 1;
 		goto ftpQuit;
 	}
-	
+
 	if(ftp_pasv(ftp, 1)) {
 		fprintf(stderr, "passive mode on\n");
 	} else {
@@ -543,7 +537,7 @@ int main(int argc, char *argv[]) {
 		}
 		if(*remote && *(ptr-1) == '/') *(ptr-1) = '\0';
 	} // }}}
-	
+
 	if(outFile) {
 		outFd = fopen(outFile, "w");
 		if(!outFd) {
@@ -552,7 +546,7 @@ int main(int argc, char *argv[]) {
 			goto ftpQuit;
 		}
 	}
-	
+
 	if(inFile) {
 		FILE *inFd = fopen(inFile, "r");
 		if(inFd) {
@@ -567,7 +561,7 @@ int main(int argc, char *argv[]) {
 			char** args[8] = {&func, &plocal, &premote, &pmethod, (char**)&type, (char**)&size, &name, &link};
 			char *p, *endptr = NULL;
 			int ret = 0;
-			
+
 			while(!feof(inFd) && fgets(line, sizeof(line), inFd)) {
 				l = line;
 				for(f=fmt,i=0; *l && *f; f++,i++) {
@@ -671,7 +665,7 @@ int main(int argc, char *argv[]) {
 					ret = 1;
 				}
 			}
-			
+
 			fclose(inFd);
 
 			exit_status = ret;
@@ -681,7 +675,7 @@ int main(int argc, char *argv[]) {
 		}
 	} else if(!strcmp(method, "get")) {
 		struct stat st;
-		
+
 		i = lstat(local, &st);
 		if(i == 0 && !S_ISDIR(st.st_mode)) {
 			fprintf(stderr, "%s is not a directory\n", local);
@@ -705,7 +699,7 @@ int main(int argc, char *argv[]) {
 			exit_status = 1;
 		}
 	}
-	
+
 	if(outFd) fclose(outFd);
 
 ftpQuit:
@@ -722,7 +716,7 @@ optEnd:
 			}
 		}
 	}
-	
+
 	if(exit_status && errno) fprintf(stderr, "Error: %s\n", strerror(errno));
 	fprintf(stderr, "Total try times is %lu\n", nTRIES);
 
