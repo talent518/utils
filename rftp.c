@@ -10,6 +10,8 @@
 #include "getcmdopt.h"
 #include "ftp.h"
 
+#define printf(...) fprintf(stdout, __VA_ARGS__);fflush(stdout)
+
 static int TRIES = 3;
 static unsigned long int nTRIES = 0;
 static FILE *outFd = NULL;
