@@ -101,6 +101,8 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 		if(++tries < TRIES && ftp_reconnect(ftp)) goto trylst;
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
+		
+		nTRIES += tries;
 
 		if(outFd) fprintf(outFd, "LST\t%s\t%s\t%s\n", local?local:"", remote, method);
 		return 1;
@@ -332,8 +334,8 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 	asprintf(&premote, "%s/%s", remote, name);
 
 	if(type == 'd') {
-		tryrmdir:
 		ret = ftplist(ftp, local, premote, method, ftpremove_func);
+		tryrmdir:
 		if(!ret && !ftp_rmdir(ftp, premote, strlen(premote))) {
 			if(++tries < TRIES && ftp_reconnect(ftp)) goto tryrmdir;
 			fprintf(stderr, "Deletion of directory %s failed\n", premote);
