@@ -322,6 +322,11 @@ all: 8queen
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: expect
+expect: expect.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lutil
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
