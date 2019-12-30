@@ -46,7 +46,15 @@ typedef struct pollfd php_pollfd;
 #define php_poll2(ufds, nfds, timeout)		poll(ufds, nfds, timeout)
 #define PHP_POLLREADABLE	(POLLIN|POLLERR|POLLHUP)
 
-#define warning(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+#define warning(fmt, args...) { \
+    fprintf(stderr, fmt "\n", ##args); \
+    fflush(stderr); \
+}
+
+#define dprintf(fmt, args...) { \
+    fprintf(stderr, fmt, ##args); \
+    fflush(stderr); \
+}
 
 #define php_stream_fopen_tmpfile tmpfile
 #define php_stream_getc fgetc
@@ -607,7 +615,7 @@ void ftp_progress(ftpbuf_t *ftp, databuf_t *data, size_t rcvd, size_t sent)
 		ftp->rcvd += rcvd;
 		ftp->sent += sent;
 		int d = (rcvd?ftp->rcvd:ftp->sent)*100/ftp->total;
-		if(d != dd) fprintf(stderr, "%s %s %d%%\r", ftp->prompt, rcvd?"< rcvd":"> sent", d);
+		if(d != dd) dprintf("%s %s %d%%\r", ftp->prompt, rcvd?"< rcvd":"> sent", d);
 		dd = d;
 	}
 }
@@ -1765,7 +1773,7 @@ ftp_putcmd(ftpbuf_t *ftp, const char *cmd, const size_t cmd_len, const char *arg
 	/* Clear the extra-lines buffer */
 	ftp->extra = NULL;
 
-	if(ftp->debug) fprintf(stderr, "%s > %s", ftp->prompt, data);
+	if(ftp->debug) dprintf("%s > %s", ftp->prompt, data);
 	if (my_send(ftp, ftp->fd, data, size) != size) {
 		return 0;
 	}
@@ -1804,7 +1812,7 @@ ftp_readline(ftpbuf_t *ftp)
 				if ((ftp->extralen = --rcvd) == 0) {
 					ftp->extra = NULL;
 				}
-				if(ftp->debug) fprintf(stderr, "%s < %s\n", ftp->prompt, data);
+				if(ftp->debug) dprintf("%s < %s\n", ftp->prompt, data);
 				return 1;
 			} else if (*eol == '\n') {
 				*eol = 0;
@@ -1812,7 +1820,7 @@ ftp_readline(ftpbuf_t *ftp)
 				if ((ftp->extralen = --rcvd) == 0) {
 					ftp->extra = NULL;
 				}
-				if(ftp->debug) fprintf(stderr, "%s < %s\n", ftp->prompt, data);
+				if(ftp->debug) dprintf("%s < %s\n", ftp->prompt, data);
 				return 1;
 			}
 		}
