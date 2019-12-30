@@ -1876,7 +1876,7 @@ ftp_getresp(ftpbuf_t *ftp)
 int
 ftp_reconnect(ftpbuf_t *ftp)
 {
-	if(!ftp->disconnect) return 1;
+	if(!ftp->disconnect && errno != ETIMEDOUT) return 1;
 	
 	errno = 0;
 	
