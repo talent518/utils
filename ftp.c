@@ -972,7 +972,6 @@ ftp_pwd(ftpbuf_t *ftp)
 		return NULL;
 	}
 	ftp->pwd = estrndup(pwd, end - pwd);
-	if(ftp->debug) snprintf(ftp->prompt, FTP_BUFSIZE, "%s@%s:%d%s", ftp->user, ftp->host, ftp->port, ftp->pwd);
 
 	return ftp->pwd;
 }
