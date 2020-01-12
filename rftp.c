@@ -15,6 +15,7 @@
 static int TRIES = 3;
 static unsigned long int nTRIES = 0;
 static FILE *outFd = NULL;
+static int resume = 0;
 
 static const opt_struct OPTIONS[] = {
 	{'H', 0, "hide-args"},
@@ -31,6 +32,7 @@ static const opt_struct OPTIONS[] = {
 	{'o', 1, "output"},
 	{'d', 0, "debug"},
 	{'s', 0, "ssl"},
+	{'R', 0, "resume"},
 
 	{'-', 0, NULL} /* end of args */
 };
@@ -70,6 +72,7 @@ static void usage(char *argv0) {
 	#ifdef HAVE_FTP_SSL
 		"  -s, --ssl                         Use ssl\n"
 	#endif
+		"  -R, --resume                      Resume\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
 		"example:\n"
 		"  %s -h host [-p port] [-u user] [-w password] -m get -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
@@ -94,13 +97,14 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 	char dt1[4]="", dt2[3]="", dt3[6]="", datetime[13]="", name[256]="", link[256]="";
 	char *ptr;
 
-	int tries = 0;
+	int tries = -1;
 
 	len = asprintf(&path, "-a %s", remote);
 	trylst:
+	tries++;
 	lines = ftp_list(ftp, path, len, 0);
 	if(!lines) {
-		if(++tries < TRIES && ftp_reconnect(ftp)) goto trylst;
+		if(tries < TRIES && ftp_reconnect(ftp)) goto trylst;
 		fprintf(stderr, "The directory is not found for \"%s\"\n", remote);
 		free(path);
 		
@@ -162,9 +166,10 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 	asprintf(&plocal, "%s/%s", local, name);
 	asprintf(&premote, "%s/%s", remote, name);
 
-	int tries = 0;
+	int tries = -1;
 
 	tryget:
+	tries++;
 	i = lstat(plocal, &st);
 
 	if(type == 'd') {
@@ -188,12 +193,12 @@ int ftpget_func(ftpbuf_t *ftp, const char *local, const char *remote, const char
 			ret = 1;
 		}
 	} else {
-		if((i==0 && S_ISREG(st.st_mode) && (st.st_size != size || (size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime))) || i == -1) {
-			FILE *fp = fopen(plocal, i==0 && st.st_size < size ? "a" : "w");
+		if((i==0 && S_ISREG(st.st_mode) && (!resume || st.st_size != size || (resume && size>0 && ftp_mdtm(ftp, premote, strlen(premote)) > st.st_mtime))) || i == -1) {
+			FILE *fp = fopen(plocal, resume && i==0 && st.st_size < size ? "a" : "w");
 			if(fp) {
-				ftp_set_total(ftp, size, i==0 && st.st_size < size ? st.st_size : 0, 0);
-				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, i==0 && st.st_size < size ? st.st_size : 0)) {
-					if(++tries < TRIES && ftp_reconnect(ftp)) {
+				ftp_set_total(ftp, size, resume && i==0 && st.st_size < size ? st.st_size : 0, 0);
+				if(!ftp_get(ftp, fp, premote, strlen(premote), FTPTYPE_IMAGE, resume && i==0 && st.st_size < size ? st.st_size : 0)) {
+					if(tries < TRIES && ftp_reconnect(ftp)) {
 						fclose(fp);
 						goto tryget;
 					}
@@ -223,14 +228,15 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	struct stat st;
 	FILE *fp;
 	int ret = 0;
-	int tries = 0;
+	int tries = -1;
 
 	lstat(local, &st);
 
 	if(S_ISDIR(st.st_mode)) {
 		trymkdir:
+		tries++;
 		if(*remote && !ftp_chdir(ftp, remote, strlen(remote)) && !ftp_mkdir(ftp, remote, strlen(remote))) {
-			if(++tries < TRIES && ftp_reconnect(ftp)) goto trymkdir;
+			if(tries < TRIES && ftp_reconnect(ftp)) goto trymkdir;
 			nTRIES += tries;
 			if(outFd) fprintf(outFd, "PUT\t%s\t%s\n", local, remote);
 			fprintf(stderr, "Failed to create remote directory %s\n", remote);
@@ -277,10 +283,12 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 	} else if(S_ISREG(st.st_mode)) {
 		printf("-: %s => %s\n", local, remote);
 
-		size = ftp_size(ftp, remote, strlen(remote));
+		size = resume ? ftp_size(ftp, remote, strlen(remote)) : -1;
 		fp = NULL;
-		tries = 0;
 		tryput:
+		tries++;
+		if(size == 0)
+			ftp_delete(ftp, remote, strlen(remote));
 		if(st.st_size == size) {
 			if(size>0 && ftp_mdtm(ftp, remote, strlen(remote)) < st.st_mtime) {
 				size = 0;
@@ -289,10 +297,10 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 		} else if((fp=fopen(local, "r"))) {
 			ftp_set_total(ftp, st.st_size, 0, st.st_size > size && size > 0 ? size : 0);
 			if(!ftp_put(ftp, remote, strlen(remote), fp, FTPTYPE_IMAGE, st.st_size > size && size > 0 ? size : 0)) {
-				if(++tries < TRIES && ftp_reconnect(ftp)) {
+				if(tries < TRIES && ftp_reconnect(ftp)) {
 					fclose(fp);
 					fp = NULL;
-					size = ftp_size(ftp, remote, strlen(remote));
+					size = resume ? ftp_size(ftp, remote, strlen(remote)) : 0;
 					goto tryput;
 				}
 				fprintf(stderr, "Upload file %s failed\n", local);
@@ -331,22 +339,24 @@ int ftpremove_func(ftpbuf_t *ftp, const char *local, const char *remote, const c
 
 	char *premote = NULL;
 	int ret = 0;
-	int tries = 0;
+	int tries = -1;
 
 	asprintf(&premote, "%s/%s", remote, name);
 
 	if(type == 'd') {
 		ret = ftplist(ftp, local, premote, method, ftpremove_func);
 		tryrmdir:
+		tries++;
 		if(!ret && !ftp_rmdir(ftp, premote, strlen(premote))) {
-			if(++tries < TRIES && ftp_reconnect(ftp)) goto tryrmdir;
+			if(tries < TRIES && ftp_reconnect(ftp)) goto tryrmdir;
 			fprintf(stderr, "Deletion of directory %s failed\n", premote);
 			ret = 2;
 		}
 	} else {
 		trydel:
+		tries++;
 		if(!ftp_delete(ftp, premote, strlen(premote))) {
-			if(++tries < TRIES && ftp_reconnect(ftp)) goto trydel;
+			if(tries < TRIES && ftp_reconnect(ftp)) goto trydel;
 			fprintf(stderr, "Deletion of file %s failed\n", premote);
 			ret = 1;
 		}
@@ -445,6 +455,9 @@ int main(int argc, char *argv[]) {
 				use_ssl = 1;
 				break;
 		#endif
+			case 'R':
+				resume = 1;
+				break;
 			case 'H':
 				hide_argv = 1;
 				break;
@@ -472,10 +485,12 @@ int main(int argc, char *argv[]) {
 		#ifdef HAVE_FTP_SSL
 			"  ssl      = %d\n"
 		#endif
+			"  resume   = %d\n"
 			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:"", inFile?inFile:"", outFile?outFile:"", TRIES, timeout, debug
 		#ifdef HAVE_FTP_SSL
 			, use_ssl
 		#endif
+			, resume
 		);
 		exit_status = 1;
 		goto optEnd;

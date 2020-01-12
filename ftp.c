@@ -1875,7 +1875,7 @@ ftp_getresp(ftpbuf_t *ftp)
 int
 ftp_reconnect(ftpbuf_t *ftp)
 {
-	if(!ftp->disconnect && errno != ETIMEDOUT) return !errno;
+	if(!ftp->disconnect && errno == 0) return 0;
 	
 	errno = 0;
 	
@@ -1884,9 +1884,11 @@ ftp_reconnect(ftpbuf_t *ftp)
 	ftp->data = data_close(ftp, ftp->data);
 	ftp->type = 0;
 	
-	for(int i=0; i<3; i++)
+	for(int i=0; i<3; i++) {
+		sleep(ftp->timeout_sec);
 		if(_ftp_open(ftp) && ftp_login(ftp, ftp->user, ftp->user_len, ftp->pass, ftp->pass_len))
 			return 1;
+	}
 	
 	return 0;
 }
