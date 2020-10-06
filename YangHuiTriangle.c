@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 
 	unsigned int M = NN-(int)ceil((float)N/2.0);
 	int L = (int) ceil(log10(A[M]));
-	char fmt[5], fmt2[5];
+	char fmt[16], fmt2[16];
 	
 	sprintf(fmt, "%%%du", L);
 	sprintf(fmt2, "%%%du", L+1);

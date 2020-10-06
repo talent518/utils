@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 	signal(SIGCHLD, SIG_IGN);
 	pid = forkpty(&master, name, NULL, NULL);
 	
-	printf("name: %s, pid: %d\n", name, pid);
+	printf("name: %s, master: %d, pid: %d\n", name, master, pid);
 	
 	if(pid < 0) {
 		perror("fork error");
