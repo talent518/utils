@@ -6,6 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #define LINES 20
 #define NPROC 100
@@ -294,69 +295,62 @@ int getprocessinfo(int pid, process_t *proc) {
 	return 1;
 }
 
-int main(int argc, char *argv[]){
-	cpu_t cpu, cpu2;
-	mem_t mem;
-	int pid[NPROC];
-	process_t proc[NPROC], proc2[NPROC];
+int getcomm(char *pid, char *comm) {
+	static char buff[128] = "";
+	static char fname[267] = "";
+	FILE *fp;
+	char *ptr;
+	int len;
 
-	unsigned int all, all2, pall[NPROC], pall2[NPROC], i, delay = 1;
+	snprintf(fname, sizeof(fname), "/proc/%s/comm", pid);
 
-	double total;
-	long int realUsed;
-	char hasCpu = 1, hasMem = 1;
-	int nproc = 0, n;
+	fp = fopen(fname, "r");
+	if(!fp) {
+		return 0;
+	}
+
+	memset(buff, 0, sizeof(buff));
+	len = fread(buff, 1, sizeof(buff) - 1, fp);
+
+	fclose(fp);
 	
-	for(i=1; i<argc; i++) {
-		switch(argv[i][0]) {
-			case '-':
-				switch(argv[i][1]) {
-					case 'c':
-						hasMem = 0;
-						hasCpu = 1;
-						break;
-					case 'm':
-						hasMem = 1;
-						hasCpu = 0;
-						break;
-					case 'p':
-						if(i+1 < argc) {
-							hasCpu = 0;
-							hasMem = 0;
-							if(nproc<NPROC) {
-								pid[nproc++] = atoi(argv[i+1]);
-							}
-							break;
-						}
-					case 'h':
-					case '?':
-						printf("Usage: %s [ -c | -m | -p <pid> | -h | -? ] [ delay]\n"
-								"  -c        Cpu info\n"
-								"  -m        Memory info\n"
-								"  -p <pid>  Process info(Multiple)\n"
-								"  -h,-?     This help\n", argv[0]);
-						return 0;
+	if(len <= 0) {
+		return 0;
+	}
+	
+	ptr = buff + len - 1;
+	while(buff <= ptr && (*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) {
+		*ptr-- = '\0';
+	}
+	
+	return !strcmp(buff, comm);
+}
+
+char procArgStr[NPROC][106];
+
+int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall) {
+	static char fname[64] = "";
+	int n, len, i;
+	
+	if(comm) {
+		DIR *dp;
+		struct dirent *dt;
+		register char *p;
+	
+		nproc = 0;
+		dp = opendir("/proc");
+		while((dt = readdir(dp)) != NULL) {
+			p = dt->d_name;
+			while(*p && *p >= '0' && *p <= '9') p++;
+			if(*p == '\0') {
+				if(getcomm(dt->d_name, comm)) {
+					pid[nproc++] = atoi(dt->d_name);
 				}
-				break;
-			default:
-				delay = atoi(argv[1]);
-				if(delay <= 0) {
-					delay = 1;
-				}
-				break;
+			}
 		}
+		closedir(dp);
 	}
 	
-	i = LINES;
-
-	if(hasCpu) {
-		getcpu(&cpu);
-
-		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
-	}
-
-	char procArgStr[NPROC][106];
-	char fname[64] = "";
 	for(n=0; n<nproc; n++) {
 		int len = snprintf(fname, sizeof(fname), "/proc/%d/cmdline", pid[n]);
 		FILE *fp = fopen(fname, "r");
@@ -382,8 +376,84 @@ int main(int argc, char *argv[]){
 
 		pall[n] = proc[n].utime + proc[n].stime + proc[n].cutime + proc[n].cstime;
 	}
+	
+	return nproc;
+}
 
-	if(nproc>0) {
+int main(int argc, char *argv[]){
+	cpu_t cpu, cpu2;
+	mem_t mem;
+	int pid[NPROC];
+	process_t proc[NPROC], proc2[NPROC];
+
+	unsigned int all, all2, pall[NPROC], pall2[NPROC], i, delay = 1;
+
+	double total;
+	long int realUsed;
+	char hasCpu = 1, hasMem = 1;
+	int nproc = 0, n;
+	char *comm = NULL;
+	
+	for(i=1; i<argc; i++) {
+		switch(argv[i][0]) {
+			case '-':
+				switch(argv[i][1]) {
+					case 'c':
+						hasMem = 0;
+						hasCpu = 1;
+						break;
+					case 'm':
+						hasMem = 1;
+						hasCpu = 0;
+						break;
+					case 'P':
+						if(i+1 < argc && nproc == 0) {
+							hasCpu = 0;
+							hasMem = 0;
+							comm = argv[i+1];
+							i++;
+							break;
+						}
+					case 'p':
+						if(i+1 < argc && comm == NULL) {
+							hasCpu = 0;
+							hasMem = 0;
+							if(nproc<NPROC) {
+								pid[nproc++] = atoi(argv[i+1]);
+							}
+							i++;
+							break;
+						}
+					default:
+						printf("Usage: %s [ -c | -m | -P <comm> | -p <pid> | -h | -? ] [ delay]\n"
+								"  -c        Cpu info\n"
+								"  -m        Memory info\n"
+								"  -P <comm>  Process comm\n"
+								"  -p <pid>  Process info(Multiple)\n"
+								"  -h,-?     This help\n", argv[0]);
+						return 0;
+				}
+				break;
+			default:
+				delay = atoi(argv[1]);
+				if(delay <= 0) {
+					delay = 1;
+				}
+				break;
+		}
+	}
+	
+	i = LINES;
+
+	if(hasCpu) {
+		getcpu(&cpu);
+
+		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
+	}
+
+	nproc = procarg(comm, nproc, pid, proc, pall);
+
+	if(nproc>0 || comm) {
 		getcpu(&cpu);
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
@@ -401,6 +471,8 @@ int main(int argc, char *argv[]){
 				cpu_mem_head(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest", "MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached  Swap");
 				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
 			}
+			
+			nproc = procarg(comm, nproc, pid, proc, pall);
 
 			if(nproc > 0) {
 				if(lines == 1)
@@ -421,7 +493,7 @@ int main(int argc, char *argv[]){
 						nn --;
 					}
 				}
-				if(nn<=0) {
+				if(nn<=0 && comm == NULL) {
 					return 0;
 				}
 				printf("--------------------------------------------------------------------------------------------------------------------\n");
@@ -516,9 +588,9 @@ int main(int argc, char *argv[]){
 
 			proc[n] = proc2[n];
 		}
-		if(nproc>0 && nn<=0) {
+		if(nproc > 0 && nn <= 0 && comm == NULL) {
 			return 0;
-		} else if(nn>1) {
+		} else if(nn > 1) {
 			printf("--------------------------------------------------------------------------------------------------------------------\n");
 		}
 		
