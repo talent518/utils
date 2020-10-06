@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 	);
 
 	sprintf((char *)p1, "-%08lX-%08lX-", s1, s2);
-	snprintf(szCpuId+12, 20, "%s", (char *)p1);
+	strcat(szCpuId, p1);
 
 	asm volatile (
 		"movl $0x03,%%eax ;\n\t"
@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 	);
 
 	sprintf((char *)p2, "%08lX-%08lX\n", s3, s4);
-	snprintf(szCpuId+31, 19, "%s", (char *)p2);
+	strcat(szCpuId, p2);
 
 	printf("%s\n", (char*)szCpuId);
 
