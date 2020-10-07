@@ -474,14 +474,14 @@ int main(int argc, char *argv[]){
 	while(1) {
 		if(lines++ % LINES == 0) {
 			if(hasCpu && hasMem) {
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
-				cpu_mem_head("                           CPU (%%)                          ", "                      Memory Size                     |  Real Memory (%%)  ");
+				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
+				cpu_mem_head("                           CPU (%%)                          ", "                      Memory Size                     |   Real Memory (%%)  ");
 			}
 
 			if(hasCpu || hasMem) {
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
-				cpu_mem_head(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest", "MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached  Swap");
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|-------------------");
+				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
+				cpu_mem_head(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest", "MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached   Swap");
+				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
 			}
 			
 			nproc = procarg(comm, nproc, pid, proc, pall);
@@ -555,7 +555,7 @@ int main(int argc, char *argv[]){
 			//printf("%6.2f", (float)((double)(mem.total - mem.free) * 100.0 / (double)mem.total)); // MemPercent
 			printf("%6.2f", (float)((double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total)); // MemRealPercent
 			printf("%7.2f", (float)((double)(mem.cached) * 100.0 / (double)mem.total)); // MemCachedPercent
-			printf("%6.2f", (float)(mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0)); // SwapPercent
+			printf("%7.2f", (float)(mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0)); // SwapPercent
 		}
 
 		if(hasCpu || hasMem) {
