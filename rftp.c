@@ -31,6 +31,7 @@ static const opt_struct OPTIONS[] = {
 	{'i', 1, "input"},
 	{'o', 1, "output"},
 	{'d', 0, "debug"},
+	{'P', 0, "pasv"},
 	{'s', 0, "ssl"},
 	{'R', 0, "resume"},
 
@@ -69,6 +70,7 @@ static void usage(char *argv0) {
 		"  -t try, --try try                 Failure try times(default: 3)\n"
 		"  -T timeout, --timeout timeout     Timeout(default: 3 seconds)\n"
 		"  -d, --debug                       Print debug info to stderr\n"
+		"  -P, --pasv                        switches passive mode off(default: on)\n"
 	#ifdef HAVE_FTP_SSL
 		"  -s, --ssl                         Use ssl\n"
 	#endif
@@ -399,6 +401,7 @@ int main(int argc, char *argv[]) {
 #endif
 	int timeout = 3;
 	int debug = 0;
+	int pasv = 1;
 	char *host = NULL, *user = strdup("anonymous"), *password = strdup("anonymous"), *method = NULL, *local = NULL, *remote = NULL;
 	char *inFile = NULL, *outFile = NULL;
 
@@ -450,6 +453,9 @@ int main(int argc, char *argv[]) {
 			case 'd':
 				debug = 1;
 				break;
+			case 'P':
+				pasv = 0;
+				break;
 		#ifdef HAVE_FTP_SSL
 			case 's':
 				use_ssl = 1;
@@ -482,11 +488,12 @@ int main(int argc, char *argv[]) {
 			"  TRIES    = %d\n"
 			"  timeout  = %d\n"
 			"  debug  = %d\n"
+			"  pasv  = %d\n"
 		#ifdef HAVE_FTP_SSL
 			"  ssl      = %d\n"
 		#endif
 			"  resume   = %d\n"
-			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:"", inFile?inFile:"", outFile?outFile:"", TRIES, timeout, debug
+			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:"", inFile?inFile:"", outFile?outFile:"", TRIES, timeout, debug, pasv
 		#ifdef HAVE_FTP_SSL
 			, use_ssl
 		#endif
@@ -519,10 +526,8 @@ int main(int argc, char *argv[]) {
 		goto ftpQuit;
 	}
 
-	if(ftp_pasv(ftp, 1)) {
-		fprintf(stderr, "passive mode on\n");
-	} else {
-		fprintf(stderr, "passive mode off\n");
+	if(!ftp_pasv(ftp, pasv)) {
+		fprintf(stderr, "switches passive mode %s failure\n", pasv ? "on" : "off");
 	}
 
 	if(remote) { // {{{ format remote
