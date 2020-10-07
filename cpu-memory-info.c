@@ -47,8 +47,10 @@ typedef struct {
 	unsigned long int free; // MemFree
 	unsigned long int cached; // Cached
 	unsigned long int buffers; // Buffers
+	unsigned long int locked; // Mlocked
 	unsigned long int swapTotal; // SwapTotal
 	unsigned long int swapFree; // SwapFree
+	unsigned long int shared; // Shmem
 } mem_t;
 
 void getmem(mem_t *mem) {
@@ -71,38 +73,48 @@ void getmem(mem_t *mem) {
 	ptr = buff;
 	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
 		// printf("%s => %d\n", key, val);
-		
-		if(i & 01 && !strcmp(key, "MemTotal")) {
+
+		if((i & 01) && !strcmp(key, "MemTotal")) {
 			mem->total = val;
 			i ^= 01;
 			continue;
 		}
-		if(i & 02 && !strcmp(key, "MemFree")) {
+		if((i & 02) && !strcmp(key, "MemFree")) {
 			mem->free = val;
 			i ^= 02;
 			continue;
 		}
-		if(i & 04 && !strcmp(key, "Buffers")) {
+		if((i & 04) && !strcmp(key, "Buffers")) {
 			mem->buffers = val;
 			i ^= 04;
 			continue;
 		}
-		if(i & 010 && !strcmp(key, "Cached")) {
+		if((i & 010) && !strcmp(key, "Cached")) {
 			mem->cached = val;
 			i ^= 010;
 			continue;
 		}
-		if(i & 020 && !strcmp(key, "SwapTotal")) {
-			mem->swapTotal = val;
+		if((i & 020) && !strcmp(key, "Mlocked")) {
+			mem->locked = val;
 			i ^= 020;
 			continue;
 		}
-		if(i & 040 && !strcmp(key, "SwapFree")) {
-			mem->swapFree = val;
+		if((i & 040) && !strcmp(key, "SwapTotal")) {
+			mem->swapTotal = val;
 			i ^= 040;
 			continue;
 		}
-		
+		if((i & 0100) && !strcmp(key, "SwapFree")) {
+			mem->swapFree = val;
+			i ^= 0100;
+			continue;
+		}
+		if((i & 0200) && !strcmp(key, "Shmem")) {
+			mem->shared = val;
+			i ^= 0200;
+			continue;
+		}
+
 		ptr = strchr(ptr, '\n');
 		if(ptr) {
 			ptr++;
@@ -151,7 +163,7 @@ typedef struct {
 } process_t;
 
 //获取第N项开始的指针
-const char* get_items(const char*buffer ,unsigned int item){
+const char* get_items(const char*buffer, unsigned int item) {
 	const char *p =buffer;
 
 	register int len = strlen(buffer);
@@ -326,7 +338,7 @@ int getcomm(char *pid, char *comm) {
 	return !strcmp(buff, comm);
 }
 
-char procArgStr[NPROC][106];
+char procArgStr[NPROC][1024];
 
 int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall) {
 	static char fname[64] = "";
@@ -475,8 +487,7 @@ int main(int argc, char *argv[]){
 			nproc = procarg(comm, nproc, pid, proc, pall);
 
 			if(nproc > 0) {
-				if(lines == 1)
-					printf("--------------------------------------------------------------------------------------------------------------------\n");
+				printf("--------------------------------------------------------------------------------------------------------------------\n");
 				nn = nproc;
 				for(n=0; n<nproc; n++) {
 					if(pid[n]>0) {
