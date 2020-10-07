@@ -59,7 +59,7 @@ void getmem(mem_t *mem) {
 	static long int val = 0;
 	FILE *fp;
 	char *ptr;
-	int i = 077;
+	int i = 0377;
 	
 	memset(mem, 0, sizeof(mem_t));
 	
