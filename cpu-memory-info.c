@@ -9,7 +9,7 @@
 #include <dirent.h>
 
 #define LINES 20
-#define NPROC 100
+#define NPROC 1000
 
 #define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
 
@@ -356,7 +356,9 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall
 			while(*p && *p >= '0' && *p <= '9') p++;
 			if(*p == '\0') {
 				if(getcomm(dt->d_name, comm)) {
-					pid[nproc++] = atoi(dt->d_name);
+					if(nproc < NPROC) {
+						pid[nproc++] = atoi(dt->d_name);
+					} else break;
 				}
 			}
 		}
