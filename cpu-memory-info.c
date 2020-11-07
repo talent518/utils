@@ -7,6 +7,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <signal.h>
 
 #define LINES 20
 #define NPROC 1000
@@ -393,6 +394,13 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall
 	return nproc;
 }
 
+static int lines = 0;
+
+static void signal_handler(int sig) {
+	lines = 0;
+	printf("\r");
+}
+
 int main(int argc, char *argv[]){
 	cpu_t cpu, cpu2;
 	mem_t mem;
@@ -471,7 +479,9 @@ int main(int argc, char *argv[]){
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
-	int nn, lines = 0;
+	signal(SIGQUIT, signal_handler);
+
+	int nn;
 	while(1) {
 		if(lines++ % LINES == 0) {
 			if(hasCpu && hasMem) {
@@ -560,7 +570,8 @@ int main(int argc, char *argv[]){
 		}
 
 		if(hasCpu || hasMem) {
-			printf("\n");
+			printf("\nPress Ctrl+\\ key for show table head\r");
+			continue;
 		}
 
 		if(nproc>0) {
@@ -604,7 +615,11 @@ int main(int argc, char *argv[]){
 			return 0;
 		} else if(nn > 1) {
 			printf("--------------------------------------------------------------------------------------------------------------------\n");
+		} else if(nn == 0) {
+			lines = 0;
+			continue;
 		}
+		printf("Press Ctrl+\\ key for show table head\r");
 		
 		fflush(stdout);
 	}
