@@ -124,7 +124,7 @@ void getmem(mem_t *mem) {
 }
 
 char *fsize(unsigned long int size) {
-	static char buf[20];
+	static char buf[32];
 	static char units[5] = "KMGT";
 	unsigned int unit;
 
@@ -137,7 +137,7 @@ char *fsize(unsigned long int size) {
 		unit=3;
 	}
 
-	sprintf(buf, "%.2f%c", size/pow(1024,unit), units[unit]);
+	sprintf(buf, "%.2lf%c", (double)size/pow(1024,unit), units[unit]);
 
 	return buf;
 }
@@ -185,7 +185,7 @@ const char* get_items(const char*buffer, unsigned int item) {
 }
 
 unsigned int getprocessdirtys(int pid) {
-	static char buff[256*1024] = "";
+	static char buff[16*1024*1024] = "";
 	static char fname[64] = "";
 	static char key[64] = "";
 	static long int val = 0;
