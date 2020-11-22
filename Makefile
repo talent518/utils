@@ -327,6 +327,11 @@ expect: expect.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lutil
 
+all: sem2
+sem2: sem2.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -pthread
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
