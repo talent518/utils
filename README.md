@@ -66,6 +66,7 @@
   * xiaotou.c => 小偷偷窃算法
   * msg.c => 消息队列(msgget,msgsnd,msgrcv,msgctl)
   * sem.c => 私有信号量(sem_init,sem_wait,sem_post,pthread_create,pthread_mutex_*)
+  * sem2.c => 私有信号量切换次数与执行时间的计算
   * mmap-mutex.c => 使用mmap进行匿名内存映射，这种只能工作在父子进程间通信(mmap,fork,pthread_mutex)进行数值的累加运算测试(不写入磁盘)
   * mmap-file.c => 使用mmap对磁盘文件进行内存映射实现无关的进程间通信，互斥量与信号量进行数值的累加运算测试(会写入磁盘)
   * fork.c => 新进程与线程的关系(fork,pthread_create)
