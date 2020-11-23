@@ -87,6 +87,7 @@
   * sig-thread.c => 多线程中绑定的信号处理函数是在主线程执行的，不是别人所说的线程间谁强到了谁处理
   * 8queen.c => 八皇后问题
   * expect.c => 使用forkpty函数实现expect命令功能(免密码: su - root)。
+  * http.sh => bash http协议通信
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
