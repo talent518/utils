@@ -88,6 +88,7 @@
   * 8queen.c => 八皇后问题
   * expect.c => 使用forkpty函数实现expect命令功能(免密码: su - root)。
   * http.sh => bash http协议通信
+  * highlight.php => shell版php语法高亮
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
