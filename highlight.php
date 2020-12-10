@@ -1,6 +1,8 @@
 #!/usr/bin/env php
 <?php
 
+defined('T_BAD_CHARACTER') or define('T_BAD_CHARACTER', -1);
+
 $tokens = token_get_all(file_get_contents($_SERVER['argv'][1]??__FILE__));
 
 //var_dump(array_map(function($a) {if(is_array($a)) $a[0] = token_name($a[0]); return $a;},$tokens));
