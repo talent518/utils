@@ -332,6 +332,13 @@ sem2: sem2.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -pthread
 
+CFLAGS += $(shell pkg-config --cflags glib-2.0)
+
+all: glib
+glib: glib.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs glib-2.0)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
@@ -352,4 +359,3 @@ test: url greatestCommonDivisor re
 clean:
 	@echo $@
 	@rm -vf *.o *.O *.s *.S *.e *.E $(shell cat Makefile | awk '{if($$1=="all:") print $$2;}')
-

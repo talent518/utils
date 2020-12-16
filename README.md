@@ -89,9 +89,9 @@
   * expect.c => 使用forkpty函数实现expect命令功能(免密码: su - root)。
   * http.sh => bash http协议通信
   * highlight.php => shell版php语法高亮
+  * glib.c => glib库valgrind内存泄露检测：**G_SLICE=always-malloc G_DEBUG=gc-friendly valgrind --leak-check=full ./glib**
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
 ![开平方算法](algo-sqrt.jpg "开平方算法")
 ![开立方算法](algo-cbrt.jpg "开立方算法")
-
