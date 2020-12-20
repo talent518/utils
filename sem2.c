@@ -42,7 +42,7 @@ void *thread2(void *arg) {
 	}
 }
 
-int main(int argc, char *argv) {
+int main(int argc, char *argv[]) {
 	pthread_t tid1, tid2;
 	int s1 = 0, s2 = 0;
 
