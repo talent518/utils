@@ -51,7 +51,7 @@ void *procd(void *arg)  //daughter线程
 	}
 }
 
-int main(int argc, char *argv) {
+int main(int argc, char *argv[]) {
 	pthread_t father;  //定义线程
 	pthread_t mother;
 	pthread_t son;
