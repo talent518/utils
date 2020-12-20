@@ -238,7 +238,7 @@ int parse_ast(const char *s, ast_t *ast) {
 				break;
 			default: {
 				words[n].t = VAL_WT;
-				words[n].val.t == LNG_T;
+				words[n].val.t = LNG_T;
 				words[n].val.l = 0;
 				p0 = p;
 				while(*p >= '0' && *p <= '9') {
