@@ -9,6 +9,11 @@
 #include <time.h>
 #include <mysql.h>
 
+#if MYSQL_VERSION_ID >= 80000
+#include <stdbool.h>
+#define my_bool bool
+#endif
+
 #define STRARG(s) s,sizeof(s)-1
 
 #define RETRANSACTION(i, err) { \
