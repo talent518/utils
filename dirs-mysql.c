@@ -9,9 +9,10 @@
 #include <time.h>
 #include <mysql.h>
 
-#if MYSQL_VERSION_ID >= 80000
+#ifndef my_bool
 #include <stdbool.h>
-#define my_bool bool
+static MYSQL_BIND __my_bind;
+#define my_bool typeof(*__my_bind.is_null)
 #endif
 
 #define STRARG(s) s,sizeof(s)-1
