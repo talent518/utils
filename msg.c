@@ -32,6 +32,10 @@ typedef struct _msgbuf {
 	char line[16*1024];
 } msgbuf;
 
+#ifdef __ANDROID_API__
+#define __msg_cbytes msg_cbytes
+#endif
+
 int main(int argc, char *argv[]) {
 	key_t key = ftok(argv[0], 1);
 	printf("key: %08x\n", key);
