@@ -90,6 +90,7 @@
   * http.sh => bash http协议通信
   * highlight.php => shell版php语法高亮
   * glib.c => glib库valgrind内存泄露检测：**G_SLICE=always-malloc G_DEBUG=gc-friendly valgrind --leak-check=full ./glib**
+  * repo2git.sh => 把repo仓库提交到git中
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
