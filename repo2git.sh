@@ -2,8 +2,12 @@
 
 set -e
 
+Q=$(git config --global --default '' --get core.quotepath)
+
+git config --global core.quotepath false
+
 I=0
-$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while read dir ver; do
+I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while read dir ver; do
 	I=$(expr $I + 1)
 	echo
 	echo -e "\033[31m$I\e[0m \033[33m$dir\033[0m" >&2
@@ -21,7 +25,7 @@ $(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while r
 		cat repo2git.lst | while read line; do
 			N=$(expr $N + 1)
 			echo -n -e "\033[2K$(expr $N \* 100 / $C)% => $N/$C\r" >&2
-			echo "'$dir/$line'"
+			echo "\"$dir/$line\""
 		done | xargs -n100 git add -f
 
 		echo -e "\033[2K$C files">&2
@@ -35,4 +39,10 @@ $(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while r
 done | wc -l)
 
 echo "completed $I projects"
+
+if [ -z "$Q" ]; then
+	git config --global --unset core.quotepath
+else
+	git config --global core.quotepath $Q
+fi
 
