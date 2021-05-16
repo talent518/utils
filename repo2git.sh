@@ -25,7 +25,11 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 		cat repo2git.lst | while read line; do
 			N=$(expr $N + 1)
 			echo -n -e "\033[2K$(expr $N \* 100 / $C)% => $N/$C\r" >&2
-			echo "\"$dir/$line\""
+			if [ "${line:0:1}" = '"' ]; then
+				echo "\"$dir/${line:1:-1}\""
+			else
+				echo "\"$dir/$line\""
+			fi
 		done | xargs -n100 git add -f
 
 		echo -e "\033[2K$C files">&2
@@ -39,6 +43,20 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 done | wc -l)
 
 echo "completed $I projects"
+
+if [ ! -f ".lock" ]; then
+	I=0
+	xmllint --xpath '//manifest/project/*/@dest' .repo/manifests/default.xml | while read dest; do
+		I=$(expr $I + 1)
+		eval $dest
+		echo "\"$dest\""
+		echo -n -e "\033[2Kadd soft link or copy file for $I files\r">&2
+	done | xargs git add -f
+	echo
+	git repack --max-pack-size 500M >&2
+	git commit -a -m"add soft link or copy file" >&2
+	touch ".lock"
+fi
 
 if [ -z "$Q" ]; then
 	git config --global --unset core.quotepath
