@@ -46,16 +46,21 @@ echo "completed $I projects"
 
 if [ ! -f ".lock" ]; then
 	I=0
-	xmllint --xpath '//manifest/project/*/@dest' .repo/manifests/default.xml | while read dest; do
+	xmllint --xpath '//manifest/project/*/@dest' .repo/manifests/default.xml 2>/dev/null | while read dest; do
 		I=$(expr $I + 1)
 		eval $dest
 		echo "\"$dest\""
 		echo -n -e "\033[2Kadd soft link or copy file for $I files\r">&2
-	done | xargs git add -f
-	echo
-	git repack --max-pack-size 500M >&2
-	git commit -a -m"add soft link or copy file" >&2
-	touch ".lock"
+	done > repo2git.lst
+	if [ $(cat repo2git.lst|wc -l) -gt 0 ]; then
+		cat repo2git.lst | xargs git add -f
+		echo
+		git repack --max-pack-size 500M >&2
+		git commit -a -m"add soft link or copy file" >&2
+		touch ".lock"
+	else
+		echo none soft link or copy file >&2
+	fi
 fi
 
 if [ -z "$Q" ]; then
