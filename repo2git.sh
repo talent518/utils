@@ -46,7 +46,7 @@ echo "completed $I projects"
 
 if [ ! -f ".lock" ]; then
 	I=0
-	xmllint --xpath '//manifest/project/*/@dest' .repo/manifests/default.xml 2>/dev/null | while read dest; do
+	repo manifest | xmllint --xpath '//manifest/project/*/@dest' - 2>/dev/null | while read dest; do
 		I=$(expr $I + 1)
 		eval $dest
 		echo "\"$dest\""
