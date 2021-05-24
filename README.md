@@ -91,6 +91,28 @@
   * highlight.php => shell版php语法高亮
   * glib.c => glib库valgrind内存泄露检测：**G_SLICE=always-malloc G_DEBUG=gc-friendly valgrind --leak-check=full ./glib**
   * repo2git.sh => 把repo仓库提交到git中
+  * extract-vmlinuz.sh => 解决linux内核vmlinuz文件
+  	* ubuntu下安装kdump+crash:
+  	  * 使用apt安装: sudo apt install linux-crashdump
+  	  * 使用 kdump-config show 查看是否正确配置
+```
+DUMP_MODE:        kdump
+USE_KDUMP:        1
+KDUMP_SYSCTL:     kernel.panic_on_oops=1
+KDUMP_COREDIR:    /var/crash
+crashkernel addr: 0x
+   /var/lib/kdump/vmlinuz: symbolic link to /boot/vmlinuz-5.8.0-53-generic
+kdump initrd: 
+   /var/lib/kdump/initrd.img: symbolic link to /var/lib/kdump/initrd.img-5.8.0-53-generic
+current state:    ready to kdump
+
+kexec command:
+  /sbin/kexec -p --command-line="BOOT_IMAGE=/boot/vmlinuz-5.8.0-53-generic root=UUID=40b2244b-5c73-4270-97bd-fa43b5ee23ac ro quiet splash vt.handoff=7 reset_devices systemd.unit=kdump-tools-dump.service nr_cpus=1 irqpoll nousb ata_piix.prefer_ms_hyperv=0" --initrd=/var/lib/kdump/initrd.img /var/lib/kdump/vmlinuz
+```
+    * 解压vmlinuz文件: sudo ./extract-vmlinuz.sh /boot/vmlinuz-$(uname -r) > /tmp/vmlinuz
+    * 测试内核crash/panic: sudo sh -c 'echo c > /proc/sysrq-trigger'
+    * 解压crash文件: sudo apport-unpack /var/crash/linux-image-5.8.0-53-generic-202105241948.crash /tmp/coretest/
+    * 使用crash工具: sudo crash /boot/System.map-$(uname -r) /tmp/vmlinuz /tmp/coretest/CoreDump
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
