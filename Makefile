@@ -339,6 +339,11 @@ glib: glib.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs glib-2.0)
 
+all: crc16
+crc16: crc16.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

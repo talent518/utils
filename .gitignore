@@ -66,3 +66,4 @@ dirs-mongo
 expect
 sem2
 glib
+crc16
