@@ -71,6 +71,11 @@ int main(int argc, char *argv[]) {
 		printf("%04x %s\n", crc16(~0, argv[i], strlen(argv[i])), argv[i]);
 	}
 
+#ifdef CRCBUF
+	printf("%lu: %s\n", sizeof(CRCBUF)-1, CRCBUF);
+	printf("%04x\n", crc16(~0, CRCBUF, sizeof(CRCBUF)-1));
+#endif
+
 	return 0;
 }
 
