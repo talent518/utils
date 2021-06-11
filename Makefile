@@ -344,6 +344,11 @@ crc16: crc16.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: crc16s
+crc16s: crc16s.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

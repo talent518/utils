@@ -95,7 +95,8 @@
   	* ubuntu下安装kdump+crash:
   	  * 使用apt安装: sudo apt install linux-crashdump
   	  * 使用 kdump-config show 查看是否正确配置
-  * crc16.c => crc16 16位校验码生成算法
+  * crc16.c => crc16 16位校验码生成算法(poly: 0x8005 (x^16 + x^15 + x^2 + 1))
+  * crc16s.c => crc16 16位校验码生成算法(poly: 0x1021 (x^16 + x^12 + x^15 + 1))
   * nat-port-forward.sh => iptables的NAT端口转发
 ```
 DUMP_MODE:        kdump
