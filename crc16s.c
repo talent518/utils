@@ -10,7 +10,8 @@ extern u16 const crc16_table[256];
 extern u16 crc16(u16 crc, const u8 *buffer, size_t len);
 
 static inline u16 crc16_byte(u16 crc, const u8 data) {
-	return (crc >> 8) ^ crc16_table[(crc ^ data) & 0xff];
+	// return (crc >> 8) ^ crc16_table[(crc ^ data) & 0xff];
+	return (crc << 8) ^ crc16_table[((crc >> 8) ^ data) & 0xff];
 }
 
 /** CRC table for the CRC-16. The poly is 0x1021 (x^16 + x^12 + x^15 + 1) */
@@ -68,16 +69,16 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	for(i=1; i<argc; i++) {
-		printf("%04x %s\n", crc16(~0, argv[i], strlen(argv[i])), argv[i]);
+		printf("%04x %s\n", crc16(0xffff, argv[i], strlen(argv[i])), argv[i]);
 	}
 	
 #ifdef CRCBUF
 	printf("%lu: %s\n", sizeof(CRCBUF)-1, CRCBUF);
-	printf("%04x\n", crc16(~0, CRCBUF, sizeof(CRCBUF)-1));
+	printf("%04x\n", crc16(0xffff, CRCBUF, sizeof(CRCBUF)-1));
 	return 0;
 #else
 	if(argc == 1) {
-		u16 crc = ~0;
+		u16 crc = 0xffff;
 		u8 buf[256];
 		while(!feof(stdin)) {
 			i = fread(buf, 1, sizeof(buf), stdin);

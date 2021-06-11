@@ -68,16 +68,16 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	for(i=1; i<argc; i++) {
-		printf("%04x %s\n", crc16(~0, argv[i], strlen(argv[i])), argv[i]);
+		printf("%04x %s\n", crc16(0xffff, argv[i], strlen(argv[i])), argv[i]);
 	}
 	
 #ifdef CRCBUF
 	printf("%lu: %s\n", sizeof(CRCBUF)-1, CRCBUF);
-	printf("%04x\n", crc16(~0, CRCBUF, sizeof(CRCBUF)-1));
+	printf("%04x\n", crc16(0xffff, CRCBUF, sizeof(CRCBUF)-1));
 	return 0;
 #else
 	if(argc == 1) {
-		u16 crc = ~0;
+		u16 crc = 0xffff;
 		u8 buf[256];
 		while(!feof(stdin)) {
 			i = fread(buf, 1, sizeof(buf), stdin);
