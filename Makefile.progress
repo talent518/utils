@@ -351,6 +351,21 @@ glib: glib.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs glib-2.0)
 
+all: crc16
+crc16: crc16.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: crc16s
+crc16s: crc16s.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: mprotect
+mprotect: mprotect.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

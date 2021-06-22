@@ -349,6 +349,11 @@ crc16s: crc16s.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: mprotect
+mprotect: mprotect.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
