@@ -69,3 +69,4 @@ glib
 crc16
 crc16s
 mprotect
+reboot

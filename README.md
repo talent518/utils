@@ -99,6 +99,7 @@
   * crc16s.c => crc16 16位校验码生成算法(poly: 0x1021 (x^16 + x^12 + x^15 + 1))
   * nat-port-forward.sh => iptables的NAT端口转发
   * mprotect.c => mprotect()函数可以用来修改一段指定内存区域的保护属性
+  * reboot.c => 重启和关机命令
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
