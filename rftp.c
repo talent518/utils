@@ -16,6 +16,7 @@ static int TRIES = 3;
 static unsigned long int nTRIES = 0;
 static FILE *outFd = NULL;
 static int resume = 0;
+static int is_soft = 0;
 
 static const opt_struct OPTIONS[] = {
 	{'H', 0, "hide-args"},
@@ -34,6 +35,7 @@ static const opt_struct OPTIONS[] = {
 	{'P', 0, "pasv"},
 	{'s', 0, "ssl"},
 	{'R', 0, "resume"},
+	{'S', 0, "soft"},
 
 	{'-', 0, NULL} /* end of args */
 };
@@ -75,6 +77,7 @@ static void usage(char *argv0) {
 		"  -s, --ssl                         Use ssl\n"
 	#endif
 		"  -R, --resume                      Resume\n"
+		"  -S, --soft                        Upload soft link target file\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
 		"example:\n"
 		"  %s -h host [-p port] [-u user] [-w password] -m get -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
@@ -314,6 +317,16 @@ int ftpput(ftpbuf_t *ftp, const char *local, const char *remote) {
 			fprintf(stderr, "fopen %s file failed\n", local);
 			ret = 1;
 		}
+	} else if(is_soft && S_ISLNK(st.st_mode)) {
+		char buf[PATH_MAX];
+		if(readlink(local, buf, PATH_MAX) > 0) {
+			if(ftpput(ftp, buf, remote)) {
+				fprintf(stderr, "skip %s -> %s => %s\n", local, buf, remote);
+			}
+		} else {
+			fprintf(stderr, "readlink %s failed\n", local);
+			ret = 1;
+		}
 	} else {
 		char type;
 		switch(st.st_mode & S_IFMT) {
@@ -464,6 +477,9 @@ int main(int argc, char *argv[]) {
 			case 'R':
 				resume = 1;
 				break;
+			case 'S':
+				is_soft = 1;
+				break;
 			case 'H':
 				hide_argv = 1;
 				break;
@@ -493,11 +509,12 @@ int main(int argc, char *argv[]) {
 			"  ssl      = %d\n"
 		#endif
 			"  resume   = %d\n"
+			"  is_soft   = %d\n"
 			, host?host:"", port, user?user:"", password?password:"", method?method:"", local?local:"", remote?remote:"", inFile?inFile:"", outFile?outFile:"", TRIES, timeout, debug, pasv
 		#ifdef HAVE_FTP_SSL
 			, use_ssl
 		#endif
-			, resume
+			, resume, is_soft
 		);
 		exit_status = 1;
 		goto optEnd;
