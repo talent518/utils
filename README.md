@@ -100,6 +100,8 @@
   * nat-port-forward.sh => iptables的NAT端口转发
   * mprotect.c => mprotect()函数可以用来修改一段指定内存区域的保护属性
   * reboot.c => 重启和关机命令
+  * colors.sh => shell颜色与复位光标输出(显示进度)
+  * repo2bare.sh => 把aosp安卓系统的repo版本库本地化(即多git版本库组成)
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
