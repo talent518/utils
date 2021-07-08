@@ -359,6 +359,11 @@ reboot: reboot.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: screen2bmp
+screen2bmp: screen2bmp.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

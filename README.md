@@ -102,6 +102,7 @@
   * reboot.c => 重启和关机命令
   * colors.sh => shell颜色与复位光标输出(显示进度)
   * repo2bare.sh => 把aosp安卓系统的repo版本库本地化(即多git版本库组成)
+  * screen2bmp.c => 使用framebuffer进行截屏。
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
