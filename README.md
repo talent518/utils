@@ -104,6 +104,10 @@
   * repo2bare.sh => 把aosp安卓系统的repo版本库本地化(即多git版本库组成)
   * screen2bmp.c => 使用framebuffer进行截屏。
   * index.cgi => shell脚本实现CGI目录索引
+  * shared => 共享库的嵌套
+    * main.c => 主函数引用shared.c中的test123()
+    * shared.c => 函数test123引用shared2.c中的test234()
+    * shared2.c => 函数test234
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
