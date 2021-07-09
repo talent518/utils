@@ -150,12 +150,12 @@ int main(int argc, char *argv[]) {
 	struct itimerval itv;
 
 	// Interval for periodic timer
-	// ÖÜÆÚ¼ÆÊ±Æ÷¼ä¸ô£¬Ã¿´ÎSIGALRMĞÅºÅÊÂ¼şµÄÊ±¼ä¼ä¸ô
+	// å‘¨æœŸè®¡æ—¶å™¨é—´éš”ï¼Œæ¯æ¬¡SIGALRMä¿¡å·äº‹ä»¶çš„æ—¶é—´é—´éš”
 	itv.it_interval.tv_sec = 0;
 	itv.it_interval.tv_usec = 40000; // 40ms
 
 	// Time until next expiration
-	// ÏÂ´Îµ½ÆÚÇ°µÄÊ±¼ä£¬Ê×´ÎSIGALRMĞÅºÅÊÂ¼şµÄÊ±¼ä¼ä¸ô
+	// ä¸‹æ¬¡åˆ°æœŸå‰çš„æ—¶é—´ï¼Œé¦–æ¬¡SIGALRMä¿¡å·äº‹ä»¶çš„æ—¶é—´é—´éš”
 	itv.it_value.tv_sec = 0;
 	itv.it_value.tv_usec = 40000; // 40ms
 
