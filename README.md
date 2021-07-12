@@ -108,6 +108,10 @@
     * main.c => 主函数引用shared.c中的test123()
     * shared.c => 函数test123引用shared2.c中的test234()
     * shared2.c => 函数test234
+  * shared++ => 共享库的嵌套
+    * main.cpp => 引用shared.cpp:libshared.so
+    * shared.cpp => 引用shared2.cpp:libshared2.so
+    * shared2.cpp => 无引用
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
