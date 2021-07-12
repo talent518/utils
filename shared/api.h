@@ -2,16 +2,10 @@
 #define _API_H
 
 #if defined(__GNUC__) && __GNUC__ >= 4
-#	define APID __attribute__ ((visibility("default")))
-#	define APIH __attribute__ ((visibility("hidden")))
-//#	warning "API OK"
+#	define API __attribute__ ((visibility("default")))
 #else
-#	define APID
-#	define APIH
-//#	warning "API NO"
+#	define API
 #endif
-
-#define API APID
 
 API int test123(void);
 API void test234(void);
