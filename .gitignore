@@ -71,3 +71,6 @@ crc16s
 mprotect
 reboot
 screen2bmp
+screenshot
+screenshot.jpg
+make.cache

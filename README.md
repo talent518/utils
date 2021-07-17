@@ -112,6 +112,7 @@
     * main.cpp => 引用shared.cpp:libshared.so
     * shared.cpp => 引用shared2.cpp:libshared2.so
     * shared2.cpp => 无引用
+  * screenshot.c => 基于X11的屏幕截图
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
