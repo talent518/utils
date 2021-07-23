@@ -113,6 +113,7 @@
     * shared.cpp => 引用shared2.cpp:libshared2.so
     * shared2.cpp => 无引用
   * screenshot.c => 基于X11的屏幕截图
+  * lsexeso.sh => 查看程序加载的so文件列表
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
