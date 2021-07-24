@@ -114,7 +114,8 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 	}
 
 	jpeg_set_defaults(&cinfo);
-	jpeg_start_compress(&cinfo,TRUE);
+	jpeg_set_quality(&cinfo, 100, TRUE);
+	jpeg_start_compress(&cinfo, TRUE);
 
 	JSAMPROW row_pointer[1];/* pointer to scanline */
 

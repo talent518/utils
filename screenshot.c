@@ -11,10 +11,9 @@ gcc -o output main.c -lX11 -ljpeg
 
 #include <X11/Xutil.h>
 #include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
 
 #include <jpeglib.h>
-
-
 
 /***************************************************************
 Write XImage data to a JPEG file
@@ -45,7 +44,8 @@ int JpegWriteFileFromImage(char *filename, XImage* img) {
 	cinfo.in_color_space = JCS_RGB;
 
 	jpeg_set_defaults(&cinfo);
-	jpeg_start_compress(&cinfo,TRUE);
+	jpeg_set_quality(&cinfo, 100, TRUE);
+	jpeg_start_compress(&cinfo, TRUE);
 
 	JSAMPROW row_pointer[1];/* pointer to scanline */
 	unsigned char* pBuf = (unsigned char*)malloc(3*img->width);
@@ -72,52 +72,83 @@ int JpegWriteFileFromImage(char *filename, XImage* img) {
 	return 1;
 }
 
-/*****************************************************************
-Capture a local screenshot of the desktop,
-saving to the file specified by filename.
-write a JPEG file.
-
-Return Value:
-0 - fail
-1 - success
-******************************************************************/
-int CaptureDesktop(char* filename) {
-	Window desktop;
-	Display *dsp;
+int main(int argc, char *argv[]) {
+	Display *dpy;
+	Window win;
+	XRRScreenResources *res;
+	XRRCrtcInfo *crtc_info;
+	XRROutputInfo *output_info;
+	XRROutputInfo **output_infos;
+	RROutput output;
+	RRCrtc crtc;
 	XImage *img;
 
-	int screen_width;
-	int screen_height;
+	int width;
+	int height;
+	int n, i, i2, i3;
+	char filename[64];
 
-	dsp = XOpenDisplay(NULL); // Connect to a local display
-	if(NULL == dsp) {
+	dpy = XOpenDisplay(NULL);
+	if(NULL == dpy) {
 		fprintf(stderr, "Cannot connect to local display");
-		return 0;
+		return 1;
 	}
-	desktop = RootWindow(dsp, 0);/* Refer to the root window */
-	if(0 == desktop) {
-		fprintf(stderr, "cannot get root window");
-		return 0;
-	}
-
-	/* Retrive the width and the height of the screen */
-	screen_width = DisplayWidth(dsp, 0);
-	screen_height = DisplayHeight(dsp, 0);
 	
-	fprintf(stderr, "Width: %d, Height: %d\n", screen_width, screen_height);
+	n = XScreenCount(dpy);
+	
+	for(i=0; i<n; i++) {
+		width = XDisplayWidth(dpy, i);
+		height = XDisplayHeight(dpy, i);
 
-	/* Get the Image of the root window */
-	img = XGetImage(dsp, desktop, 0, 0, screen_width, screen_height, ~0, ZPixmap);
+		fprintf(stderr, "Screen %d: Width: %d, Height: %d\n", i, width, height);
 
-	JpegWriteFileFromImage(filename, img);
+		win = RootWindow(dpy, DefaultScreen(dpy));
+		if(!win) {
+			fprintf(stderr, "cannot get root window for %d screen\n", i);
+			continue;
+		}
+		
+		res = XRRGetScreenResources(dpy, win);
+		output = XRRGetOutputPrimary(dpy, win);
+		output_infos = (XRROutputInfo**) malloc(sizeof(XRROutputInfo*) * res->ncrtc);
 
-	XDestroyImage(img);
-	XCloseDisplay(dsp);
-	return 1;
-}
+		i3 = 0;
+		crtc = 0;
+		for (i2 = 0; i2 < res->noutput; i2++) {
+			output_info = XRRGetOutputInfo (dpy, res, res->outputs[i2]);
+			if(output == res->outputs[i2]) crtc = output_info->crtc;
+			if(output_info->crtc) output_infos[i3++] = output_info;
+			else XRRFreeOutputInfo(output_info);
+		}
 
-int main(int argc, char *argv[]) {
-	CaptureDesktop("./screenshot.jpg");
-	printf("Done.\n");
+		for(i2=0; i2<res->ncrtc; i2++) {
+			crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[i2]);
+			
+			output_info = NULL;
+			for(i3=0; i3<res->ncrtc; i3++) {
+				if(output_infos[i3]->crtc == res->crtcs[i2]) output_info = output_infos[i3];
+			}
+
+			snprintf(filename, sizeof(filename), "screen-%02d-%02d.jpg", i, i2);
+			
+			fprintf(stderr, "    Display: %d, Name: %6s %7s, x: %4d, y: %4d, width: %4d, height: %4d, filename: %s\n", i2, output_info->name, res->crtcs[i2] == crtc ? "Primary" : "", crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, filename);
+
+			img = XGetImage(dpy, win, crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, ~0, ZPixmap);
+			JpegWriteFileFromImage(filename, img);
+			XDestroyImage(img);
+			XRRFreeCrtcInfo(crtc_info);
+		}
+		
+		for (i2 = 0; i2 < res->ncrtc; i2++) {
+			XRRFreeOutputInfo(output_infos[i2]);
+		}
+		
+		free(output_infos);
+		
+		XRRFreeScreenResources(res);
+	}
+
+	XCloseDisplay(dpy);
+	return 0;
 }
 

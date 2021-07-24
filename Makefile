@@ -372,7 +372,7 @@ screen2jpg: screen2jpg.o
 all: screenshot
 screenshot: screenshot.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) -ljpeg -lX11
+	@$(CC) -o $@ $^ $(LFLAGS) -ljpeg -lX11 -lXrandr
 
 %.o: %.c
 	@echo CC $^
