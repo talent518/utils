@@ -145,6 +145,7 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 		}
 		if(line[0] == 'l' && (ptr = strstr(line+len, " -> "))) {
 			strncpy(name, line+len, ptr-line-len);
+			name[ptr-line-len] = '\0';
 			strcpy(link, ptr+4);
 		} else {
 			strcpy(name, line+len);
@@ -586,6 +587,11 @@ int main(int argc, char *argv[]) {
 		}
 		if(*remote && *(ptr-1) == '/') *(ptr-1) = '\0';
 	} // }}}
+	
+	if(local) {
+		char *ptr = local + strlen(local) - 1;
+		if(local != ptr && *ptr == '/') *ptr = '\0';
+	}
 
 	if(outFile) {
 		outFd = fopen(outFile, "w");
