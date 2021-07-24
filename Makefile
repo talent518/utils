@@ -364,6 +364,11 @@ screen2bmp: screen2bmp.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: screen2jpg
+screen2jpg: screen2jpg.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -ljpeg
+
 all: screenshot
 screenshot: screenshot.o
 	@echo LD $@

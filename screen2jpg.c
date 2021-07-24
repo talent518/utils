@@ -17,6 +17,8 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include <jpeglib.h>
+
 double microtime() {
 	struct timeval tp = {0};
 
@@ -32,24 +34,12 @@ static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
 static unsigned char format[30];
 static unsigned char filename[30];
- 
-unsigned char bmp_head_66[] = {
-	0x42, 0x4d, 0x42, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x42, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0xf0, 0x00,
-	0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00,
-	0x03, 0x00, 0x00, 0x00, 0x00, 0x58, 0x02, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xe0, 0x07,
-	0x00, 0x00, 0x1f, 0x00, 0x00, 0x00
-};
 
-unsigned char bmp_head_54[54];
 static char *fb_addr = NULL;
 int width = 0, height = 0;
 int xoffset = 0, xsize = 0;
 int fb_bpp;
 int fb_size;
-int is_no_cgi = 1;
 
 static int fb_init(void) {
 	struct fb_var_screeninfo vinfo;
@@ -86,6 +76,64 @@ static int fb_init(void) {
 	return fd;
 }
 
+void save_jpeg_to_stream(FILE* fp, const char *sp) {
+	struct jpeg_compress_struct cinfo;
+	struct jpeg_error_mgr jerr;
+	unsigned char *outbuffer = NULL;
+    unsigned long outsize = 0;
+
+	cinfo.err = jpeg_std_error(&jerr);
+	jpeg_create_compress(&cinfo);
+
+	if(sp) {
+		jpeg_mem_dest(&cinfo, &outbuffer, &outsize);
+	} else {
+		jpeg_stdio_dest(&cinfo, fp);
+	}
+
+	cinfo.image_width = width;
+	cinfo.image_height = height;
+	cinfo.input_components = fb_bpp / 8;
+	
+	switch(cinfo.input_components) {
+		case 1:
+			cinfo.in_color_space = JCS_GRAYSCALE; // todo: no check is right
+			break;
+		case 2:
+			cinfo.in_color_space = JCS_RGB565;
+			break;
+		case 3:
+			cinfo.in_color_space = JCS_EXT_BGR;
+			break;
+		case 4:
+			cinfo.in_color_space = JCS_EXT_RGBA;
+			break;
+		default:
+			fprintf(stderr, "color type error\n");
+			break;
+	}
+
+	jpeg_set_defaults(&cinfo);
+	jpeg_start_compress(&cinfo,TRUE);
+
+	JSAMPROW row_pointer[1];/* pointer to scanline */
+
+	for(int y = 0; y < height; y++) {
+		row_pointer[0] = fb_addr + y * xoffset;
+
+		jpeg_write_scanlines(&cinfo, row_pointer, 1);
+	}
+
+	jpeg_finish_compress(&cinfo);
+	jpeg_destroy_compress(&cinfo);
+
+	if(sp) {
+		fprintf(fp, "%s OK\r\nConnection: Close\r\nImage-Size: %dx%d\r\nImage-Color: %d\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n", sp, width, height, fb_bpp, outsize);
+		fwrite(outbuffer, 1, outsize, fp);
+		free(outbuffer);
+	}
+}
+
 void save_to_file() {
 	FILE *fp;
 
@@ -97,27 +145,8 @@ void save_to_file() {
 	printf("Saving to %s ...\n", filename);
 
 	fp = fopen(filename, "w+");
-	if(fb_bpp == 16)
-		fwrite(bmp_head_66, 1, 66, fp);
-	else
-		fwrite(bmp_head_54, 1, 54, fp);
-
-	for(int y = 0; y < height; y++)
-		fwrite(fb_addr + (height - 1 - y) * xoffset, 1, xsize, fp);
-
+	save_jpeg_to_stream(fp, NULL);
 	fclose(fp);
-}
-
-void cgi_out(const char *sp) {
-	printf("%s OK\r\nConnection: Close\r\nContent-Type: image/bmp\r\nContent-Length: %d\r\n\r\n", sp, (fb_bpp == 16 ? 66 : 54) + height * xsize);
-
-	if(fb_bpp == 16)
-		fwrite(bmp_head_66, 1, 66, stdout);
-	else
-		fwrite(bmp_head_54, 1, 54, stdout);
-
-	for(int y = 0; y < height; y++)
-		fwrite(fb_addr + (height - 1 - y) * xoffset, 1, xsize, stdout);
 }
 
 void signal_handler(int sig) {
@@ -136,28 +165,11 @@ void signal_handler(int sig) {
 
 int main(int argc, char *argv[]) {
 	int fd = fb_init();
- 
-	if(fb_bpp == 16){
-	    *((unsigned int*)(bmp_head_66 + 18)) = width;
-	    *((unsigned int*)(bmp_head_66 + 22)) = height;
-	    *((unsigned short*)(bmp_head_66 + 28)) = 16;
-	}else{
-		bmp_head_54[0] = 'B';
-		bmp_head_54[1] = 'M';
-		*((unsigned int*)(bmp_head_54 + 2)) = (width * fb_bpp / 8) * height + 54;
-		*((unsigned int*)(bmp_head_54 + 10)) = 54;
-		*((unsigned int*)(bmp_head_54 + 14)) = 40;
-		*((unsigned int*)(bmp_head_54 + 18)) = width;
-		*((unsigned int*)(bmp_head_54 + 22)) = height;
-		*((unsigned short*)(bmp_head_54 + 26)) = 1;
-		*((unsigned short*)(bmp_head_54 + 28)) = fb_bpp;
-		*((unsigned short*)(bmp_head_54 + 34)) = (width * fb_bpp / 8) * height;
-	}
 
 	{
 		char *sp = getenv("SERVER_PROTOCOL");
 		if(sp && !strncmp(sp, "HTTP/", 5)) {
-			cgi_out(sp);
+			save_jpeg_to_stream(stdout, sp);
 			goto end;
 		}
 	}
@@ -166,7 +178,7 @@ int main(int argc, char *argv[]) {
 		maxframe = 10;
 	}
 
-	sprintf(format, "screen-%%0%dd.bmp", (int) floor(log10(maxframe)) + 1);
+	sprintf(format, "screen-%%0%dd.jpg", (int) floor(log10(maxframe)) + 1);
 
 	struct itimerval itv;
 
