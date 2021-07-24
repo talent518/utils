@@ -2496,6 +2496,8 @@ ftp_genlist(ftpbuf_t *ftp, const char *cmd, const size_t cmd_len, const char *pa
 		return NULL;
 	}
 
+	if(ftp->debug) for(entry = ret; *entry; entry++) dprintf("%s < %s\n", ftp->prompt, *entry);
+
 	return ret;
 bail:
 	ftp->data = data_close(ftp, data);

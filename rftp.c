@@ -104,7 +104,11 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 
 	int tries = -1;
 
-	len = asprintf(&path, "-a %s", remote);
+	if(*remote) {
+		len = asprintf(&path, "-a %s", remote);
+	} else {
+		len = asprintf(&path, "-a");
+	}
 	trylst:
 	tries++;
 	lines = ftp_list(ftp, path, len, 0);
@@ -128,6 +132,8 @@ int ftplist(ftpbuf_t *ftp, const char *local, const char *remote, const char *me
 		}
 		ret2 = sscanf(line, "%[^ ] %d %d %d %lu %s %s %s %n", perms, &number, &owner, &group, &size, dt1, dt2, dt3, &len);
 		if(ret2 != 8) {
+			if(ret2 == 2) continue;
+
 			ret2 = sscanf(line, "%[^ ] %d %*[^ ] %*[^ ] %lu %s %s %s %n", perms, &number, &size, dt1, dt2, dt3, &len);
 			if(ret2 != 6) {
 				if(outFd) fprintf(outFd, "LST\t%s\t%s\t%s\n", local?local:"", remote, method);
@@ -433,9 +439,11 @@ int main(int argc, char *argv[]) {
 				port = atoi((const char *)optarg);
 				break;
 			case 'u':
+				free(user);
 				user = strdup((const char *)optarg);
 				break;
 			case 'w':
+				free(password);
 				password = strdup((const char *)optarg);
 				{
 					char *p = (char*) optarg;

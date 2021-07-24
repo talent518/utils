@@ -4,7 +4,7 @@ $options = getopt('h:p:u:w:m:l:r:H');
 
 if(empty($options['p'])) $options['p'] = 21;
 
-if(empty($options) || empty($options['h']) || empty($options['u']) || empty($options['w']) || empty($options['m']) || !in_array($options['m'], ['get', 'put', 'del']) || (empty($options['l']) && $options['m'] !== 'del') || empty($options['r'])) {
+if(empty($options) || empty($options['h']) || empty($options['u']) || empty($options['m']) || !in_array($options['m'], ['get', 'put', 'del']) || (empty($options['l']) && $options['m'] !== 'del') || empty($options['r'])) {
 	echo @<<<EOT
 FTP recursively uploading, downloading, and deleting operation scripts
 
