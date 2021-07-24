@@ -49,6 +49,7 @@ int width = 0, height = 0;
 int xoffset = 0, xsize = 0;
 int fb_bpp;
 int fb_size;
+int is_no_cgi = 1;
 
 static int fb_init(void) {
 	struct fb_var_screeninfo vinfo;
@@ -107,6 +108,18 @@ void save_to_file() {
 	fclose(fp);
 }
 
+void cgi_out() {
+	printf("HTTP/1.1 OK\r\nConnection: Close\r\nContent-Type: image/bmp\r\nContent-Length: %d\r\n\r\n", (fb_bpp == 16 ? 66 : 54) + height * xsize);
+
+	if(fb_bpp == 16)
+		fwrite(bmp_head_66, 1, 66, stdout);
+	else
+		fwrite(bmp_head_54, 1, 54, stdout);
+
+	for(int y = 0; y < height; y++)
+		fwrite(fb_addr + (height - 1 - y) * xoffset, 1, xsize, stdout);
+}
+
 void signal_handler(int sig) {
 	switch(sig) {
 		case SIGINT:
@@ -141,6 +154,14 @@ int main(int argc, char *argv[]) {
 		*((unsigned short*)(bmp_head_54 + 34)) = (width * fb_bpp / 8) * height;
 	}
 
+	{
+		char *sp = getenv("SERVER_PROTOCOL");
+		if(sp && !strncmp(sp, "HTTP/", 5)) {
+			cgi_out(sp);
+			goto end;
+		}
+	}
+
 	if(argc < 2 || (maxframe = atoi(argv[1])) < 1) {
 		maxframe = 10;
 	}
@@ -165,6 +186,7 @@ int main(int argc, char *argv[]) {
 	while(is_running) usleep(1000);
 	printf("[%lf] end\n", microtime());
 
+end:
 	munmap(fb_addr, fb_size);
 	close(fd);
 

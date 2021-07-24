@@ -1,6 +1,6 @@
 #!/bin/sh
 
-tmpfile=/tmp/index.html
+tmpfile=$(mktemp -u)
 
 cat - > $tmpfile <<!
 <style type="text/css">
@@ -23,7 +23,11 @@ ls -a $dir | while read name; do
         printf '<tr><td><a href="%s">%s</a></td><td>%d</td></tr>' "$name" "$name" $size >> $tmpfile
     fi
 done
-echo '</table>'
+echo '</table>' >> $tmpfile
+
+length=$(stat -c %s "$tmpfile")
 
 printf "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: $length\r\n\r\n"
 cat $tmpfile
+rm -f $tmpfile
+
