@@ -4,8 +4,8 @@
 #include <math.h>
 
 void _seq(char *str, int b, int n) {
-	static int id;
-	static char fmt[12];
+	static long int id;
+	static char fmt[32];
 	register char chr;
 	register int i;
 	if(b == 0) {
@@ -13,7 +13,8 @@ void _seq(char *str, int b, int n) {
 		for(i=n;i>1;i--) {
 			id *= i;
 		}
-		sprintf(fmt, "%%%dd: %%s\n", (int) ceil(log10(id+1)));
+		fprintf(stderr, "total: %ld\n", id);
+		sprintf(fmt, "%%%ldd: %%s\n", (long int) ceil(log10(id)));
 		id = 0;
 	}
 	
@@ -25,7 +26,9 @@ void _seq(char *str, int b, int n) {
 		}
 		
 		if(b == n-2) {
-			printf(fmt, ++id, str);
+			id++;
+			fprintf(stderr, "%ld\r", id);
+			printf(fmt, id, str);
 		} else {
 			// printf("b: %d\n", b);
 			memcpy(str+n+1, str, n);
@@ -36,9 +39,16 @@ void _seq(char *str, int b, int n) {
 
 void seq(const char *str) {
 	unsigned n = strlen(str);
-	char *buf = (char*) malloc(n*n);
+	char *buf;
+
+	if(n > 20) {
+		fprintf(stderr, "long int overflow\n");
+		return;
+	}
+
+	buf = (char*) malloc(n*(n+1));
 	
-	memset(buf, 0, n*n);
+	memset(buf, 0, n*(n+1));
 	memcpy(buf, str, n);
 	
 	_seq(buf, 0, n);
