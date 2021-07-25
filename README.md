@@ -1,7 +1,7 @@
 # utils
 杂项源码
-  * cpu-memory-info.c => Unix系统下的CPU和内存信息的实时监控.
-  * nonRepetitiveSequence.c => 不重复序列的生成.
+  * cpu-memory-info.c => Unix系统下的CPU和内存信息的实时监控
+  * nonRepetitiveSequence.c => 不重复序列的生成
   * download.php => 响应浏览器另存为文件（下载），支持大文件下载，支持断点续传
   * linux-server-info.php => Web版本的Unix服务器的实时监控.
   * proxy.php => php版本的反射代理
@@ -102,8 +102,9 @@
   * reboot.c => 重启和关机命令
   * colors.sh => shell颜色与复位光标输出(显示进度)
   * repo2bare.sh => 把aosp安卓系统的repo版本库本地化(即多git版本库组成)
-  * screen2bmp.c => 使用framebuffer进行截屏(bmp格式)。
-  * screen2jpg.c => 使用framebuffer进行截屏(jpg格式)。
+  * screen2bmp.c => 使用framebuffer进行截屏(bmp格式)
+  * screen2jpg.c => 使用framebuffer进行截屏(jpg格式)
+  * fbgif.c => 使用framebuffer显示gif动画
   * index.cgi => shell脚本实现CGI目录索引
   * shared => 共享库的嵌套
     * main.c => 主函数引用shared.c中的test123()
