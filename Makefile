@@ -374,6 +374,11 @@ screenshot: screenshot.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -ljpeg -lX11 -lXrandr
 
+all: fbgif
+fbgif: fbgif.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lgif -lm
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

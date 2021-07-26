@@ -392,6 +392,11 @@ screenshot: screenshot.o
 	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
 
+all: fbgif
+fbgif: fbgif.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lgif -lm
+
 %.O: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.S) -S $^

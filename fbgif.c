@@ -34,6 +34,8 @@ volatile unsigned int is_debug = 0;
 // GIF global variable
 static GifFileType *gifFile;
 static int *delayTimes;
+static int *TransparentColors;
+static int *DisposalModes;
 static int curFrame = 0;
 
 // framebuffer global variable
@@ -98,18 +100,38 @@ static void display_frame() {
 		register unsigned char *p;
 		GifColorType *color;
 		GifByteType index;
+		ColorMapObject *ColorMap;
 		
-		if(is_debug) fprintf(stderr, "curFrame: %d, DelayTime: %dms, Left: %d, Top: %d, Width: %d, Height: %d, ColorMap: %p\n", curFrame, delayTimes[curFrame], image->ImageDesc.Left, image->ImageDesc.Top, image->ImageDesc.Width, image->ImageDesc.Height, image->ImageDesc.ColorMap);
+		if(image->ImageDesc.ColorMap == NULL) {
+			if(gifFile->Image.Interlace) {
+				ColorMap = gifFile->Image.ColorMap;
+				if(!ColorMap) ColorMap = gifFile->SColorMap;
+			} else {
+				ColorMap = gifFile->SColorMap;
+			}
+		} else {
+			ColorMap = image->ImageDesc.ColorMap;
+		}
+		
+		if(is_debug) fprintf(stderr, "curFrame: %d, DelayTime: %dms, Left: %d, Top: %d, Width: %d, Height: %d, ColorMap: %p, ColorCount: %d, BitsPerPixel: %d, SortFlag: %d, ExtensionBlockCount: %d, Interlace: %d\n", curFrame, delayTimes[curFrame], image->ImageDesc.Left, image->ImageDesc.Top, image->ImageDesc.Width, image->ImageDesc.Height, image->ImageDesc.ColorMap, ColorMap->ColorCount, ColorMap->BitsPerPixel, ColorMap->SortFlag, image->ExtensionBlockCount, image->ImageDesc.Interlace);
 
-		for(y = 0; y < image->ImageDesc.Height; y ++) {
+		for(y = 0; y < image->ImageDesc.Height && y < height; y ++) {
 			p = fb_addr + xoffset * (y + ytop + image->ImageDesc.Top) + xleft + image->ImageDesc.Left * fb_bpp / 8;
-			for(x = 0; x < image->ImageDesc.Width; x ++) {
+			for(x = 0; x < image->ImageDesc.Width && x < width; x ++) {
 				index = image->RasterBits[y * image->ImageDesc.Width + x];
-				if(image->ImageDesc.ColorMap == NULL) {
-					color = &gifFile->SColorMap->Colors[index];
-				} else {
-					color = &image->ImageDesc.ColorMap->Colors[index];
+				if(index == TransparentColors[curFrame]) {
+					if(DisposalModes[curFrame] == 2) {
+						memset(p, 0, fb_bpp / 8);
+						p += fb_bpp / 8;
+						continue;
+					} else if(DisposalModes[curFrame] == 1) {
+						p += fb_bpp / 8;
+						continue;
+					} else {
+						index = gifFile->SBackGroundColor;
+					}
 				}
+				color = &ColorMap->Colors[index];
 				if(fb_bpp == 32) {
 					*p++ = color->Red;
 					*p++ = color->Green;
@@ -169,15 +191,21 @@ int main(int argc, char *argv[]) {
 		goto gif;
 	}
 	
-	if(is_debug) fprintf(stderr, "SWidth: %d, SHeight: %d\n", gifFile->SWidth, gifFile->SHeight);
+	if(is_debug) fprintf(stderr, "Version: %s, SWidth: %d, SHeight: %d, SBackGroundColor: %d, SColorResolution: %d, AspectByte: %d, UserData: %p, Private: %p, ExtensionBlockCount: %d, Image.Interlace: %d\n", DGifGetGifVersion(gifFile), gifFile->SWidth, gifFile->SHeight, gifFile->SBackGroundColor, gifFile->SColorResolution, gifFile->AspectByte, gifFile->UserData, gifFile->Private, gifFile->ExtensionBlockCount, gifFile->Image.Interlace);
 	
 	delayTimes = (int *) malloc(sizeof(int)*gifFile->ImageCount);
+	TransparentColors = (int *) malloc(sizeof(int)*gifFile->ImageCount);
+	DisposalModes = (int *) malloc(sizeof(int)*gifFile->ImageCount);
 	for(i = 0; i < gifFile->ImageCount; i ++) {
 		if(DGifSavedExtensionToGCB(gifFile, i, &ecb) != GIF_OK) {
 			PrintGifError(gifFile->Error);
 			goto gif;
 		}
+		// printf("%d: %d %d\n", i, ecb.DisposalMode, ecb.UserInputFlag);
+		DisposalModes[i] = ecb.DisposalMode;
+		if(ecb.DelayTime < 2) ecb.DelayTime = 2; // min delay time 0.02 second
 		delayTimes[i] = ecb.DelayTime * 10;
+		TransparentColors[i] = ecb.TransparentColor;
 	}
 
 	fd = fb_init();
@@ -220,6 +248,9 @@ end:
 
 gif:
 	if(DGifCloseFile(gifFile, &i) != GIF_OK) PrintGifError(i);
+	free(delayTimes);
+	free(TransparentColors);
+	free(DisposalModes);
 
 	return 0;
 }
