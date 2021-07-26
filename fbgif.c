@@ -29,7 +29,8 @@ void PrintGifError(int ErrorCode) {
 }
 
 volatile unsigned int is_running = 1;
-volatile unsigned int is_debug = 0; 
+volatile unsigned int is_debug = 0;
+volatile int loop_times = 0x7fffffff;
 
 // GIF global variable
 static GifFileType *gifFile;
@@ -147,7 +148,10 @@ static void display_frame() {
 	}
 	
 	curFrame++;
-	if(curFrame == gifFile->ImageCount) curFrame = 0;
+	if(curFrame == gifFile->ImageCount) {
+		curFrame = 0;
+		if(--loop_times <= 0) is_running = 0;
+	}
 }
 
 static void signal_handler(int sig) {
@@ -169,7 +173,7 @@ int main(int argc, char *argv[]) {
 	char *buf, *p, *p2;
 
 	if(argc < 2) {
-		printf("usage: %s <gif>\n", argv[0]);
+		printf("usage: %s <gif> <debug> <loop times>\n", argv[0]);
 		return 1;
 	}
 	
@@ -179,6 +183,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	if(argc >= 3) is_debug = atoi(argv[2]);
+	if(argc >= 4) loop_times = atoi(argv[3]);
 	
 	gifFile = DGifOpenFileName(argv[1], &i);
 	if(!gifFile) {
