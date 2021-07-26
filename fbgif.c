@@ -19,6 +19,16 @@
 
 #include <gif_lib.h>
 
+double microtime() {
+	struct timeval tp = {0};
+
+	if (gettimeofday(&tp, NULL)) {
+		return 0;
+	}
+
+	return (double)(tp.tv_sec + tp.tv_usec / 1000000.00);
+}
+
 void PrintGifError(int ErrorCode) {
 	const char *Err = GifErrorString(ErrorCode);
 
@@ -31,6 +41,7 @@ void PrintGifError(int ErrorCode) {
 volatile unsigned int is_running = 1;
 volatile unsigned int is_debug = 0;
 volatile int loop_times = 0x7fffffff;
+volatile double start_time;
 
 // GIF global variable
 static GifFileType *gifFile;
@@ -121,18 +132,17 @@ static void display_frame() {
 			for(x = 0; x < image->ImageDesc.Width && x < width; x ++) {
 				index = image->RasterBits[y * image->ImageDesc.Width + x];
 				if(index == TransparentColors[curFrame]) {
-					if(DisposalModes[curFrame] == 2) {
-						memset(p, 0, fb_bpp / 8);
-						p += fb_bpp / 8;
-						continue;
-					} else if(DisposalModes[curFrame] == 1) {
+					index = gifFile->SBackGroundColor;
+					if(DisposalModes[curFrame] == 1) {
 						p += fb_bpp / 8;
 						continue;
 					} else {
-						index = gifFile->SBackGroundColor;
+						if(gifFile->Image.Interlace && gifFile->Image.ColorMap) color = &gifFile->Image.ColorMap->Colors[index];
+						else color = &gifFile->SColorMap->Colors[index];
 					}
+				} else {
+					color = &ColorMap->Colors[index];
 				}
-				color = &ColorMap->Colors[index];
 				if(fb_bpp == 32) {
 					*p++ = color->Red;
 					*p++ = color->Green;
@@ -147,11 +157,7 @@ static void display_frame() {
 		}
 	}
 	
-	curFrame++;
-	if(curFrame == gifFile->ImageCount) {
-		curFrame = 0;
-		if(--loop_times <= 0) is_running = 0;
-	}
+	if(++curFrame >= gifFile->ImageCount) curFrame = 0;
 }
 
 static void signal_handler(int sig) {
@@ -160,7 +166,12 @@ static void signal_handler(int sig) {
 			is_running = 0;
 			break;
 		case SIGALRM:
-			if(is_running) display_frame();
+			if(!is_running) break;
+			if(curFrame == 0 && --loop_times < 0 && (microtime() - start_time) > 3.0f) {
+				is_running = 0;
+				break;
+			}
+			display_frame();
 			break;
 		default:
 			printf("SIG: %d\n", sig);
@@ -208,7 +219,7 @@ int main(int argc, char *argv[]) {
 		}
 		// printf("%d: %d %d\n", i, ecb.DisposalMode, ecb.UserInputFlag);
 		DisposalModes[i] = ecb.DisposalMode;
-		if(ecb.DelayTime < 2) ecb.DelayTime = 2; // min delay time 0.02 second
+		if(ecb.DelayTime < 4) ecb.DelayTime = 4; // min delay time 0.02 second
 		delayTimes[i] = ecb.DelayTime * 10;
 		TransparentColors[i] = ecb.TransparentColor;
 	}
@@ -232,6 +243,8 @@ int main(int argc, char *argv[]) {
 		p += xsize;
 		p2 += xoffset;
 	}
+
+	start_time = microtime();
 
 	signal(SIGALRM, signal_handler);
 	display_frame();
