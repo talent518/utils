@@ -107,10 +107,10 @@ static void display_frame() {
 	}
 
 	{
-		register int x, y;
 		SavedImage *image = &gifFile->SavedImages[curFrame];
+		register int x, y, left = xleft + image->ImageDesc.Left, top = ytop + image->ImageDesc.Top;
 		register unsigned char *p;
-		GifColorType *color;
+		GifColorType *color, *bgColor;
 		GifByteType index;
 		ColorMapObject *ColorMap;
 		
@@ -124,27 +124,28 @@ static void display_frame() {
 		} else {
 			ColorMap = image->ImageDesc.ColorMap;
 		}
+
+		if(gifFile->Image.Interlace && gifFile->Image.ColorMap) bgColor = &gifFile->Image.ColorMap->Colors[gifFile->SBackGroundColor];
+		else bgColor = &gifFile->SColorMap->Colors[gifFile->SBackGroundColor];
 		
 		if(is_debug) fprintf(stderr, "curFrame: %d, DelayTime: %dms, Left: %d, Top: %d, Width: %d, Height: %d, ColorMap: %p, ColorCount: %d, BitsPerPixel: %d, SortFlag: %d, ExtensionBlockCount: %d, Interlace: %d\n", curFrame, delayTimes[curFrame], image->ImageDesc.Left, image->ImageDesc.Top, image->ImageDesc.Width, image->ImageDesc.Height, image->ImageDesc.ColorMap, ColorMap->ColorCount, ColorMap->BitsPerPixel, ColorMap->SortFlag, image->ExtensionBlockCount, image->ImageDesc.Interlace);
 
-		for(y = 0; y < image->ImageDesc.Height && ytop + image->ImageDesc.Top + y < height; y ++) {
-			if(y + ytop + image->ImageDesc.Top < 0) continue;
+		for(y = 0; y < image->ImageDesc.Height && top + y < height; y ++) {
+			if(top + y < 0) continue;
 			
-			p = fb_addr + xoffset * (ytop + image->ImageDesc.Top + y) + (xleft + image->ImageDesc.Left) * fb_bpp / 8;
-			for(x = 0; x < image->ImageDesc.Width && xleft + image->ImageDesc.Left + x < width; x ++) {
-				if(xleft + image->ImageDesc.Left + x < 0) {
+			p = fb_addr + xoffset * (top + y) + left * fb_bpp / 8;
+			for(x = 0; x < image->ImageDesc.Width && left + x < width; x ++) {
+				if(left + x < 0) {
 					p += fb_bpp / 8;
 					continue;
 				}
 				index = image->RasterBits[y * image->ImageDesc.Width + x];
 				if(index == TransparentColors[curFrame]) {
-					index = gifFile->SBackGroundColor;
 					if(DisposalModes[curFrame] == 1) {
 						p += fb_bpp / 8;
 						continue;
 					} else {
-						if(gifFile->Image.Interlace && gifFile->Image.ColorMap) color = &gifFile->Image.ColorMap->Colors[index];
-						else color = &gifFile->SColorMap->Colors[index];
+						color = bgColor;
 					}
 				} else {
 					color = &ColorMap->Colors[index];
