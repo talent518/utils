@@ -127,9 +127,15 @@ static void display_frame() {
 		
 		if(is_debug) fprintf(stderr, "curFrame: %d, DelayTime: %dms, Left: %d, Top: %d, Width: %d, Height: %d, ColorMap: %p, ColorCount: %d, BitsPerPixel: %d, SortFlag: %d, ExtensionBlockCount: %d, Interlace: %d\n", curFrame, delayTimes[curFrame], image->ImageDesc.Left, image->ImageDesc.Top, image->ImageDesc.Width, image->ImageDesc.Height, image->ImageDesc.ColorMap, ColorMap->ColorCount, ColorMap->BitsPerPixel, ColorMap->SortFlag, image->ExtensionBlockCount, image->ImageDesc.Interlace);
 
-		for(y = 0; y < image->ImageDesc.Height && y < height; y ++) {
-			p = fb_addr + xoffset * (y + ytop + image->ImageDesc.Top) + xleft + image->ImageDesc.Left * fb_bpp / 8;
-			for(x = 0; x < image->ImageDesc.Width && x < width; x ++) {
+		for(y = 0; y < image->ImageDesc.Height && ytop + image->ImageDesc.Top + y < height; y ++) {
+			if(y + ytop + image->ImageDesc.Top < 0) continue;
+			
+			p = fb_addr + xoffset * (ytop + image->ImageDesc.Top + y) + (xleft + image->ImageDesc.Left) * fb_bpp / 8;
+			for(x = 0; x < image->ImageDesc.Width && xleft + image->ImageDesc.Left + x < width; x ++) {
+				if(xleft + image->ImageDesc.Left + x < 0) {
+					p += fb_bpp / 8;
+					continue;
+				}
 				index = image->RasterBits[y * image->ImageDesc.Width + x];
 				if(index == TransparentColors[curFrame]) {
 					index = gifFile->SBackGroundColor;
@@ -228,8 +234,8 @@ int main(int argc, char *argv[]) {
 	
 	if(fb_bpp != 32 && fb_bpp != 24) goto end;
 	
-	if(gifFile->SWidth < width) xleft = (width - gifFile->SWidth) * fb_bpp / 8 / 2;
-	if(gifFile->SHeight < height) ytop = (height - gifFile->SHeight) / 2;
+	xleft = (width - gifFile->SWidth) / 2;
+	ytop = (height - gifFile->SHeight) / 2;
 
 	signal(SIGINT, signal_handler);
 	
