@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 
 	int width;
 	int height;
-	int n, i, i2, i3;
+	int n, i, i2, i3, output_info_len;
 	char filename[64];
 
 	dpy = XOpenDisplay(NULL);
@@ -112,12 +112,12 @@ int main(int argc, char *argv[]) {
 		output = XRRGetOutputPrimary(dpy, win);
 		output_infos = (XRROutputInfo**) malloc(sizeof(XRROutputInfo*) * res->ncrtc);
 
-		i3 = 0;
+		output_info_len = 0;
 		crtc = 0;
 		for (i2 = 0; i2 < res->noutput; i2++) {
 			output_info = XRRGetOutputInfo (dpy, res, res->outputs[i2]);
 			if(output == res->outputs[i2]) crtc = output_info->crtc;
-			if(output_info->crtc) output_infos[i3++] = output_info;
+			if(output_info->crtc) output_infos[output_info_len++] = output_info;
 			else XRRFreeOutputInfo(output_info);
 		}
 
@@ -125,21 +125,21 @@ int main(int argc, char *argv[]) {
 			crtc_info = XRRGetCrtcInfo (dpy, res, res->crtcs[i2]);
 			
 			output_info = NULL;
-			for(i3=0; i3<res->ncrtc; i3++) {
+			for(i3=0; i3<output_info_len; i3++) {
 				if(output_infos[i3]->crtc == res->crtcs[i2]) output_info = output_infos[i3];
 			}
 
 			snprintf(filename, sizeof(filename), "screen-%02d-%02d.jpg", i, i2);
 			
-			fprintf(stderr, "    Display: %d, Name: %6s %7s, x: %4d, y: %4d, width: %4d, height: %4d, filename: %s\n", i2, output_info->name, res->crtcs[i2] == crtc ? "Primary" : "", crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, filename);
+			fprintf(stderr, "    Display: %d, Name: %6s %7s, x: %4d, y: %4d, width: %4d, height: %4d, filename: %s\n", i2, output_info ? output_info->name : "Virt", res->crtcs[i2] == crtc ? "Primary" : "", crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, filename);
 
-			img = XGetImage(dpy, win, crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, ~0, ZPixmap);
+			img = XGetImage(dpy, win, crtc_info->x, crtc_info->y, crtc_info->width > 0 ? crtc_info->width : 1, crtc_info->height > 0 ? crtc_info->height : 1, ~0, ZPixmap);
 			JpegWriteFileFromImage(filename, img);
 			XDestroyImage(img);
 			XRRFreeCrtcInfo(crtc_info);
 		}
 		
-		for (i2 = 0; i2 < res->ncrtc; i2++) {
+		for (i2 = 0; i2 < output_info_len; i2++) {
 			XRRFreeOutputInfo(output_infos[i2]);
 		}
 		
