@@ -21,9 +21,8 @@ LFLAGS := $(LFLAGS) -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
 CFLAGS += $(call cc-option,-Wno-unused-result,)
 
-# $(error $(CFLAGS))
-# $(warning $(CFLAGS))
-# $(info $(CFLAGS))
+all:
+	@echo -n
 
 all: cpu-memory-info
 cpu-memory-info: cpu-memory-info.o

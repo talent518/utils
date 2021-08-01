@@ -30,8 +30,8 @@ double microtime() {
 volatile unsigned int is_running = 1;
 static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
-static unsigned char format[30];
-static unsigned char filename[30];
+static unsigned char format[48];
+static unsigned char filename[48];
  
 unsigned char bmp_head_66[] = {
 	0x42, 0x4d, 0x42, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,

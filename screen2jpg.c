@@ -32,8 +32,8 @@ double microtime() {
 volatile unsigned int is_running = 1;
 static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
-static unsigned char format[30];
-static unsigned char filename[30];
+static unsigned char format[48];
+static unsigned char filename[48];
 
 static char *fb_addr = NULL;
 int width = 0, height = 0;
