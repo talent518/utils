@@ -34,12 +34,14 @@ static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
 static unsigned char format[48];
 static unsigned char filename[48];
+static int is_no_cgi = 1;
 
 static char *fb_addr = NULL;
-int width = 0, height = 0;
-int xoffset = 0, xsize = 0;
-int fb_bpp;
-int fb_size;
+static int fb_width = 0, fb_height = 0;
+static int fb_xoffset = 0, fb_xsize = 0;
+static int fb_bpp;
+static int fb_size;
+static struct fb_var_screeninfo fb_vinfo;
 
 static int fb_init(void) {
 	struct fb_var_screeninfo vinfo;
@@ -57,10 +59,10 @@ static int fb_init(void) {
 		exit(1);
 	}
 
-	width = vinfo.xres;
-	xoffset = vinfo.xres_virtual * vinfo.bits_per_pixel / 8;
-	xsize = vinfo.xres * vinfo.bits_per_pixel / 8;
-	height = vinfo.yres;
+	fb_width = vinfo.xres;
+	fb_xoffset = vinfo.xres_virtual * vinfo.bits_per_pixel / 8;
+	fb_xsize = vinfo.xres * vinfo.bits_per_pixel / 8;
+	fb_height = vinfo.yres;
 	fb_bpp = vinfo.bits_per_pixel;
 
 	fb_size = vinfo.xres_virtual * vinfo.yres_virtual * fb_bpp / 8;
@@ -71,7 +73,7 @@ static int fb_init(void) {
 		exit(1);
 	}
 
-	printf("[%lf] size: %dx%d, bpp: %d, mmap: %p\n", microtime(), width, height, fb_bpp, fb_addr);
+	printf("[%lf] size: %dx%d, bpp: %d, mmap: %p\n", microtime(), fb_width, fb_height, fb_bpp, fb_addr);
  
 	return fd;
 }
@@ -91,8 +93,8 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 		jpeg_stdio_dest(&cinfo, fp);
 	}
 
-	cinfo.image_width = width;
-	cinfo.image_height = height;
+	cinfo.image_width = fb_width;
+	cinfo.image_height = fb_height;
 	cinfo.input_components = fb_bpp / 8;
 	
 	switch(cinfo.input_components) {
@@ -104,9 +106,10 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 			break;
 		case 3:
 			cinfo.in_color_space = JCS_EXT_BGR;
+			cinfo.in_color_space = (fb_vinfo.red.offset == 0 && fb_vinfo.red.length == 8) ? JCS_EXT_BGR : JCS_EXT_RGB;
 			break;
 		case 4:
-			cinfo.in_color_space = JCS_EXT_RGBA;
+			cinfo.in_color_space = (fb_vinfo.red.offset == 0 && fb_vinfo.red.length == 8) ? JCS_EXT_RGBA : JCS_EXT_BGRA;
 			break;
 		default:
 			fprintf(stderr, "color type error\n");
@@ -119,8 +122,8 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 
 	JSAMPROW row_pointer[1];/* pointer to scanline */
 
-	for(int y = 0; y < height; y++) {
-		row_pointer[0] = fb_addr + y * xoffset;
+	for(int y = 0; y < fb_height; y++) {
+		row_pointer[0] = fb_addr + y * fb_xoffset;
 
 		jpeg_write_scanlines(&cinfo, row_pointer, 1);
 	}
@@ -129,7 +132,7 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 	jpeg_destroy_compress(&cinfo);
 
 	if(sp) {
-		fprintf(fp, "%s OK\r\nConnection: Close\r\nImage-Size: %dx%d\r\nImage-Color: %d\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n", sp, width, height, fb_bpp, outsize);
+		fprintf(fp, "%s OK\r\nConnection: Close\r\nImage-Size: %dx%d\r\nImage-Color: %d\r\nContent-Type: image/jpeg\r\nContent-Length: %lu\r\n\r\n", sp, fb_width, fb_height, fb_bpp, outsize);
 		fwrite(outbuffer, 1, outsize, fp);
 		free(outbuffer);
 	}

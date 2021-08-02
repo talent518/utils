@@ -32,8 +32,9 @@ static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
 static unsigned char format[48];
 static unsigned char filename[48];
- 
-unsigned char bmp_head_66[] = {
+static int is_no_cgi = 1;
+
+static unsigned char bmp_head_66[] = {
 	0x42, 0x4d, 0x42, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x42, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0xf0, 0x00,
 	0x00, 0x00, 0x40, 0x01, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00,
@@ -42,17 +43,16 @@ unsigned char bmp_head_66[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xe0, 0x07,
 	0x00, 0x00, 0x1f, 0x00, 0x00, 0x00
 };
+static unsigned char bmp_head_54[54];
 
-unsigned char bmp_head_54[54];
 static char *fb_addr = NULL;
-int width = 0, height = 0;
-int xoffset = 0, xsize = 0;
-int fb_bpp;
-int fb_size;
-int is_no_cgi = 1;
+static int fb_width = 0, fb_height = 0;
+static int fb_xoffset = 0, fb_xsize = 0;
+static int fb_bpp;
+static int fb_size;
+static struct fb_var_screeninfo fb_vinfo;
 
 static int fb_init(void) {
-	struct fb_var_screeninfo vinfo;
 	int fd;
 	
 	fd = open("/dev/fb0", O_RDWR);
@@ -61,19 +61,19 @@ static int fb_init(void) {
 		exit(1);
 	}
 
-	if(ioctl(fd, FBIOGET_VSCREENINFO, &vinfo)) {
+	if(ioctl(fd, FBIOGET_VSCREENINFO, &fb_vinfo)) {
 		printf("Error reading variable information.\n");
 		close(fd);
 		exit(1);
 	}
 
-	width = vinfo.xres;
-	xoffset = vinfo.xres_virtual * vinfo.bits_per_pixel / 8;
-	xsize = vinfo.xres * vinfo.bits_per_pixel / 8;
-	height = vinfo.yres;
-	fb_bpp = vinfo.bits_per_pixel;
+	fb_width = fb_vinfo.xres;
+	fb_xoffset = fb_vinfo.xres_virtual * fb_vinfo.bits_per_pixel / 8;
+	fb_xsize = fb_vinfo.xres * fb_vinfo.bits_per_pixel / 8;
+	fb_height = fb_vinfo.yres;
+	fb_bpp = fb_vinfo.bits_per_pixel;
 
-	fb_size = vinfo.xres_virtual * vinfo.yres_virtual * fb_bpp / 8;
+	fb_size = fb_vinfo.xres_virtual * fb_vinfo.yres_virtual * fb_bpp / 8;
 	fb_addr = (char*) mmap(0, fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if(fb_addr == MAP_FAILED) {
 		perror("mmap()");
@@ -81,13 +81,14 @@ static int fb_init(void) {
 		exit(1);
 	}
 
-	printf("[%lf] size: %dx%d, bpp: %d, mmap: %p\n", microtime(), width, height, fb_bpp, fb_addr);
+	printf("[%lf] size: %dx%d, bpp: %d, mmap: %p\n", microtime(), fb_width, fb_height, fb_bpp, fb_addr);
  
 	return fd;
 }
 
 void save_to_file() {
 	FILE *fp;
+	char *p;
 
 	printf("[%lf] ", microtime());
 
@@ -102,22 +103,22 @@ void save_to_file() {
 	else
 		fwrite(bmp_head_54, 1, 54, fp);
 
-	for(int y = 0; y < height; y++)
-		fwrite(fb_addr + (height - 1 - y) * xoffset, 1, xsize, fp);
+	for(int y = 0; y < fb_height; y++)
+		fwrite(fb_addr + (fb_height - 1 - y) * fb_xoffset, 1, fb_xsize, fp);
 
 	fclose(fp);
 }
 
 void cgi_out(const char *sp) {
-	printf("%s OK\r\nConnection: Close\r\nContent-Type: image/bmp\r\nContent-Length: %d\r\n\r\n", sp, (fb_bpp == 16 ? 66 : 54) + height * xsize);
+	printf("%s OK\r\nConnection: Close\r\nContent-Type: image/bmp\r\nContent-Length: %d\r\n\r\n", sp, (fb_bpp == 16 ? 66 : 54) + fb_height * fb_xsize);
 
 	if(fb_bpp == 16)
 		fwrite(bmp_head_66, 1, 66, stdout);
 	else
 		fwrite(bmp_head_54, 1, 54, stdout);
 
-	for(int y = 0; y < height; y++)
-		fwrite(fb_addr + (height - 1 - y) * xoffset, 1, xsize, stdout);
+	for(int y = 0; y < fb_height; y++)
+		fwrite(fb_addr + (fb_height - 1 - y) * fb_xoffset, 1, fb_xsize, stdout);
 }
 
 void signal_handler(int sig) {
@@ -138,20 +139,20 @@ int main(int argc, char *argv[]) {
 	int fd = fb_init();
  
 	if(fb_bpp == 16){
-	    *((unsigned int*)(bmp_head_66 + 18)) = width;
-	    *((unsigned int*)(bmp_head_66 + 22)) = height;
+	    *((unsigned int*)(bmp_head_66 + 18)) = fb_width;
+	    *((unsigned int*)(bmp_head_66 + 22)) = fb_height;
 	    *((unsigned short*)(bmp_head_66 + 28)) = 16;
 	}else{
 		bmp_head_54[0] = 'B';
 		bmp_head_54[1] = 'M';
-		*((unsigned int*)(bmp_head_54 + 2)) = (width * fb_bpp / 8) * height + 54;
+		*((unsigned int*)(bmp_head_54 + 2)) = (fb_width * fb_bpp / 8) * fb_height + 54;
 		*((unsigned int*)(bmp_head_54 + 10)) = 54;
 		*((unsigned int*)(bmp_head_54 + 14)) = 40;
-		*((unsigned int*)(bmp_head_54 + 18)) = width;
-		*((unsigned int*)(bmp_head_54 + 22)) = height;
+		*((unsigned int*)(bmp_head_54 + 18)) = fb_width;
+		*((unsigned int*)(bmp_head_54 + 22)) = fb_height;
 		*((unsigned short*)(bmp_head_54 + 26)) = 1;
 		*((unsigned short*)(bmp_head_54 + 28)) = fb_bpp;
-		*((unsigned short*)(bmp_head_54 + 34)) = (width * fb_bpp / 8) * height;
+		*((unsigned short*)(bmp_head_54 + 34)) = (fb_width * fb_bpp / 8) * fb_height;
 	}
 
 	{
