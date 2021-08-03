@@ -256,7 +256,10 @@ int main(int argc, char *argv[]) {
 	ytop = (height - gifFile->SHeight) / 2;
 
 	signal(SIGINT, signal_handler);
-	
+
+	fprintf(stdout, "\033[?25l"); // hide cursor
+	fflush(stdout);
+
 	buf = (char*) malloc(xsize * height);
 	p = buf;
 	p2 = fb_addr;
@@ -282,6 +285,9 @@ int main(int argc, char *argv[]) {
 		p += xsize;
 		p2 += xoffset;
 	}
+
+	fprintf(stdout, "\033[?25h"); // show cursor
+	fflush(stdout);
 
 end:
 	free(buf);
