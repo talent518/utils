@@ -57,9 +57,9 @@ int xoffset = 0, xsize = 0;
 int fb_bpp;
 int fb_size;
 int xleft = 0, ytop = 0;
+struct fb_var_screeninfo vinfo;
 
 static int fb_init(void) {
-	struct fb_var_screeninfo vinfo;
 	int fd;
 	
 	fd = open("/dev/fb0", O_RDWR);
@@ -150,15 +150,32 @@ static void display_frame() {
 				} else {
 					color = &ColorMap->Colors[index];
 				}
-				if(fb_bpp == 32) {
-					*p++ = color->Red;
-					*p++ = color->Green;
-					*p++ = color->Blue;
-					*p++ = 0xff;
-				} else {
-					*p++ = color->Blue;
-					*p++ = color->Green;
-					*p++ = color->Red;
+
+				switch(fb_bpp) {
+					case 24: {
+						p[vinfo.red.offset / 8] = color->Red;
+						p[vinfo.green.offset / 8] = color->Green;
+						p[vinfo.blue.offset / 8] = color->Blue;
+						p += 3;
+						break;
+					}
+					case 32: {
+						p[vinfo.red.offset / 8] = color->Red;
+						p[vinfo.green.offset / 8] = color->Green;
+						p[vinfo.blue.offset / 8] = color->Blue;
+						if(vinfo.transp.length) p[vinfo.transp.offset / 8] = 0xff;
+						else p[3] = 0xff;
+						p += 4;
+						break;
+					}
+					case 16: {
+						* (unsigned short *) p = ((color->Red << vinfo.red.offset) & ((1 << vinfo.red.length) - 1)) | ((color->Green << vinfo.green.offset) & ((1 << vinfo.green.length) - 1)) | ((color->Blue << vinfo.blue.offset) & ((1 << vinfo.blue.length) - 1));
+						p += 2;
+						break;
+					}
+					default: {
+						*p++ = color->Red * 0.3f + color->Green * 0.59f + color->Blue * 0.11f;
+					}
 				}
 			}
 		}
