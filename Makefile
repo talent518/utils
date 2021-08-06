@@ -405,10 +405,12 @@ mkfont: mkfont.c
 	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $^
 	@$(CC) $(CFLAGS) -fpic -fPIC -c $^ -o $@
 
-test: url greatestCommonDivisor re
+test: url greatestCommonDivisor re mkfont
 	./url 'https://github.com/talent518/calc?as=23&ew=23#fdsdasdf'
 	./greatestCommonDivisor 319 377
 	./re 1w a123@456.com.cn .as123-12@zdd.com a.as@qee.cn '.'
+	./mkfont fonts/12x22.png font_12x22 > font_12x22.h
+	./mkfont fonts/18x32.png font_18x32 > font_18x32.h
 
 clean:
 	@echo $@
