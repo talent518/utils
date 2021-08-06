@@ -13,8 +13,8 @@ int main(int argc, char *argv[]) {
     GdkPixbuf *pixbuf;
     GError *gerr;
     
-    if(argc != 2) {
-    	fprintf(stderr, "Usage: %s <imagefile>\n", argv[0]);
+    if(argc < 2) {
+    	fprintf(stderr, "Usage: %s <imagefile> [varname]\n", argv[0]);
     	return 1;
     }
     
@@ -37,23 +37,23 @@ int main(int argc, char *argv[]) {
     printf("  unsigned height;\n");
     printf("  unsigned cwidth;\n");
     printf("  unsigned cheight;\n");
-    printf("  unsigned char rundata[];\n");
-    printf("} font = {\n");
-    printf("  .width = %d,\n  .height = %d,\n  .cwidth = %d,\n  .cheight = %d,\n", width, height, width / 96, height);
+    printf("  unsigned short rundata[];\n");
+    printf("} %s = {\n", argc >= 3 ? argv[2] : "font");
+    printf("  .width = %d,\n  .height = %d,\n  .cwidth = %d,\n  .cheight = %d,\n", width, height, width / 96, height / 2);
     printf("  .rundata = {\n    ");
    
-    run_val = (*x ? 0 : 255);
+    run_val = *x;
     run_count = 1;
     n--;
     x+=3;
 
     while(n-- > 0) {
-        unsigned val = (*x ? 0 : 255);
+        unsigned val = *x;
         x+=3;
-        if((val == run_val) && (run_count < 127)) {
+        if((val == run_val) && (run_count < 255)) {
             run_count++;
         } else {
-            printf("0x%02x,",run_count | (run_val ? 0x80 : 0x00));
+            printf("0x%04x,", (run_count << 8) | run_val);
             run_val = val;
             run_count = 1;
             m += 5;
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    printf("0x%02x,",run_count | (run_val ? 0x80 : 0x00));
+    printf("0x%04x,", (run_count << 8) | run_val);
     printf("\n    0x00\n");
     printf("  }\n};\n");
     g_object_unref(pixbuf);
