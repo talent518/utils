@@ -134,6 +134,8 @@ kexec command:
     * 测试内核crash/panic: sudo sh -c 'echo c > /proc/sysrq-trigger'
     * 解压crash文件: sudo apport-unpack /var/crash/linux-image-5.8.0-53-generic-202105241948.crash /tmp/coretest/
     * 使用crash工具: sudo crash /boot/System.map-$(uname -r) /tmp/vmlinuz /tmp/coretest/CoreDump
+  * mice.c => 鼠标事件
+  * keyboard.c => 键盘事件
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

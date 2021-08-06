@@ -385,16 +385,26 @@ screenshot: screenshot.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -ljpeg -lX11 -lXrandr
 
+all: fbgif
+fbgif: fbgif.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lgif -lm
+
+all: mice
+mice: mice.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: keyboard
+keyboard: keyboard.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
-
-all: fbgif
-fbgif: fbgif.o
-	@$(ECHO) LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) -lgif -lm
 
 %.O: %.c
 	@$(ECHO) CC $^

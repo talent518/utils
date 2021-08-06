@@ -378,6 +378,16 @@ fbgif: fbgif.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lgif -lm
 
+all: mice
+mice: mice.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: keyboard
+keyboard: keyboard.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
