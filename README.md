@@ -136,6 +136,7 @@ kexec command:
     * 使用crash工具: sudo crash /boot/System.map-$(uname -r) /tmp/vmlinuz /tmp/coretest/CoreDump
   * mice.c => 鼠标事件
   * keyboard.c => 键盘事件
+  * mkfont.c => android系统中bootable/recovery/minui/graphics.c使用的字体生成(bootable/recovery/fonts/)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

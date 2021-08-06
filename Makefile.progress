@@ -400,6 +400,11 @@ keyboard: keyboard.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: mkfont
+mkfont: mkfont.c
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(shell pkg-config --cflags --libs gdk-pixbuf-2.0)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
