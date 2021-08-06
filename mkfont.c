@@ -42,13 +42,13 @@ int main(int argc, char *argv[]) {
     printf("  .width = %d,\n  .height = %d,\n  .cwidth = %d,\n  .cheight = %d,\n", width, height, width / 96, height / 2);
     printf("  .rundata = {\n    ");
    
-    run_val = (*x < 150 ? 0 : 255);
+    run_val = (*x < 50 ? 0 : 255);
     run_count = 1;
     n--;
     x+=3;
 
     while(n-- > 0) {
-        unsigned val = (*x < 150 ? 0 : 255);
+        unsigned val = (*x < 50 ? 0 : 255);
         x+=3;
         if((val == run_val) && (run_count < 127)) {
             run_count++;
