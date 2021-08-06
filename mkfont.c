@@ -31,24 +31,15 @@ int main(int argc, char *argv[]) {
     n = width * height;
     m = 0;
     x = gdk_pixbuf_get_pixels(pixbuf);
-
-    printf("struct {\n");
-    printf("  unsigned width;\n");
-    printf("  unsigned height;\n");
-    printf("  unsigned cwidth;\n");
-    printf("  unsigned cheight;\n");
-    printf("  unsigned char rundata[];\n");
-    printf("} %s = {\n", argc >= 3 ? argv[2] : "font");
-    printf("  .width = %d,\n  .height = %d,\n  .cwidth = %d,\n  .cheight = %d,\n", width, height, width / 96, height / 2);
-    printf("  .rundata = {\n    ");
    
-    run_val = (*x < 150 ? 0 : 255);
+    run_val = (*x < 50 ? 0 : 255);
     run_count = 1;
     n--;
     x+=3;
 
+    printf("static unsigned char %s_data[] = {\n\t", argc >= 3 ? argv[2] : "font");
     while(n-- > 0) {
-        unsigned val = (*x < 150 ? 0 : 255);
+        unsigned val = (*x < 50 ? 0 : 255);
         x+=3;
         if((val == run_val) && (run_count < 127)) {
             run_count++;
@@ -58,14 +49,18 @@ int main(int argc, char *argv[]) {
             run_count = 1;
             m += 5;
             if(m >= 75) {
-                printf("\n    ");
+                printf("\n\t");
                 m = 0;
             }
         }
     }
     printf("0x%02x,",run_count | (run_val ? 0x80 : 0x00));
-    printf("\n    0x00\n");
-    printf("  }\n};\n");
-    g_object_unref(pixbuf);
+    printf("\n\t0x00\n");
+    printf("};\n");
+ 
+    printf("static font_t %s = {\n", argc >= 3 ? argv[2] : "font");
+    printf("\t.width = %d,\n\t.height = %d,\n\t.cwidth = %d,\n\t.cheight = %d,\n", width, height, width / 96, height / 2);
+    printf("\t.pixdata = %s_data,\n\t.rundata = NULL\n};\n", argc >= 3 ? argv[2] : "font");
+   g_object_unref(pixbuf);
     return 0;
 }
