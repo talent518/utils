@@ -105,11 +105,10 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 			cinfo.in_color_space = JCS_RGB565;
 			break;
 		case 3:
-			cinfo.in_color_space = JCS_EXT_BGR;
-			cinfo.in_color_space = (fb_vinfo.red.offset == 0 && fb_vinfo.red.length == 8) ? JCS_EXT_BGR : JCS_EXT_RGB;
+			cinfo.in_color_space = (fb_vinfo.red.offset == 16 && fb_vinfo.red.length == 8) ? JCS_EXT_RGB : JCS_EXT_BGR;
 			break;
 		case 4:
-			cinfo.in_color_space = (fb_vinfo.red.offset == 0 && fb_vinfo.red.length == 8) ? JCS_EXT_RGBA : JCS_EXT_BGRA;
+			cinfo.in_color_space = (fb_vinfo.red.offset == 16 && fb_vinfo.red.length == 8) ? JCS_EXT_RGBA : JCS_EXT_BGRA;
 			break;
 		default:
 			fprintf(stderr, "color type error\n");
@@ -117,13 +116,25 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 	}
 
 	jpeg_set_defaults(&cinfo);
-	jpeg_set_quality(&cinfo, 100, TRUE);
+
+	{
+		// 指定亮度及色度质量
+		cinfo.q_scale_factor[0] = jpeg_quality_scaling(100);
+		cinfo.q_scale_factor[1] = jpeg_quality_scaling(100);
+
+		// 图像采样率，默认为2 * 2
+		cinfo.comp_info[0].v_samp_factor = 1;
+		cinfo.comp_info[0].h_samp_factor = 1;
+
+		jpeg_set_quality(&cinfo, 100, TRUE);
+	}
+
 	jpeg_start_compress(&cinfo, TRUE);
 
 	JSAMPROW row_pointer[1];/* pointer to scanline */
 
-	for(int y = 0; y < fb_height; y++) {
-		row_pointer[0] = fb_addr + y * fb_xoffset;
+	while(cinfo.next_scanline < cinfo.image_height) {
+		row_pointer[0] = fb_addr + cinfo.next_scanline * fb_xoffset;
 
 		jpeg_write_scanlines(&cinfo, row_pointer, 1);
 	}
