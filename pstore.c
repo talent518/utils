@@ -26,7 +26,7 @@
 ///
 /// @retval: ISO日期时间字符串
 char *nowtime(void) {
-	static char buf[24];
+	static char buf[32];
 	static time_t tt;
 	time_t t;
 	struct tm tm;
