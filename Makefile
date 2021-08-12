@@ -393,6 +393,11 @@ mkfont: mkfont.c
 	@echo LD $@
 	@$(CC) -o $@ $^ $(shell pkg-config --cflags --libs gdk-pixbuf-2.0)
 
+all: pstore
+pstore: pstore.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
