@@ -47,11 +47,14 @@ typedef struct _ast_t {
 	struct _ast_t *right;
 } ast_t;
 
-#define PARSE_AST_DEBUG 0
+#ifndef PARSE_AST_DEBUG
+#	define PARSE_AST_DEBUG 0
+#endif
+
 #if PARSE_AST_DEBUG
-	#define dprintf(args...) printf(args)
+#	define dprintf(args...) printf(args)
 #else
-	#define dprintf(args...)
+#	define dprintf(args...)
 #endif
 
 #define WORDS 100
@@ -471,7 +474,7 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	if(argc < 2) {
-		while(printf("Enter an expression to evaluate or exit q：") && scanf("%s", buf) && strcmp(buf, "q")) {
+		while(printf("Enter an expression to evaluate or exit q：") && fgets(buf, sizeof(buf), stdin) > 0 && buf[0] != 'q') {
 			if(parse_ast(buf, &ast)<=0) continue;
 			calc_ast(&ast);
 			if(ast.val.t == LNG_T) {
