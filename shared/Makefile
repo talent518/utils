@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-I. -fvisibility=hidden
-LDFLAGS=-L. -Wl,-rpath,. -rdynamic -export-dynamic
+LDFLAGS=-L. -Wl,-rpath,. -rdynamic
 
 all: shared
 

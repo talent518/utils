@@ -67,9 +67,12 @@ typedef enum _rule_t {
 	R_ADD_SUB // 加减运算
 } rule_t;
 
+static word_t words[WORDS];
+static int words_len = 0;
+
 void free_ast(ast_t *ast);
 
-int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
+int _parse_ast(int i, int n, rule_t r, ast_t *ast) {
 	ast_t left = {NULL_T, {0,0}, NULL, NULL}, right = {NULL_T, {0,0}, NULL, NULL};
 	int ret = 0, i2;
 	ast_type_t t;
@@ -96,7 +99,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 		case R_LR: {
 			if(i < n && words[i].t == LEFT_WT) {
 				dprintf("R_LR: %d (\n", i);
-				ret = _parse_ast(words, i+1, n, R_ADD_SUB, ast);
+				ret = _parse_ast(i+1, n, R_ADD_SUB, ast);
 				if(ret > 0 && i+1+ret < n && words[i+1+ret].t == RIGHT_WT) {
 					dprintf("R_LR: %d )\n", i+1+ret);
 					ret += 2;
@@ -107,7 +110,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 					fprintf(stderr, "Not a expression at %d position\n", i+1);
 				}
 			} else {
-				ret = _parse_ast(words, i, n, R_VAL, ast);
+				ret = _parse_ast(i, n, R_VAL, ast);
 			}
 			break;
 		}
@@ -115,7 +118,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 			if(i < n && (words[i].t == ADD_WT || words[i].t == SUB_WT)) {
 				dprintf("R_SIGN: %d %c\n", i, words[i].t == SUB_WT ? '-' : '+');
 
-				ret = _parse_ast(words, i+1, n, R_LR, &left);
+				ret = _parse_ast(i+1, n, R_LR, &left);
 				if(ret > 0) {
 					ret++;
 					if(words[i].t == SUB_WT) {
@@ -129,7 +132,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 					fprintf(stderr, "Not a expression at %d position\n", i+1);
 				}
 			} else {
-				ret = _parse_ast(words, i, n, R_LR, ast);
+				ret = _parse_ast(i, n, R_LR, ast);
 			}
 			break;
 		}
@@ -137,7 +140,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 		case R_ADD_SUB: {
 			i2 = i;
 			t = NULL_T;
-			ret = _parse_ast(words, i, n, r == R_MUL_DIV ? R_SIGN : R_MUL_DIV, &left);
+			ret = _parse_ast(i, n, r == R_MUL_DIV ? R_SIGN : R_MUL_DIV, &left);
 			if(ret <= 0) {
 				fprintf(stderr, "Not a expression at %d position\n", i);
 				free_ast(&left);
@@ -190,7 +193,7 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 				fprintf(stderr, "Not a '+' or '-' character at %d position\n", i);
 				free_ast(&left);
 			}
-			if(i<n && (ret = _parse_ast(words, i, n, r == R_MUL_DIV ? R_SIGN : R_MUL_DIV, &right)) > 0) {
+			if(i<n && (ret = _parse_ast(i, n, r == R_MUL_DIV ? R_SIGN : R_MUL_DIV, &right)) > 0) {
 				goto leftMulDiv;
 			} else {
 				fprintf(stderr, "Not a expression at %d position\n", i);
@@ -208,7 +211,6 @@ int _parse_ast(word_t *words, int i, int n, rule_t r, ast_t *ast) {
 int parse_ast(const char *s, ast_t *ast) {
 	const char *p = s, *p0;
 	int n = 0, i, i2;
-	word_t words[WORDS];
 
 	memset(words, 0, sizeof(word_t) * WORDS);
 
@@ -278,40 +280,9 @@ int parse_ast(const char *s, ast_t *ast) {
 		return 0;
 	}
 
-#if PARSE_AST_DEBUG
-	for(i=0; i<n; i++) {
-		switch(words[i].t) {
-			case LEFT_WT:
-				printf("(");
-				break;
-			case RIGHT_WT:
-				printf(")");
-				break;
-			case ADD_WT:
-				printf(" + ");
-				break;
-			case SUB_WT:
-				printf(" - ");
-				break;
-			case MUL_WT:
-				printf(" * ");
-				break;
-			case DIV_WT:
-				printf(" / ");
-				break;
-			case VAL_WT:
-				if(words[i].val.t == LNG_T) {
-					printf("%ldL", words[i].val.l);
-				} else {
-					printf("%gF", words[i].val.f);
-				}
-				break;
-		}
-	}
-	printf("\n");
-#endif
+	words_len = n;
 
-	i = _parse_ast(words, 0, n, R_ADD_SUB, ast);
+	i = _parse_ast(0, n, R_ADD_SUB, ast);
 	dprintf("i: %d, n: %d\n", i, n);
 	return i;
 }
@@ -468,6 +439,47 @@ void calc_ast(ast_t *ast) {
 	ast->t = NULL_T;
 }
 
+void print_words(void) {
+	int i;
+	for(i=0; i<words_len; i++) {
+		switch(words[i].t) {
+			case LEFT_WT:
+				printf("(");
+				break;
+			case RIGHT_WT:
+				printf(")");
+				break;
+			case ADD_WT:
+				printf(" + ");
+				break;
+			case SUB_WT:
+				printf(" - ");
+				break;
+			case MUL_WT:
+				printf(" * ");
+				break;
+			case DIV_WT:
+				printf(" / ");
+				break;
+			case VAL_WT:
+			#if PARSE_AST_DEBUG
+				if(words[i].val.t == LNG_T) {
+					printf("%ldL", words[i].val.l);
+				} else {
+					printf("%gF", words[i].val.f);
+				}
+			#else
+				if(words[i].val.t == LNG_T) {
+					printf("%ld", words[i].val.l);
+				} else {
+					printf("%g", words[i].val.f);
+				}
+			#endif
+				break;
+		}
+	}
+}
+
 int main(int argc, char *argv[]) {
 	ast_t ast = {NULL_T, {0,0}, NULL, NULL};
 	char buf[1024];
@@ -477,20 +489,22 @@ int main(int argc, char *argv[]) {
 		while(printf("Enter an expression to evaluate or exit q：") && fgets(buf, sizeof(buf), stdin) > 0 && buf[0] != 'q') {
 			if(parse_ast(buf, &ast)<=0) continue;
 			calc_ast(&ast);
+			print_words();
 			if(ast.val.t == LNG_T) {
-				printf("%s = %ld\n", buf, ast.val.l);
+				printf(" = %ld\n", ast.val.l);
 			} else {
-				printf("%s = %g\n", buf, ast.val.f);
+				printf(" = %g\n", ast.val.f);
 			}
 		}
 	} else {
 		for(i=1; i<argc; i++) {
 			if(parse_ast(argv[i], &ast) <= 0) continue;
 			calc_ast(&ast);
+			print_words();
 			if(ast.val.t == LNG_T) {
-				printf("%s = %ld\n", argv[i], ast.val.l);
+				printf(" = %ld\n", ast.val.l);
 			} else {
-				printf("%s = %g\n", argv[i], ast.val.f);
+				printf(" = %g\n", ast.val.f);
 			}
 		}
 	}
