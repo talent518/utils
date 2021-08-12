@@ -137,6 +137,7 @@ kexec command:
   * mice.c => 鼠标事件
   * keyboard.c => 键盘事件
   * mkfont.c => android系统中bootable/recovery/minui/graphics.c使用的字体生成(bootable/recovery/fonts/)
+  * pstore.c pstore.sh => pstore转储
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
