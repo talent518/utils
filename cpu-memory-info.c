@@ -536,6 +536,7 @@ int main(int argc, char *argv[]){
 			all2 = cpu2.user + cpu2.nice + cpu2.system + cpu2.idle + cpu2.iowait + cpu2.irq + cpu2.softirq + cpu2.stolen + cpu2.guest;
 
 			total = (all2 - all) / 100.0;
+			if(total == 0) total = 1;
 		
 			printf("%5.2f", (float)((double)(cpu2.user - cpu.user) / total));
 			printf("%6.2f", (float)((double)(cpu2.nice - cpu.nice) / total));
@@ -579,6 +580,7 @@ int main(int argc, char *argv[]){
 
 			all2 = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 			total = (all2 - all) / 100.0;
+			if(total == 0) total = 1;
 			all = all2;
 		}
 

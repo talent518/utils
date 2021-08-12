@@ -88,7 +88,7 @@ int recursion_directory(const char *path, const char *name, unsigned int parentI
 			break;
 		case S_IFSOCK:
 			dirType = "SOCK";
-			typeCount.SOCK;
+			typeCount.SOCK++;
 			break;
 		case S_IFREG:
 		default:

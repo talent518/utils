@@ -30,6 +30,7 @@ void *thread1(void *arg) {
 		count ++;
 		sem_post(&sem2);
 	}
+	return NULL;
 }
 
 void *thread2(void *arg) {
@@ -40,6 +41,7 @@ void *thread2(void *arg) {
 		count ++;
 		sem_post(&sem1);
 	}
+	return NULL;
 }
 
 int main(int argc, char *argv[]) {
