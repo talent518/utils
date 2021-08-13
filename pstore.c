@@ -204,7 +204,7 @@ void removedir(const char *path) {
 /// @retval: void
 void removedump(int nextId) {
 	char prefix[8];
-	size_t prefix_len;
+	int prefix_len;
 	DIR *dirp;
 	struct dirent *dir;
 	char path[PATH_MAX];
@@ -234,6 +234,11 @@ void removedump(int nextId) {
 int main(int argc, char *argv[]) {
 	int curId;
 	int fd;
+
+	if(argc > 1) {
+		int sec = atoi(argv[1]);
+		if(sec > 0) sleep(sec);
+	}
 
 	mkdir_p(DUMP_DIR);
 

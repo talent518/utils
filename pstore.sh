@@ -2,6 +2,10 @@
 
 set -e
 
+if [ ${1:-0} -gt 0 ]; then
+	sleep $1
+fi
+
 mount -t pstore pstore /sys/fs/pstore
 
 dmpDir=/var/crash_dump
