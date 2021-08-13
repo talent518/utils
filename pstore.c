@@ -13,7 +13,7 @@
 #include <libgen.h>
 
 #define PSTORE_DIR "/sys/fs/pstore"
-#define DUMP_DIR "/var/crash_dump"
+#define DUMP_DIR "/var/pstore"
 #define DUMP_LOG DUMP_DIR "/dump.log"
 #define DUMP_ERR DUMP_DIR "/dump.err"
 #define CUR_ID DUMP_DIR "/cur.id"
@@ -109,7 +109,7 @@ int copy(const char *olddir, const char *newdir) {
 	return 1;
 }
 
-/// @brief 移动 /sys/fs/pstore中的文件到/var/crash_dump/CURID-DATE-TIME
+/// @brief 移动 /sys/fs/pstore中的文件到/var/pstore/CURID-DATE-TIME
 ///
 /// @param curId 当前序号
 /// @retval: 0 失败，没有要复制的文件

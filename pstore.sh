@@ -8,7 +8,7 @@ fi
 
 mount -t pstore pstore /sys/fs/pstore
 
-dmpDir=/var/crash_dump
+dmpDir=/var/pstore
 dmpLog=$dmpDir/sh.log
 
 files=$(find /sys/fs/pstore -name "*-ramoops-*" | xargs -n 100 echo)
