@@ -18,6 +18,7 @@
   * crypt.c 康盛公司UCenter中的加解密算法
   * crypt.php 康盛公司UCenter中的加解密算法
   * conn-stat.sh 统计TCP监听端口的连接数
+  * conn-stat2.sh 统计TCP监听端口的连接数
   * qrcode-transfer-file 二维码传输文件
   * gif2png.py => 把GIF图片中的每一帧保存为PNG图片
   * mat2jpg.py => 把caffe的预测图mat文件转为jpg格式
