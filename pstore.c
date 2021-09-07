@@ -18,6 +18,8 @@
 #define DUMP_ERR DUMP_DIR "/dump.err"
 #define CUR_ID DUMP_DIR "/cur.id"
 #define MAX_ID 30
+#define MODE (S_IWUSR | S_IRUSR)
+#define MAX_LOG_SIZE (2*1024*1024)
 
 #define LOG_INFO(fmt, args...) fprintf(stdout, "[%s] " fmt "\n", nowtime(), args)
 #define LOG_ERR(fmt, args...) fprintf(stderr, "[%s] " fmt ": %s\n", nowtime(), args, strerror(errno))
@@ -26,7 +28,7 @@
 ///
 /// @retval: ISO日期时间字符串
 char *nowtime(void) {
-	static char buf[32];
+	static char buf[24];
 	static time_t tt;
 	time_t t;
 	struct tm tm;
@@ -37,7 +39,7 @@ char *nowtime(void) {
 
 	localtime_r(&t, &tm);
 
-	sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d",
+	snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
 		tm.tm_year + 1900, tm.tm_mon, tm.tm_mday,
 		tm.tm_hour, tm.tm_min, tm.tm_sec
 	);
@@ -57,7 +59,14 @@ int mkdir_p(const char *path) {
 		char *cdir = strdup(path);
 		if(mkdir_p((const char *) dirname(cdir))) {
 			free(cdir);
-			goto dir;
+
+			if(mkdir(path, MODE)) {
+				LOG_ERR("mkdir %s failure", path);
+				return 0;
+			} else {
+				LOG_INFO("Created dir %s", path);
+				return 1;
+			}
 		} else {
 			free(cdir);
 			return 0;
@@ -66,8 +75,8 @@ int mkdir_p(const char *path) {
 		return 1;
 	} else {
 		unlink(path);
-	dir:
-		if(mkdir(path, 0755)) {
+
+		if(mkdir(path, MODE)) {
 			LOG_ERR("mkdir %s failure", path);
 			return 0;
 		} else {
@@ -84,15 +93,16 @@ int mkdir_p(const char *path) {
 /// @retval: 0 失败
 /// @retval: 1 成功
 int copy(const char *olddir, const char *newdir) {
-	char buf[PATH_MAX];
+	char buf[8*1024];
 	int fd1, fd2, n;
+	int ret = 1;
 
 	fd1 = open(olddir, O_RDONLY);
 	if(fd1 < 0) {
 		LOG_ERR("open %s failure", olddir);
 		return 0;
 	}
-	fd2 = open(newdir, O_CREAT|O_WRONLY, 0x755);
+	fd2 = open(newdir, O_CREAT|O_WRONLY, MODE);
 	if(fd2 < 0) {
 		LOG_ERR("open %s failure", newdir);
 		close(fd1);
@@ -100,16 +110,20 @@ int copy(const char *olddir, const char *newdir) {
 	}
 
 	while((n = read(fd1, buf, sizeof(buf))) > 0) {
-		if(write(fd2, buf, n) != n) LOG_ERR("write %s failure", newdir);
+		if(write(fd2, buf, n) != n) {
+			LOG_ERR("write %s failure", newdir);
+			ret = 0;
+			break;
+		}
 	}
 
 	close(fd1);
 	close(fd2);
 
-	return 1;
+	return ret;
 }
 
-/// @brief 移动 /sys/fs/pstore中的文件到/var/crash_dump/CURID-DATE-TIME
+/// @brief 移动 /sys/fs/pstore中的文件到/userdata/var/crash_dump/CURID-DATE-TIME
 ///
 /// @param curId 当前序号
 /// @retval: 0 失败，没有要复制的文件
@@ -127,7 +141,7 @@ int move2dump(int curId) {
 
 	t = time(NULL);
 	localtime_r(&t, &tm);
-	sprintf(curdir, "%02d-%04d%02d%02d-%02d%02d%02d",
+	snprintf(curdir, sizeof(curdir), "%02d-%04d%02d%02d-%02d%02d%02d",
 		curId,
 		tm.tm_year + 1900, tm.tm_mon, tm.tm_mday,
 		tm.tm_hour, tm.tm_min, tm.tm_sec
@@ -143,20 +157,30 @@ int move2dump(int curId) {
 
 		if(is_mkdir) {
 			is_mkdir = 0;
-			sprintf(newdir, "%s/%s", DUMP_DIR, curdir);
-			mkdir_p(newdir);
+			snprintf(newdir, sizeof(newdir), "%s/%s", DUMP_DIR, curdir);
+			if(!mkdir_p(newdir)) {
+				closedir(dirp);
+				return 0;
+			}
 		}
 
-		sprintf(olddir, "%s/%s", PSTORE_DIR, dir->d_name);
-		sprintf(newdir, "%s/%s/%s", DUMP_DIR, curdir, dir->d_name);
+		snprintf(olddir, sizeof(olddir), "%s/%s", PSTORE_DIR, dir->d_name);
+		snprintf(newdir, sizeof(newdir), "%s/%s/%s", DUMP_DIR, curdir, dir->d_name);
 		if(copy(olddir, newdir)) {
 			LOG_INFO("Copied file %s to %s", olddir, newdir);
+			if(unlink(olddir)) LOG_ERR("unlink %s failure", olddir);
+			else LOG_INFO("Deleted file %s", olddir);
+
 			count ++;
 		}
-		if(unlink(olddir)) LOG_ERR("unlink %s failure", olddir);
-		else LOG_INFO("Deleted file %s", olddir);
 	}
 	closedir(dirp);
+
+	if(count) {
+		snprintf(newdir, sizeof(newdir), "getprop > %s/%s/system.prop", DUMP_DIR, curdir);
+
+		if(system(newdir)) LOG_ERR("getprop to %s failure", newdir + 10);
+	}
 
 	return count;
 }
@@ -184,7 +208,7 @@ void removedir(const char *path) {
 		while((dir = readdir(dirp)) != NULL) {
 			if(!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, "..")) continue;
 
-			sprintf(path2, "%s/%s", path, dir->d_name);
+			snprintf(path2, sizeof(path2), "%s/%s", path, dir->d_name);
 
 			removedir(path2);
 		}
@@ -209,7 +233,7 @@ void removedump(int nextId) {
 	struct dirent *dir;
 	char path[PATH_MAX];
 
-	prefix_len = sprintf(prefix, "%02d-", nextId);
+	prefix_len = snprintf(prefix, sizeof(prefix), "%02d-", nextId);
 
 	dirp = opendir(DUMP_DIR);
 	if(!dirp) {
@@ -220,11 +244,32 @@ void removedump(int nextId) {
 	while((dir = readdir(dirp)) != NULL) {
 		if(strncmp(dir->d_name, prefix, prefix_len)) continue;
 
-		sprintf(path, "%s/%s", DUMP_DIR, dir->d_name);
+		snprintf(path, sizeof(path), "%s/%s", DUMP_DIR, dir->d_name);
 
 		removedir(path);
 	}
 	closedir(dirp);
+}
+
+/// @brief 把标准输出重定向到指定的文件
+///
+/// @param file 文件路径
+/// @param fileno 重定向到那个标准输出号(1 stdout, 2 stderr)
+void std2file(const char *file, int fileno) {
+	int fd;
+	struct stat st;
+
+	if(!lstat(file, &st) && st.st_size >= MAX_LOG_SIZE) {
+		char path[PATH_MAX];
+		snprintf(path, sizeof(path), "%s.old", file);
+		if(rename(file, path)) LOG_ERR("rename %s to %s", file, path);
+	}
+
+	fd = open(file, O_CREAT|O_WRONLY|O_APPEND, MODE);
+	if(fd > 0) {
+		dup2(fd, fileno);
+		close(fd);
+	} else LOG_ERR("open %s", file);
 }
 
 /// @brief 主函数
@@ -233,26 +278,16 @@ void removedump(int nextId) {
 /// @retval: 1 失败，pstore挂载失败
 int main(int argc, char *argv[]) {
 	int curId;
-	int fd;
 
 	if(argc > 1) {
 		int sec = atoi(argv[1]);
 		if(sec > 0) sleep(sec);
 	}
 
-	mkdir_p(DUMP_DIR);
+	if(!mkdir_p(DUMP_DIR)) return 1;
 
-	fd = open(DUMP_LOG, O_CREAT|O_WRONLY|O_APPEND, 0755);
-	if(fd > 0) {
-		dup2(fd, 1); // stdout to DUMP_LOG
-		close(fd);
-	} else LOG_ERR("open %s", DUMP_LOG);
-
-	fd = open(DUMP_ERR, O_CREAT|O_WRONLY|O_APPEND, 0755);
-	if(fd > 0) {
-		dup2(fd, 2); // stderr to DUMP_ERR
-		close(fd);
-	} else LOG_ERR("open %s", DUMP_ERR);
+	std2file(DUMP_LOG, 1); // stdout to DUMP_LOG
+	std2file(DUMP_ERR, 2); // stderr to DUMP_ERR
 
 	if(mount("pstore", PSTORE_DIR, "pstore", 0, NULL) && errno != EBUSY) {
 		LOG_ERR("Mount %s", PSTORE_DIR);
@@ -275,7 +310,12 @@ int main(int argc, char *argv[]) {
 
 	LOG_INFO("curId: %d", curId);
 
-	if(!move2dump(curId)) goto flush;
+	if(!move2dump(curId)) {
+		fflush(stdout);
+		fflush(stderr);
+
+		return 0;
+	}
 
 	curId ++;
 	if(curId > MAX_ID) curId = 0;
@@ -290,7 +330,6 @@ int main(int argc, char *argv[]) {
 
 	removedump(curId);
 
-flush:
 	fflush(stdout);
 	fflush(stderr);
 
