@@ -4,6 +4,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <unistd.h>
@@ -28,20 +29,17 @@
 ///
 /// @retval: ISO日期时间字符串
 char *nowtime(void) {
-	static char buf[24];
-	static time_t tt;
-	time_t t;
+	static char buf[32];
+	struct timeval tv = {0, 0};
 	struct tm tm;
 
-	t = time(NULL);
-	if(t == tt) return buf;
-	tt = t;
+	gettimeofday(&tv, NULL);
+	localtime_r(&tv.tv_sec, &tm);
 
-	localtime_r(&t, &tm);
-
-	snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d",
+	snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d.%06ld",
 		tm.tm_year + 1900, tm.tm_mon, tm.tm_mday,
-		tm.tm_hour, tm.tm_min, tm.tm_sec
+		tm.tm_hour, tm.tm_min, tm.tm_sec,
+		tv.tv_usec
 	);
 
 	return buf;
@@ -291,7 +289,9 @@ int main(int argc, char *argv[]) {
 
 	if(mount("pstore", PSTORE_DIR, "pstore", 0, NULL) && errno != EBUSY) {
 		LOG_ERR("Mount %s", PSTORE_DIR);
+		fflush(stdout);
 		fflush(stderr);
+		sync();
 		return 1;
 	}
 
@@ -313,6 +313,7 @@ int main(int argc, char *argv[]) {
 	if(!move2dump(curId)) {
 		fflush(stdout);
 		fflush(stderr);
+		sync();
 
 		return 0;
 	}
@@ -332,6 +333,7 @@ int main(int argc, char *argv[]) {
 
 	fflush(stdout);
 	fflush(stderr);
+	sync();
 
 	return 0;
 }
