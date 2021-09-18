@@ -14,16 +14,34 @@
 #include <libgen.h>
 
 #define PSTORE_DIR "/sys/fs/pstore"
-#define DUMP_DIR "/var/pstore"
-#define DUMP_LOG DUMP_DIR "/dump.log"
-#define DUMP_ERR DUMP_DIR "/dump.err"
-#define CUR_ID DUMP_DIR "/cur.id"
-#define MAX_ID 30
-#define MODE (S_IWUSR | S_IRUSR)
-#define MAX_LOG_SIZE (2*1024*1024)
 
-#define LOG_INFO(fmt, args...) fprintf(stdout, "[%s] " fmt "\n", nowtime(), args)
-#define LOG_ERR(fmt, args...) fprintf(stderr, "[%s] " fmt ": %s\n", nowtime(), args, strerror(errno))
+static const char *g_dump_dir = "/var/pstore";
+static const char *g_next_id = "/var/pstore/next.id";
+static int g_max_id = 30;
+static int g_file_mode = (S_IWUSR | S_IRUSR);
+
+#ifdef USE_SYSLOG
+#	include <syslog.h>
+
+#	define LOG_OPEN() openlog("pstore", LOG_PID, LOG_USER)
+#	define LOGI(fmt, args...) syslog(LOG_INFO, fmt, args)
+#	define LOGE(fmt, args...) syslog(LOG_ERR, fmt ": %s", args, strerror(errno))
+#	define LOG_CLOSE() closelog()
+#else // ifdef USE_SYSLOG
+	static const char *g_dump_log = "/var/pstore/stdout.log";
+	static const char *g_dump_err = "/var/pstore/stderr.log";
+	static int g_max_log_size = 2 * 1024 * 1024;
+
+#	define LOG_OPEN() { \
+		std2file(g_dump_log, 1); \
+		std2file(g_dump_err, 2); \
+	}
+#	define LOGI(fmt, args...) fprintf(stdout, "[%s] " fmt "\n", nowtime(), args)
+#	define LOGE(fmt, args...) fprintf(stderr, "[%s] " fmt ": %s\n", nowtime(), args, strerror(errno))
+#	define LOG_CLOSE() { \
+		fflush(stdout); \
+		fflush(stderr); \
+	}
 
 /// @brief 获取ISO格式的当前日期时间字符串
 ///
@@ -44,6 +62,7 @@ char *nowtime(void) {
 
 	return buf;
 }
+#endif // ifndef USE_SYSLOG
 
 /// @brief 递归创建目录
 ///
@@ -58,11 +77,11 @@ int mkdir_p(const char *path) {
 		if(mkdir_p((const char *) dirname(cdir))) {
 			free(cdir);
 
-			if(mkdir(path, MODE)) {
-				LOG_ERR("mkdir %s failure", path);
+			if(mkdir(path, g_file_mode)) {
+				LOGE("mkdir %s failure", path);
 				return 0;
 			} else {
-				LOG_INFO("Created dir %s", path);
+				LOGI("Created dir %s", path);
 				return 1;
 			}
 		} else {
@@ -74,11 +93,11 @@ int mkdir_p(const char *path) {
 	} else {
 		unlink(path);
 
-		if(mkdir(path, MODE)) {
-			LOG_ERR("mkdir %s failure", path);
+		if(mkdir(path, g_file_mode)) {
+			LOGE("mkdir %s failure", path);
 			return 0;
 		} else {
-			LOG_INFO("Created dir %s", path);
+			LOGI("Created dir %s", path);
 			return 1;
 		}
 	}
@@ -97,19 +116,19 @@ int copy(const char *olddir, const char *newdir) {
 
 	fd1 = open(olddir, O_RDONLY);
 	if(fd1 < 0) {
-		LOG_ERR("open %s failure", olddir);
+		LOGE("open %s failure", olddir);
 		return 0;
 	}
-	fd2 = open(newdir, O_CREAT|O_WRONLY, MODE);
+	fd2 = open(newdir, O_CREAT|O_WRONLY, g_file_mode);
 	if(fd2 < 0) {
-		LOG_ERR("open %s failure", newdir);
+		LOGE("open %s failure", newdir);
 		close(fd1);
 		return 0;
 	}
 
 	while((n = read(fd1, buf, sizeof(buf))) > 0) {
 		if(write(fd2, buf, n) != n) {
-			LOG_ERR("write %s failure", newdir);
+			LOGE("write %s failure", newdir);
 			ret = 0;
 			break;
 		}
@@ -147,7 +166,7 @@ int move2dump(int curId) {
 
 	dirp = opendir(PSTORE_DIR);
 	if(!dirp) {
-		LOG_ERR("opendir %s", PSTORE_DIR);
+		LOGE("opendir %s", PSTORE_DIR);
 		return 0;
 	}
 	while((dir = readdir(dirp)) != NULL) {
@@ -155,7 +174,7 @@ int move2dump(int curId) {
 
 		if(is_mkdir) {
 			is_mkdir = 0;
-			snprintf(newdir, sizeof(newdir), "%s/%s", DUMP_DIR, curdir);
+			snprintf(newdir, sizeof(newdir), "%s/%s", g_dump_dir, curdir);
 			if(!mkdir_p(newdir)) {
 				closedir(dirp);
 				return 0;
@@ -163,11 +182,11 @@ int move2dump(int curId) {
 		}
 
 		snprintf(olddir, sizeof(olddir), "%s/%s", PSTORE_DIR, dir->d_name);
-		snprintf(newdir, sizeof(newdir), "%s/%s/%s", DUMP_DIR, curdir, dir->d_name);
+		snprintf(newdir, sizeof(newdir), "%s/%s/%s", g_dump_dir, curdir, dir->d_name);
 		if(copy(olddir, newdir)) {
-			LOG_INFO("Copied file %s to %s", olddir, newdir);
-			if(unlink(olddir)) LOG_ERR("unlink %s failure", olddir);
-			else LOG_INFO("Deleted file %s", olddir);
+			LOGI("Copied file %s to %s", olddir, newdir);
+			if(unlink(olddir)) LOGE("unlink %s failure", olddir);
+			else LOGI("Deleted file %s", olddir);
 
 			count ++;
 		}
@@ -175,9 +194,9 @@ int move2dump(int curId) {
 	closedir(dirp);
 
 	if(count) {
-		snprintf(newdir, sizeof(newdir), "getprop > %s/%s/system.prop", DUMP_DIR, curdir);
+		snprintf(newdir, sizeof(newdir), "getprop > %s/%s/system.prop", g_dump_dir, curdir);
 
-		if(system(newdir)) LOG_ERR("getprop to %s failure", newdir + 10);
+		if(system(newdir)) LOGE("getprop to %s failure", newdir + 10);
 	}
 
 	return count;
@@ -199,7 +218,7 @@ void removedir(const char *path) {
 
 		dirp = opendir(path);
 		if(!dirp) {
-			LOG_ERR("opendir %s", path);
+			LOGE("opendir %s", path);
 			return;
 		}
 
@@ -212,11 +231,11 @@ void removedir(const char *path) {
 		}
 		closedir(dirp);
 
-		if(rmdir(path)) LOG_ERR("rmdir %s failure", path);
-		else LOG_INFO("Deleted folder %s", path);
+		if(rmdir(path)) LOGE("rmdir %s failure", path);
+		else LOGI("Deleted folder %s", path);
 	} else {
-		if(unlink(path)) LOG_ERR("unlink %s failure", path);
-		else LOG_INFO("Deleted file %s", path);
+		if(unlink(path)) LOGE("unlink %s failure", path);
+		else LOGI("Deleted file %s", path);
 	}
 }
 
@@ -233,22 +252,23 @@ void removedump(int nextId) {
 
 	prefix_len = snprintf(prefix, sizeof(prefix), "%02d-", nextId);
 
-	dirp = opendir(DUMP_DIR);
+	dirp = opendir(g_dump_dir);
 	if(!dirp) {
-		LOG_ERR("opendir %s", DUMP_DIR);
+		LOGE("opendir %s", g_dump_dir);
 		return;
 	}
 
 	while((dir = readdir(dirp)) != NULL) {
 		if(strncmp(dir->d_name, prefix, prefix_len)) continue;
 
-		snprintf(path, sizeof(path), "%s/%s", DUMP_DIR, dir->d_name);
+		snprintf(path, sizeof(path), "%s/%s", g_dump_dir, dir->d_name);
 
 		removedir(path);
 	}
 	closedir(dirp);
 }
 
+#ifndef USE_SYSLOG
 /// @brief 把标准输出重定向到指定的文件
 ///
 /// @param file 文件路径
@@ -257,18 +277,20 @@ void std2file(const char *file, int fileno) {
 	int fd;
 	struct stat st;
 
-	if(!lstat(file, &st) && st.st_size >= MAX_LOG_SIZE) {
+	if(!lstat(file, &st) && st.st_size >= g_max_log_size) {
 		char path[PATH_MAX];
 		snprintf(path, sizeof(path), "%s.old", file);
-		if(rename(file, path)) LOG_ERR("rename %s to %s", file, path);
+		if(rename(file, path)) LOGE("rename %s to %s", file, path);
 	}
 
-	fd = open(file, O_CREAT|O_WRONLY|O_APPEND, MODE);
+	fd = open(file, O_CREAT|O_WRONLY|O_APPEND, g_file_mode);
 	if(fd > 0) {
 		dup2(fd, fileno);
 		close(fd);
-	} else LOG_ERR("open %s", file);
+		LOGI("Redirect %d> %s", fileno, file);
+	} else LOGE("open %s", file);
 }
+#endif
 
 /// @brief 主函数
 ///
@@ -276,31 +298,89 @@ void std2file(const char *file, int fileno) {
 /// @retval: 1 失败，pstore挂载失败
 int main(int argc, char *argv[]) {
 	int curId;
+	int delay = 0;
+	int opt;
 
-	if(argc > 1) {
-		int sec = atoi(argv[1]);
-		if(sec > 0) sleep(sec);
+	while((opt = getopt(argc, argv, "d:n:m:f:l:e:s:D:h?")) != -1) {
+		switch(opt) {
+			case 'd':
+				g_dump_dir = optarg;
+				break;
+			case 'n':
+				g_next_id = optarg;
+				break;
+			case 'm':
+				g_max_id = atoi(optarg);
+				break;
+			case 'f': {
+				char *endptr = NULL;
+				g_file_mode = (int) strtol(optarg, &endptr, 8);
+				break;
+			}
+		#ifdef USE_SYSLOG
+			case 'l':
+			case 'e':
+			case 's':
+				break;
+		#else
+			case 'l':
+				g_dump_log = optarg;
+				break;
+			case 'e':
+				g_dump_err = optarg;
+				break;
+			case 's':
+				g_max_log_size = atoi(optarg);
+				break;
+		#endif
+			case 'D':
+				delay = atoi(optarg);
+				break;
+			case 'h':
+			case '?':
+			default:
+				printf(
+					"usage: %s [options]\n\n"
+					"options:\n"
+					"    -d    kernel log dump dir(value: %s)\n"
+					"    -n    next id save to file(value: %s)\n"
+					"    -m    max id(value: %d)\n"
+					"    -f    file mode is octal integer number(value: %o)\n"
+				#ifndef USE_SYSLOG
+					"    -l    info log file for this program(value: %s)\n"
+					"    -e    error log file for this program(value: %s)\n"
+					"    -s    max log file size for this program(value: %d)\n"
+				#endif
+					"    -D    this program start before delay seconds(value: %d)\n"
+					, argv[0], g_dump_dir, g_next_id, g_max_id, g_file_mode
+				#ifndef USE_SYSLOG
+					, g_dump_log, g_dump_err, g_max_log_size
+				#endif
+					, delay
+				);
+				return 255;
+		}
 	}
 
-	if(!mkdir_p(DUMP_DIR)) return 1;
+	if(delay > 0) sleep(delay);
 
-	std2file(DUMP_LOG, 1); // stdout to DUMP_LOG
-	std2file(DUMP_ERR, 2); // stderr to DUMP_ERR
+	if(!mkdir_p(g_dump_dir)) return 1;
+
+	LOG_OPEN();
 
 	if(mount("pstore", PSTORE_DIR, "pstore", 0, NULL) && errno != EBUSY) {
-		LOG_ERR("Mount %s", PSTORE_DIR);
-		fflush(stdout);
-		fflush(stderr);
+		LOGE("Mount %s", PSTORE_DIR);
+		LOG_CLOSE();
 		sync();
 		return 1;
 	}
 
-	LOG_INFO("Mounted to %s", PSTORE_DIR);
+	LOGI("Mounted to %s", PSTORE_DIR);
 
-	FILE *fp = fopen(CUR_ID, "r");
+	FILE *fp = fopen(g_next_id, "r");
 	if(fp) {
 		if(fscanf(fp, "%d", &curId) != 1) {
-			LOG_ERR("fscanf curId %s", CUR_ID);
+			LOGE("fscanf curId %s", g_next_id);
 			curId = 0;
 		}
 		fclose(fp);
@@ -308,31 +388,31 @@ int main(int argc, char *argv[]) {
 		curId = 0;
 	}
 
-	LOG_INFO("curId: %d", curId);
+	LOGI("current id is %d", curId);
 
 	if(!move2dump(curId)) {
-		fflush(stdout);
-		fflush(stderr);
+		LOG_CLOSE();
 		sync();
 
 		return 0;
 	}
 
 	curId ++;
-	if(curId > MAX_ID) curId = 0;
+	if(curId > g_max_id) curId = 0;
 
-	fp = fopen(CUR_ID, "w");
+	fp = fopen(g_next_id, "w");
 	if(fp) {
 		fprintf(fp, "%d", curId);
 		fclose(fp);
 	} else {
-		LOG_ERR("fopen %s", CUR_ID);
+		LOGE("fopen %s", g_next_id);
 	}
+
+	LOGI("next id is %d", curId);
 
 	removedump(curId);
 
-	fflush(stdout);
-	fflush(stderr);
+	LOG_CLOSE();
 	sync();
 
 	return 0;
