@@ -82,3 +82,4 @@ sudo repquota -ugPa
 ### 10. 参考
 * [Ext4 开启 project quota](https://developer.aliyun.com/article/763211)
 * [linux磁盘配额详解（EXT4和XFS）](https://blog.csdn.net/shengjie87/article/details/106833741)
+* [Disk quota](https://wiki.archlinux.org/title/Disk_quota)
