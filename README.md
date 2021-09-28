@@ -117,6 +117,7 @@
     * shared2.cpp => 无引用
   * screenshot.c => 基于X11的屏幕截图
   * lsexeso.sh => 查看程序加载的so文件列表
+  * quota.md => ext4磁盘配额
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
