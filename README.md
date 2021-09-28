@@ -117,7 +117,6 @@
     * shared2.cpp => 无引用
   * screenshot.c => 基于X11的屏幕截图
   * lsexeso.sh => 查看程序加载的so文件列表
-  * quota.md => ext4磁盘配额
 ```
 DUMP_MODE:        kdump
 USE_KDUMP:        1
@@ -140,6 +139,7 @@ kexec command:
   * keyboard.c => 键盘事件
   * mkfont.c => android系统中bootable/recovery/minui/graphics.c使用的字体生成(bootable/recovery/fonts/)
   * pstore.c pstore.sh => pstore转储
+  * quota.md => [ext4磁盘配额](quota.md)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
