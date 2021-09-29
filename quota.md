@@ -83,3 +83,13 @@ sudo repquota -ugPa
 * [Ext4 开启 project quota](https://developer.aliyun.com/article/763211)
 * [linux磁盘配额详解（EXT4和XFS）](https://blog.csdn.net/shengjie87/article/details/106833741)
 * [Disk quota](https://wiki.archlinux.org/title/Disk_quota)
+
+### 11. kernel config
+```
+CONFIG_QUOTA=y
+CONFIG_QUOTACTL=y
+CONFIG_QUOTA_NETLINK_INTERFACE=y
+CONFIG_QUOTA_TREE=y
+CONFIG_PRINT_QUOTA_WARNING=y
+CONFIG_QFMT_V2=y
+```
