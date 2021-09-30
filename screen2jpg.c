@@ -118,9 +118,11 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 	jpeg_set_defaults(&cinfo);
 
 	{
+	#if JPEG_LIB_VERSION >= 70
 		// 指定亮度及色度质量
 		cinfo.q_scale_factor[0] = jpeg_quality_scaling(100);
 		cinfo.q_scale_factor[1] = jpeg_quality_scaling(100);
+	#endif
 
 		// 图像采样率，默认为2 * 2
 		cinfo.comp_info[0].v_samp_factor = 1;

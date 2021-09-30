@@ -9,6 +9,20 @@ LFLAGS := $(LFLAGS) -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 
 CFLAGS += $(call cc-option,-Wno-unused-result,)
 
+ifeq ($(MYSQL_CONFIG),)
+MYSQL_CONFIG := $(shell which mysql_config 2>/dev/null)
+ifeq ($(MYSQL_CONFIG),)
+$(error Not found mysql_config command)
+endif
+endif
+ifeq ($(shell $(MYSQL_CONFIG) --version 2>/dev/null),)
+$(error $(MYSQL_CONFIG) not runnable)
+endif
+CFLAGS += $(shell $(MYSQL_CONFIG) --cflags)
+
+CFLAGS += $(shell pkg-config --cflags libmongoc-1.0 libbson-1.0)
+CFLAGS += $(shell pkg-config --cflags glib-2.0)
+
 all:
 	@echo -n
 
@@ -142,29 +156,15 @@ dirs-sqlite3: dirs-sqlite3.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lsqlite3
 
-ifeq ($(MYSQL_CONFIG),)
-MYSQL_CONFIG := $(shell which mysql_config 2>/dev/null)
-ifeq ($(MYSQL_CONFIG),)
-$(error Not found mysql_config command)
-endif
-endif
-ifeq ($(shell $(MYSQL_CONFIG) --version 2>/dev/null),)
-$(error $(MYSQL_CONFIG) not runnable)
-endif
-
-CFLAGS += $(shell $(MYSQL_CONFIG) --cflags)
-
 all: dirs-mysql
 dirs-mysql: dirs-mysql.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -Wl,-rpath,$(shell $(MYSQL_CONFIG) --variable=pkglibdir) $(shell $(MYSQL_CONFIG) --libs)
 
-CFLAGS += $(shell pkg-config --cflags libmongoc-1.0)
-
 all: dirs-mongo
 dirs-mongo: dirs-mongo.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs libmongoc-1.0)
+	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs libmongoc-1.0 libbson-1.0)
 
 all: algo-dec2bin
 algo-dec2bin: algo-dec2bin.o
@@ -330,8 +330,6 @@ all: sem2
 sem2: sem2.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -pthread
-
-CFLAGS += $(shell pkg-config --cflags glib-2.0)
 
 all: glib
 glib: glib.o
