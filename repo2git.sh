@@ -30,7 +30,7 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 			else
 				echo "\"$dir/$line\""
 			fi
-		done | xargs -n100 git add -f
+		done | xargs -n100 git add -f --ignore-removal
 
 		echo -e "\033[2K$C files">&2
 
