@@ -411,6 +411,11 @@ pstore: pstore.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: lsblk
+lsblk: lsblk.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

@@ -140,6 +140,7 @@ kexec command:
   * mkfont.c => android系统中bootable/recovery/minui/graphics.c使用的字体生成(bootable/recovery/fonts/)
   * pstore.c pstore.sh => pstore转储
   * quota.md => [ext4磁盘配额](quota.md)
+  * lsblk.c => 列出当前系统中已挂载文件系统等信息
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
