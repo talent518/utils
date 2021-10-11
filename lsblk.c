@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #define MNTENT_FILE "/proc/mounts"
 
@@ -58,8 +59,11 @@ int main(int argc, char *argv[]) {
             }
             if(ioctl(fd, LOOP_GET_STATUS64, &loop) == -1) {
                 perror("ioctl()");
+                close(fd);
                 continue;
             }
+            close(fd);
+
             printf("    lo_device: %llu\n", loop.lo_device);
             printf("    lo_inode: %llu\n", loop.lo_inode);
             printf("    lo_rdevice: %llu\n", loop.lo_rdevice);
