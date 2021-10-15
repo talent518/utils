@@ -35,7 +35,7 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 		echo -e "\033[2K$C files">&2
 
 		git repack --max-pack-size 500M >&2
-		git commit -a -m"$ver: $dir" >&2
+		git commit -m"$ver: $dir" "$dir" >&2
 		touch "$dir.lock" >&2
 	else
 		echo -e "\033[34m0 files\033[0m" >&2
@@ -56,7 +56,7 @@ if [ ! -f ".lock" ]; then
 		cat repo2git.lst | xargs git add -f
 		echo
 		git repack --max-pack-size 500M >&2
-		git commit -a -m"add soft link or copy file" >&2
+		git commit -m"add soft link or copy file" $(cat repo2git.lst) >&2
 		touch ".lock"
 	else
 		echo none soft link or copy file >&2
