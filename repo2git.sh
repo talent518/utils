@@ -56,7 +56,7 @@ if [ ! -f ".lock" ]; then
 		cat repo2git.lst | xargs git add -f
 		echo
 		git repack --max-pack-size 500M >&2
-		git commit -m"add soft link or copy file" $(cat repo2git.lst) >&2
+		cat repo2git.lst | xargs git commit -m"add soft link or copy file" >&2
 		touch ".lock"
 	else
 		echo none soft link or copy file >&2
