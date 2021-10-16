@@ -13,11 +13,12 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 	echo -e "\033[31m$I\e[0m \033[33m$dir\033[0m" >&2
 
 	if [ -f "$dir.lock" ]; then
-		echo $(sh -c "cd '$dir';git ls-files"|wc -l) files >&2
+		echo $(git -C "$dir" ls-files | wc -l) files >&2
 		continue
 	fi
 
-	sh -c "cd '$dir';git ls-files" > repo2git.lst
+	git -C "$dir" clean -fdx
+	git -C "$dir" ls-files > repo2git.lst
 	C=$(cat repo2git.lst|wc -l)
 
 	if [ $C -gt 0 ]; then
@@ -34,8 +35,7 @@ I=$(repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' | while
 
 		echo -e "\033[2K$C files">&2
 
-		git repack --max-pack-size 500M >&2
-		git commit -m"$ver: $dir" "$dir" >&2
+		git commit -v -m"$ver: $dir" "$dir" >&2
 		touch "$dir.lock" >&2
 	else
 		echo -e "\033[34m0 files\033[0m" >&2
@@ -56,7 +56,7 @@ if [ ! -f ".lock" ]; then
 		cat repo2git.lst | xargs git add -f
 		echo
 		git repack --max-pack-size 500M >&2
-		cat repo2git.lst | xargs git commit -m"add soft link or copy file" >&2
+		cat repo2git.lst | xargs git commit -v -m"add soft link or copy file" >&2
 		touch ".lock"
 	else
 		echo none soft link or copy file >&2
