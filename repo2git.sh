@@ -53,9 +53,8 @@ if [ ! -f ".lock" ]; then
 		echo -n -e "\033[2Kadd soft link or copy file for $I files\r">&2
 	done > repo2git.lst
 	if [ $(cat repo2git.lst|wc -l) -gt 0 ]; then
-		cat repo2git.lst | xargs git add -f
 		echo
-		git repack --max-pack-size 500M >&2
+		cat repo2git.lst | xargs git add -f
 		cat repo2git.lst | xargs git commit -v -m"add soft link or copy file" >&2
 		touch ".lock"
 	else
