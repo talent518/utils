@@ -37,7 +37,6 @@ void getcpu(cpu_t *cpu) {
 	fp = fopen("/proc/stat", "r");
 	if(!fp) return;
 
-	memset(buff, 0, sizeof(buff));
 	fgets(buff, sizeof(buff), fp);
 
 	fclose(fp);
@@ -132,7 +131,7 @@ char *fsize(unsigned long int size) {
 		unit = 3;
 	}
 
-	sprintf(buf, "%.2lf%c", (double)size/pow(1024,unit), units[unit]);
+	sprintf(buf, "%.1lf%c", (double)size/pow(1024,unit), units[unit]);
 
 	return buf;
 }
@@ -179,38 +178,26 @@ const char* get_items(const char*buffer, unsigned int item) {
 	return p;
 }
 
-unsigned int getprocessdirtys(int pid) {
+unsigned long int getprocessdirtys(int pid) {
 	char buff[BUFLEN] = "";
 	char fname[64] = "";
 	char key[64] = "";
 	long int val = 0;
 	FILE *fp;
 	char *ptr;
+	unsigned long int dirtys = 0;
 	
 	snprintf(fname, sizeof(fname), "/proc/%d/smaps", pid);
 
 	fp = fopen(fname, "r");
-	if(!fp) {
-		return 0;
-	}
+	if(!fp) return 0;
 
-	memset(buff, 0, sizeof(buff));
-	fread(buff, sizeof(buff) - 1, 1, fp);
-
-	fclose(fp);
-	
-	ptr = buff;
-	
-	unsigned int dirtys = 0;
-	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
+	while(fgets(buff, sizeof(buff), fp) && sscanf(buff, "%[^:]: %ld", key, &val)) {
 		if(!strcmp(key, "Private_Dirty") || !strcmp(key, "Shared_Dirty")) {
 			dirtys += val;
 		}
-		ptr = strchr(ptr, '\n');
-		if(ptr) {
-			ptr++;
-		}
 	}
+	fclose(fp);
 	
 	return dirtys;
 }
@@ -221,7 +208,6 @@ int getprocessinfo(int pid, process_t *proc) {
 	char key[20] = "";
 	long int val = 0;
 	FILE *fp;
-	char *ptr;
 
 	snprintf(fname, sizeof(fname), "/proc/%d/statm", pid);
 
@@ -230,7 +216,6 @@ int getprocessinfo(int pid, process_t *proc) {
 		return 0;
 	}
 
-	memset(buff, 0, sizeof(buff));
 	fgets(buff, sizeof(buff) - 1, fp);
 
 	fclose(fp);
@@ -244,7 +229,6 @@ int getprocessinfo(int pid, process_t *proc) {
 		return 0;
 	}
 
-	memset(buff, 0, sizeof(buff));
 	fgets(buff, sizeof(buff) - 1, fp);
 
 	fclose(fp);
@@ -276,24 +260,15 @@ int getprocessinfo(int pid, process_t *proc) {
 		return 0;
 	}
 
-	memset(buff, 0, sizeof(buff));
-	fread(buff, sizeof(buff) - 1, 1, fp);
-
-	fclose(fp);
-
-	ptr = buff;
 	proc->dirty = 0;
 	proc->rssFile = 0;
-	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
+	while(fgets(buff, sizeof(buff), fp) && sscanf(buff, "%[^:]: %ld", key, &val)) {
 		if(!strcmp(key, "RssFile")) {
 			proc->rssFile = val;
 			proc->dirty = proc->resident * 4 - val;
 		}
-		ptr = strchr(ptr, '\n');
-		if(ptr) {
-			ptr++;
-		}
 	}
+	fclose(fp);
 	
 	if(!proc->dirty || !proc->rssFile) {
 		proc->dirty = getprocessdirtys(pid);
@@ -317,40 +292,33 @@ int getcomm(char *pid, char *comm) {
 		return 0;
 	}
 
-	memset(buff, 0, sizeof(buff));
 	len = fread(buff, 1, sizeof(buff) - 1, fp);
+	if(len <= 0) return 0;
 
 	fclose(fp);
-	
-	if(len <= 0) {
-		return 0;
-	}
-	
-	ptr = buff + len - 1;
-	while(buff <= ptr && (*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) {
-		*ptr-- = '\0';
-	}
+
+    ptr = buff + len - 1;
+    while(buff <= ptr && (*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) {
+        *ptr-- = '\0';
+    }
 	
 	return !strcmp(buff, comm);
 }
 
 char procArgStr[NPROC][BUFLEN];
 
-int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall) {
+int procarg(char *comm, int nproc, int *pid, process_t *proc) {
 	char fname[64] = "";
 	int n, len, i;
 	
 	if(comm) {
 		DIR *dp;
 		struct dirent *dt;
-		char *p;
 	
 		nproc = 0;
 		dp = opendir("/proc");
 		while((dt = readdir(dp)) != NULL) {
-			p = dt->d_name;
-			while(*p && *p >= '0' && *p <= '9') p++;
-			if(*p == '\0') {
+			if(dt->d_name[0] >= '0' && dt->d_name[0] <= '9') {
 				if(getcomm(dt->d_name, comm)) {
 					pid[nproc++] = atoi(dt->d_name);
 					if(nproc >= NPROC) break;
@@ -382,8 +350,6 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall
 			pid[n] = 0;
 			continue;
 		}
-
-		pall[n] = proc[n].utime + proc[n].stime + proc[n].cutime + proc[n].cstime;
 	}
 	
 	return nproc;
@@ -402,7 +368,7 @@ int main(int argc, char *argv[]) {
 	int pid[NPROC];
 	process_t proc[NPROC], proc2[NPROC];
 
-	unsigned int all, all2, pall[NPROC], pall2[NPROC], i, delay = 1;
+	unsigned int all, all2, i, delay = 1;
 
 	double total;
 	long int realUsed;
@@ -427,6 +393,8 @@ int main(int argc, char *argv[]) {
 							hasCpu = 0;
 							hasMem = 0;
 							comm = argv[i+1];
+							n = strlen(comm);
+							if(n > 15) comm[15] = '\0';
 							i++;
 							break;
 						}
@@ -467,7 +435,7 @@ int main(int argc, char *argv[]) {
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
-	nproc = procarg(comm, nproc, pid, proc, pall);
+	nproc = procarg(comm, nproc, pid, proc);
 
 	if(nproc>0 || comm) {
 		getcpu(&cpu);
@@ -480,20 +448,19 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		if(lines++ % LINES == 0) {
 			if(hasCpu && hasMem) {
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
-				cpu_mem_head("                           CPU (%%)                          ", "                      Memory Size                     |   Real Memory (%%)  ");
+				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+				cpu_mem_head("                         CPU (%%)                         ", "                      Memory Size      |     Swap      |  Real Memory (%%)  ");
 			}
 
 			if(hasCpu || hasMem) {
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
-				cpu_mem_head(" User  Nice System   Idle IOWait   IRQ SoftIRQ Stolen  Guest", "MemTotal  MemFree   Cached  Buffers SwapTotal SwapFree|Memory Cached   Swap");
-				cpu_mem_head("------------------------------------------------------------", "------------------------------------------------------|--------------------");
+				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+				cpu_mem_head(" User  Nice System  Idle IOWait  IRQ SoftIRQ Stolen Guest", "  Total    Free  Cached Buffers  Shared|  Total    Free|Memory Cached  Swap");
+				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
 			}
 			
-			nproc = procarg(comm, nproc, pid, proc, pall);
+			nproc = procarg(comm, nproc, pid, proc);
 
 			if(nproc > 0) {
-				printf("--------------------------------------------------------------------------------------------------------------------\n");
 				nn = nproc;
 				for(n=0; n<nproc; n++) {
 					if(pid[n]>0) {
@@ -533,15 +500,15 @@ int main(int argc, char *argv[]) {
 			total = (all2 - all) / 100.0;
 			if(total == 0) total = 1;
 		
-			printf("%5.2f", (float)((double)(cpu2.user - cpu.user) / total));
-			printf("%6.2f", (float)((double)(cpu2.nice - cpu.nice) / total));
-			printf("%7.2f", (float)((double)(cpu2.system - cpu.system) / total));
-			printf("%7.2f", (float)((double)(cpu2.idle - cpu.idle) / total));
-			printf("%7.2f", (float)((double)(cpu2.iowait - cpu.iowait) / total));
-			printf("%6.2f", (float)((double)(cpu2.irq - cpu.irq) / total));
-			printf("%8.2f", (float)((double)(cpu2.softirq - cpu.softirq) / total));
-			printf("%7.2f", (float)((double)(cpu2.stolen - cpu.stolen) / total));
-			printf("%7.2f", (float)((double)(cpu2.guest - cpu.guest) / total));
+			printf("%5.1f", (float)((double)(cpu2.user - cpu.user) / total));
+			printf("%6.1f", (float)((double)(cpu2.nice - cpu.nice) / total));
+			printf("%7.1f", (float)((double)(cpu2.system - cpu.system) / total));
+			printf("%6.1f", (float)((double)(cpu2.idle - cpu.idle) / total));
+			printf("%7.1f", (float)((double)(cpu2.iowait - cpu.iowait) / total));
+			printf("%5.1f", (float)((double)(cpu2.irq - cpu.irq) / total));
+			printf("%8.1f", (float)((double)(cpu2.softirq - cpu.softirq) / total));
+			printf("%7.1f", (float)((double)(cpu2.stolen - cpu.stolen) / total));
+			printf("%6.1f", (float)((double)(cpu2.guest - cpu.guest) / total));
 		
 			cpu = cpu2;
 			all = all2;
@@ -553,20 +520,24 @@ int main(int argc, char *argv[]) {
 
 		if(hasMem) {
 			getmem(&mem);
-			printf("%8s", fsize(mem.total));
-			printf("%9s", fsize(mem.free));
-			printf("%9s", fsize(mem.cached));
-			printf("%9s", fsize(mem.buffers));
-			printf("%10s", fsize(mem.swapTotal));
-			printf("%9s|", fsize(mem.swapFree));
+			printf("%7s", fsize(mem.total));
+			printf("%8s", fsize(mem.free));
+			printf("%8s", fsize(mem.cached));
+			printf("%8s", fsize(mem.buffers));
+			printf("%8s|", fsize(mem.shared));
+			printf("%7s", fsize(mem.total));
+			printf("%8s|", fsize(mem.free));
 			//printf("%6.2f", (float)((double)(mem.total - mem.free) * 100.0 / (double)mem.total)); // MemPercent
 			printf("%6.2f", (float)((double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total)); // MemRealPercent
 			printf("%7.2f", (float)((double)(mem.cached) * 100.0 / (double)mem.total)); // MemCachedPercent
-			printf("%7.2f", (float)(mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0)); // SwapPercent
+			printf("%6.2f", (float)(mem.swapTotal ? (double)(mem.swapTotal - mem.swapFree) * 100.0 / (double)mem.swapTotal : 0.0)); // SwapPercent
 		}
 
 		if(hasCpu || hasMem) {
-			printf("\nPress Ctrl+\\ key for show table head\r");
+			printf("\n");
+			fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
+
+			fflush(stdout);
 			continue;
 		}
 
@@ -589,8 +560,6 @@ int main(int argc, char *argv[]) {
 		nn = nproc;
 		for(n=0; n<nproc; n++) {
 			if(pid[n] ==0) nn--;
-
-			pall2[n] = proc2[n].utime + proc2[n].stime + proc2[n].cutime + proc2[n].cstime;
 
 			printf("%8d|", pid[n]);
 			printf("%8s", fsize(proc2[n].size * 4));
