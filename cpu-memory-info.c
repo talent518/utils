@@ -11,6 +11,7 @@
 
 #define LINES 20
 #define NPROC 1000
+#define BUFLEN 1024
 
 #define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
 
@@ -27,16 +28,17 @@ typedef struct {
 } cpu_t;
 
 void getcpu(cpu_t *cpu) {
-	static char buff[128];
-	static char strcpu[8];
+	char buff[BUFLEN];
+	char strcpu[16];
 	FILE *fp;
 	
 	memset(cpu, 0, sizeof(cpu_t));
 
 	fp = fopen("/proc/stat", "r");
+	if(!fp) return;
 
 	memset(buff, 0, sizeof(buff));
-	fgets(buff, sizeof(buff) - 1, fp);
+	fgets(buff, sizeof(buff), fp);
 
 	fclose(fp);
 	
@@ -55,9 +57,9 @@ typedef struct {
 } mem_t;
 
 void getmem(mem_t *mem) {
-	static char buff[2048] = "";
-	static char key[20] = "";
-	static long int val = 0;
+	char buff[BUFLEN] = "";
+	char key[20] = "";
+	long int val = 0;
 	FILE *fp;
 	char *ptr;
 	int i = 0377;
@@ -65,15 +67,11 @@ void getmem(mem_t *mem) {
 	memset(mem, 0, sizeof(mem_t));
 	
 	fp = fopen("/proc/meminfo", "r");
+	if(!fp) return;
 
-	memset(buff, 0, sizeof(buff));
-	fread(buff, sizeof(buff) - 1, 1, fp);
-
-	fclose(fp);
 	
-	ptr = buff;
-	while(ptr && sscanf(ptr, "%[^:]: %ld", key, &val)) {
-		// printf("%s => %d\n", key, val);
+	while(i > 0 && fgets(buff, sizeof(buff), fp) && sscanf(buff, "%[^:]: %ld", key, &val) == 2) {
+		// printf("%s => %ld\n", key, val);
 
 		if((i & 01) && !strcmp(key, "MemTotal")) {
 			mem->total = val;
@@ -115,17 +113,14 @@ void getmem(mem_t *mem) {
 			i ^= 0200;
 			continue;
 		}
-
-		ptr = strchr(ptr, '\n');
-		if(ptr) {
-			ptr++;
-		}
 	}
+
+	fclose(fp);
 }
 
 char *fsize(unsigned long int size) {
 	static char buf[32];
-	static char units[5] = "KMGT";
+	char *units = "KMGT";
 	unsigned int unit;
 
 	if(!size) {
@@ -133,8 +128,8 @@ char *fsize(unsigned long int size) {
 	}
 	
 	unit = (int)(log(size)/log(1024));
-	if (unit > 3) {
-		unit=3;
+	if(unit > 3) {
+		unit = 3;
 	}
 
 	sprintf(buf, "%.2lf%c", (double)size/pow(1024,unit), units[unit]);
@@ -167,13 +162,13 @@ typedef struct {
 const char* get_items(const char*buffer, unsigned int item) {
 	const char *p =buffer;
 
-	register int len = strlen(buffer);
-	register int count = 0, i;
+	int len = strlen(buffer);
+	int count = 0, i;
 
-	for (i=0; i<len;i++){
-		if (' ' == *p){
+	for(i=0; i<len; i++) {
+		if(' ' == *p) {
 			count ++;
-			if(count == item -1){
+			if(count == item -1) {
 				p++;
 				break;
 			}
@@ -185,10 +180,10 @@ const char* get_items(const char*buffer, unsigned int item) {
 }
 
 unsigned int getprocessdirtys(int pid) {
-	static char buff[16*1024*1024] = "";
-	static char fname[64] = "";
-	static char key[64] = "";
-	static long int val = 0;
+	char buff[BUFLEN] = "";
+	char fname[64] = "";
+	char key[64] = "";
+	long int val = 0;
 	FILE *fp;
 	char *ptr;
 	
@@ -221,10 +216,10 @@ unsigned int getprocessdirtys(int pid) {
 }
 
 int getprocessinfo(int pid, process_t *proc) {
-	static char buff[1024] = "";
-	static char fname[64] = "";
-	static char key[20] = "";
-	static long int val = 0;
+	char buff[BUFLEN] = "";
+	char fname[64] = "";
+	char key[20] = "";
+	long int val = 0;
 	FILE *fp;
 	char *ptr;
 
@@ -309,8 +304,8 @@ int getprocessinfo(int pid, process_t *proc) {
 }
 
 int getcomm(char *pid, char *comm) {
-	static char buff[128] = "";
-	static char fname[267] = "";
+	char buff[BUFLEN] = "";
+	char fname[64] = "";
 	FILE *fp;
 	char *ptr;
 	int len;
@@ -339,16 +334,16 @@ int getcomm(char *pid, char *comm) {
 	return !strcmp(buff, comm);
 }
 
-char procArgStr[NPROC][1024];
+char procArgStr[NPROC][BUFLEN];
 
 int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall) {
-	static char fname[64] = "";
+	char fname[64] = "";
 	int n, len, i;
 	
 	if(comm) {
 		DIR *dp;
 		struct dirent *dt;
-		register char *p;
+		char *p;
 	
 		nproc = 0;
 		dp = opendir("/proc");
@@ -449,7 +444,7 @@ int main(int argc, char *argv[]) {
 						printf("Usage: %s [ -c | -m | -P <comm> | -p <pid> | -h | -? ] [ delay]\n"
 								"  -c        Cpu info\n"
 								"  -m        Memory info\n"
-								"  -P <comm>  Process comm\n"
+								"  -P <comm> Process comm\n"
 								"  -p <pid>  Process info(Multiple)\n"
 								"  -h,-?     This help\n", argv[0]);
 						return 0;
@@ -575,6 +570,13 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
+		for(n=0; n<nproc; n++) {
+			if(pid[n] ==0 || !getprocessinfo(pid[n], &proc2[n])) {
+				pid[n] = 0;
+				continue;
+			}
+		}
+
 		if(nproc>0) {
 			getcpu(&cpu);
 
@@ -586,11 +588,7 @@ int main(int argc, char *argv[]) {
 
 		nn = nproc;
 		for(n=0; n<nproc; n++) {
-			if(pid[n] ==0 || !getprocessinfo(pid[n], &proc2[n])) {
-				pid[n] = 0;
-				nn--;
-				continue;
-			}
+			if(pid[n] ==0) nn--;
 
 			pall2[n] = proc2[n].utime + proc2[n].stime + proc2[n].cutime + proc2[n].cstime;
 
@@ -621,8 +619,8 @@ int main(int argc, char *argv[]) {
 			lines = 0;
 			continue;
 		}
-		printf("Press Ctrl+\\ key for show table head\r");
-		
+
+		fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
 		fflush(stdout);
 	}
 
