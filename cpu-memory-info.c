@@ -372,12 +372,12 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc, unsigned int *pall
 			pid[n] = 0;
 			continue;
 		}
-		len = fread(procArgStr[n], 1, sizeof(procArgStr[0]), fp);
+		len = fread(procArgStr[n], 1, sizeof(procArgStr[0]) - 1, fp);
 		fclose(fp);
 
-		procArgStr[n][len-1] = '\0';
+		if(len > 0) procArgStr[n][len] = '\0';
 
-		for(i=0; i<len-1; i++) {
+		for(i=0; i<len; i++) {
 			if(procArgStr[n][i] == '\0') {
 				procArgStr[n][i] = ' ';
 			}
@@ -401,7 +401,7 @@ static void signal_handler(int sig) {
 	printf("\r");
 }
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
 	cpu_t cpu, cpu2;
 	mem_t mem;
 	int pid[NPROC];
