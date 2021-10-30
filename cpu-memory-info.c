@@ -148,13 +148,13 @@ typedef struct {
 	long int rssFile; // resident - dirty KB
 
 	// process cpu
-	unsigned int threads; // Number of threads in this process (since Linux 2.6)
 	long int utime; // Amount  of  time that this process has been scheduled in user mode, measured in clock ticks
 	long int stime; // Amount of time that this process has been scheduled in kernel mode, measured in clock ticks
 	long int cutime; // Amount of time that this process's waited-for children have been scheduled in user mode, measured in clock ticks
 	long int cstime; // Amount of time that this process's waited-for children have been scheduled in kernel mode, measured in clock ticks
-	
-	unsigned long int etime; // runned time for seconds
+
+	unsigned int threads; // Number of threads in this process (since Linux 2.6)
+	unsigned int etime; // runned time for seconds
 } process_t;
 
 //获取第N项开始的指针
@@ -250,7 +250,7 @@ int getprocessinfo(int pid, process_t *proc) {
 	unsigned long int uptime = 0;
 	sscanf(buff, "%lu", &uptime);
 	
-	int tck = sysconf(_SC_CLK_TCK);
+	long tck = sysconf(_SC_CLK_TCK);
 	proc->etime = uptime - etime / tck;
 
 	snprintf(fname, sizeof(fname), "/proc/%d/status", pid);
@@ -435,13 +435,6 @@ int main(int argc, char *argv[]) {
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
 
-	nproc = procarg(comm, nproc, pid, proc);
-
-	if(nproc>0 || comm) {
-		getcpu(&cpu);
-		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
-	}
-
 	signal(SIGQUIT, signal_handler);
 
 	int nn;
@@ -467,11 +460,11 @@ int main(int argc, char *argv[]) {
 						unsigned int mtime = proc[n].etime/60;
 						unsigned int htime = mtime/60;
 						unsigned int dtime = htime/24;
-						printf("%d:\n  Run Time:(%lu seconds) ", pid[n], proc[n].etime);
+						printf("%d:\n  Run Time:(%u seconds) ", pid[n], proc[n].etime);
 						if(dtime>0) {
-							printf("%d-", dtime);
+							printf("%u-", dtime);
 						}
-						printf("%02d:%02d:%02ld\n", htime%24, mtime%60, proc[n].etime%60);
+						printf("%02u:%02u:%02u\n", htime%24, mtime%60, proc[n].etime%60);
 						printf("  Command: %s\n", procArgStr[n]);
 					} else {
 						nn --;
@@ -480,11 +473,11 @@ int main(int argc, char *argv[]) {
 				if(nn<=0 && comm == NULL) {
 					return 0;
 				}
-				printf("--------------------------------------------------------------------------------------------------------------------\n");
-				printf("        |                          Memory Size                                    |        |         CPU (%%)       \n");
-				printf("   PID  |-------------------------------------------------------------------------|nThreads|------------------------\n");
-				printf("        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |    User  Kernel   Total\n");
-				printf("--------|-------------------------------------------------------------------------|--------|------------------------\n");
+				printf("-------------------------------------------------------------------------------------------------------------\n");
+				printf("        |                          Memory Size                                    |        |     CPU (%%)    \n");
+				printf("   PID  |-------------------------------------------------------------------------|nThreads|-----------------\n");
+				printf("        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |User Kernel Total\n");
+				printf("--------|-------------------------------------------------------------------------|--------|-----------------\n");
 			}
 			fflush(stdout);
 			lines = 1;
@@ -541,25 +534,13 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
+		nn = nproc;
 		for(n=0; n<nproc; n++) {
 			if(pid[n] ==0 || !getprocessinfo(pid[n], &proc2[n])) {
 				pid[n] = 0;
+				nn--;
 				continue;
 			}
-		}
-
-		if(nproc>0) {
-			getcpu(&cpu);
-
-			all2 = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
-			total = (all2 - all) / 100.0;
-			if(total == 0) total = 1;
-			all = all2;
-		}
-
-		nn = nproc;
-		for(n=0; n<nproc; n++) {
-			if(pid[n] ==0) nn--;
 
 			printf("%8d|", pid[n]);
 			printf("%8s", fsize(proc2[n].size * 4));
@@ -572,11 +553,16 @@ int main(int argc, char *argv[]) {
 			printf("%9s|", fsize(proc2[n].rssFile));
 			printf("%8d|", proc2[n].threads);
 
-			double utime =  (double)(proc2[n].utime - proc[n].utime + proc2[n].cutime - proc[n].cutime) / total;
-			double stime =  (double)(proc2[n].stime - proc[n].stime + proc2[n].cstime - proc[n].cstime) / total;
-			printf("%8.2f", (float) utime);
-			printf("%8.2f", (float) stime);
-			printf("%8.2f\n", (float)(utime + stime));
+			long int utime = proc2[n].utime + proc2[n].cutime - proc[n].utime - proc[n].cutime;
+			long int stime = proc2[n].stime + proc2[n].cstime - proc[n].stime - proc[n].cstime;
+			long int ttime = utime + stime;
+			if(ttime > proc2[n].threads * 100) {
+				ttime = proc2[n].threads * 100;
+				stime = ttime - utime;
+			}
+			printf("%4ld", utime);
+			printf("%7ld", stime);
+			printf("%6ld\n", ttime);
 
 			proc[n] = proc2[n];
 		}
