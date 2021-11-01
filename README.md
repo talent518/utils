@@ -15,11 +15,12 @@
   * base64.c => base64加密与解密
   * getcmdopt.c => 获取指定格式的命令行参数(参数识别/粘贴)
   * md5.c => md5哈希值
-  * crypt.c 康盛公司UCenter中的加解密算法
-  * crypt.php 康盛公司UCenter中的加解密算法
-  * conn-stat.sh 统计TCP监听端口的连接数
-  * conn-stat2.sh 统计TCP监听端口的连接数
-  * qrcode-transfer-file 二维码传输文件
+  * crypt.c => 康盛公司UCenter中的加解密算法
+  * crypt.php => 康盛公司UCenter中的加解密算法
+  * conn-stat.sh => 统计TCP监听端口的连接数(1版)
+  * conn-stat2.sh => 统计TCP监听端口的连接数(2版)
+  * conn-stat.c => 统计TCP监听端口的连接数(C版)
+  * qrcode-transfer-file => 二维码传输文件
   * gif2png.py => 把GIF图片中的每一帧保存为PNG图片
   * mat2jpg.py => 把caffe的预测图mat文件转为jpg格式
   * listen.sh => linux获取本地TCP监听端口号

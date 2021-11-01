@@ -401,6 +401,11 @@ lsblk: lsblk.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: conn-stat
+conn-stat: conn-stat.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
