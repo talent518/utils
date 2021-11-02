@@ -7,17 +7,32 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+static const char *const formats[] = {
+	NULL,
+	"%6d",
+	"%9d",
+	"%9d",
+	"%10d",
+	"%10d",
+	"%10d",
+	"%6d",
+	"%11d",
+	"%9d",
+	NULL,
+	"%8d"
+};
+
 static const char *const states[] = {
-	"",
-	"ESTABLISHED",
-	"SYN_SENT",
-	"SYN_RECV",
-	"FIN_WAIT1",
-	"FIN_WAIT2",
-	"TIME_WAIT",
+	NULL,
+	"ESTAB",
+	"SYN-SENT",
+	"SYN-RECV",
+	"FIN-WAIT1",
+	"FIN-WAIT2",
+	"TIME-WAIT",
 	"CLOSE",
-	"CLOSE_WAIT",
-	"LAST_ACK",
+	"CLOSE-WAIT",
+	"LAST-ACK",
 	"LISTEN",
 	"CLOSING"
 };
@@ -172,20 +187,20 @@ int main(int argc, char *argv[]) {
 
     if(is_prog) do_prog("/proc", 0);
 
-    printf("%11s", is_udp ? "UDP-PORT" : "TCP-PORT");
+    printf("%8s", is_udp ? "UDP-PORT" : "TCP-PORT");
     for(j=1; j<12; j++) {
-        if(j!=10) printf("%12s", states[j]);
+        if(j!=10) printf(" %s", states[j]);
     }
-    if(is_prog) printf("%10s %s\n", "pid", "program");
+    if(is_prog) printf("%8s %s\n", "PID", "PROGRAM");
     else printf("\n");
 
     for(i=0; i<nlisten && listens[i].port; i++) {
-        printf("%11d", listens[i].port);
+        printf("%8d", listens[i].port);
         for(j=1; j<12; j++) {
-            if(j!=10) printf("%12d", listens[i].n[j]);
+            if(j!=10) printf(formats[j], listens[i].n[j]);
         }
         if(is_prog) {
-            printf("%10d %s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
+            printf("%8d %s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
             if(listens[i].prog) free((void*) listens[i].prog);
         } else printf("\n");
     }
