@@ -251,7 +251,7 @@ retry:
         rows ++;
         i = sprintf(p, "interval %d seconds", interval);
         p += i;
-        for(;i<88;i++) *p++ = ' ';
+        for(; i < 88 + (is_prog ? 16 : 0); i ++) *p++ = ' ';
         p += sprintf(p, "%02d:%02d:%02d\n", tm.tm_hour, tm.tm_min, tm.tm_sec);
     }
 
