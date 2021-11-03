@@ -1,11 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <limits.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <signal.h>
+#include <sys/time.h>
+#include <time.h>
 
 static const char *const formats[] = {
 	NULL,
@@ -142,12 +146,26 @@ void do_prog(const char *path, int pid) {
     closedir(dir);
 }
 
+static bool is_running = true;
+void signal_handle(int sig) {
+    switch(sig) {
+        case SIGALRM:
+            break;
+        default:
+            is_running = false;
+            break;
+    }
+}
+
 int main(int argc, char *argv[]) {
+    char bufs[2][16384], *p, *p2;
+    int rows = 0, times = 0, is_tty;
+
     int i, j;
     int c;
-    int is_prog = 0, is_udp = 0, is_verb = 0;
+    bool is_prog = 0, is_udp = 0, is_verb = 0, interval = 0;
 
-    while((c = getopt(argc, argv, "puvh?")) != -1) {
+    while((c = getopt(argc, argv, "puvi:h?")) != -1) {
         switch(c) {
             case 'p':
                 is_prog = 1;
@@ -158,19 +176,39 @@ int main(int argc, char *argv[]) {
             case 'v':
                 is_verb = 1;
                 break;
+            case 'i':
+                interval = atoi(optarg);
+                break;
             default:
                 fprintf(stderr,
-                    "Usage: %s options\n"
-                    "  -p      Show pid and program\n"
-                    "  -u      Show udp listen(default: tcp)\n"
-                    "  -v      Show verbose\n"
-                    "  -h,-?   This help\n"
-                    , argv[0]
+                    "Usage: %s [-p] [-u] [-v] [-i <second>] [-h|-?]\n"
+                    "  -p          Show pid and program\n"
+                    "  -u          Show udp listen(default: tcp)\n"
+                    "  -v          Show verbose\n"
+                    "  -i <second> Interval seconds(default: %d)\n"
+                    "  -h,-?       This help\n"
+                    , argv[0], interval
                 );
                 return 0;
         }
     }
 
+    is_tty = (interval > 0 && isatty(1));
+
+    if(interval > 0) {
+        struct itimerval itv;
+
+        itv.it_interval.tv_sec = itv.it_value.tv_sec = interval;
+        itv.it_interval.tv_usec = itv.it_value.tv_usec = 0;
+        setitimer(ITIMER_REAL, &itv, NULL);
+
+        signal(SIGALRM, signal_handle);
+        signal(SIGINT, signal_handle);
+        signal(SIGTERM, signal_handle);
+        signal(SIGPIPE, SIG_IGN);
+    }
+
+retry:
     memset(listens, 0, sizeof(listens));
 
     if(is_verb) printf("%10s %8s %11s %s\n", "LOCAL-PORT", "REM-PORT", "STATE", "INODE");
@@ -183,26 +221,92 @@ int main(int argc, char *argv[]) {
         do_stat("/proc/net/tcp6", is_udp, is_verb);
     }
 
-    if(is_verb) return 0;
+    if(is_verb) {
+        if(is_running && interval > 0) {
+            sleep(interval);
+            goto retry;
+        }
+        return 0;
+    }
 
     if(is_prog) do_prog("/proc", 0);
 
-    printf("%8s", is_udp ? "UDP-PORT" : "TCP-PORT");
-    for(j=1; j<12; j++) {
-        if(j!=10) printf(" %s", states[j]);
+    if(is_tty) {
+        if(times > 0) fprintf(stdout, "\033[%dF", rows);
+    } else {
+        if(times > 0) fprintf(stdout, "\n");
     }
-    if(is_prog) printf("%8s %s\n", "PID", "PROGRAM");
-    else printf("\n");
+
+    memset(bufs[0], 0, sizeof(bufs[0]));
+
+    p = bufs[0];
+    rows = 0;
+
+    if(interval > 0) {
+        time_t t = time(NULL);
+        struct tm tm;
+
+        localtime_r(&t, &tm);
+
+        rows ++;
+        i = sprintf(p, "interval %d seconds", interval);
+        p += i;
+        for(;i<88;i++) *p++ = ' ';
+        p += sprintf(p, "%02d:%02d:%02d\n", tm.tm_hour, tm.tm_min, tm.tm_sec);
+    }
+
+    rows ++;
+    p += sprintf(p,"%8s", is_udp ? "UDP-PORT" : "TCP-PORT");
+    for(j=1; j<12; j++) {
+        if(j!=10) p += sprintf(p, " %s", states[j]);
+    }
+    if(is_prog) p += sprintf(p,"%8s %s\n", "PID", "PROGRAM");
+    else p += sprintf(p,"\n");
 
     for(i=0; i<nlisten && listens[i].port; i++) {
-        printf("%8d", listens[i].port);
+        p += sprintf(p, "%8d", listens[i].port);
         for(j=1; j<12; j++) {
-            if(j!=10) printf(formats[j], listens[i].n[j]);
+            if(j!=10) p += sprintf(p, formats[j], listens[i].n[j]);
         }
         if(is_prog) {
-            printf("%8d %s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
+            p += sprintf(p, "%8d %s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
             if(listens[i].prog) free((void*) listens[i].prog);
-        } else printf("\n");
+        } else p += sprintf(p, "\n");
+        rows ++;
+    }
+
+    if(is_tty) {
+        if(times > 0) {
+            p2 = bufs[1];
+            p = bufs[0];
+            while(*p) {
+                if(*p != *p2) {
+                    fprintf(stdout, "\033[47;30m");
+                    while(*p != *p2) {
+                        fputc(*p, stdout);
+                        p++;
+                        p2++;
+                    }
+                    fprintf(stdout, "\033[0m");
+                }
+                fputc(*p, stdout);
+                p++;
+                p2++;
+            }
+        } else {
+            fwrite(bufs[0], 1, p - bufs[0], stdout);
+        }
+        memcpy(bufs[1], bufs[0], sizeof(bufs[0]));
+    } else {
+        fwrite(bufs[0], 1, p - bufs[0], stdout);
+    }
+    fflush(stdout);
+
+    times ++;
+
+    if(is_running && interval > 0) {
+        sleep(interval);
+        goto retry;
     }
 
     return 0;
