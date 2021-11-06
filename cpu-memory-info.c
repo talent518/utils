@@ -8,12 +8,22 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <time.h>
 
-#define LINES 20
 #define NPROC 1000
 #define BUFLEN 1024
 
-#define cpu_mem_head(c, m) if(hasCpu) {printf(c);} if(hasCpu && hasMem) {printf("|");} if(hasMem) {printf(m);} printf("\n")
+#define cpu_mem_head(t, c, m) \
+	do { \
+		printf(t); \
+		if(hasCpu) printf(c); \
+		if(hasCpu && hasMem) printf("|"); \
+		if(hasMem) printf(m); \
+		printf("\n"); \
+	} while(0)
 
 typedef struct {
 	unsigned long int user;
@@ -375,7 +385,12 @@ int main(int argc, char *argv[]) {
 	char hasCpu = 1, hasMem = 1;
 	int nproc = 0, n;
 	char *comm = NULL;
-	
+
+	int nn;
+	struct winsize wsize;
+	time_t t;
+	struct tm tm;
+
 	for(i=1; i<argc; i++) {
 		switch(argv[i][0]) {
 			case '-':
@@ -426,8 +441,6 @@ int main(int argc, char *argv[]) {
 				break;
 		}
 	}
-	
-	i = LINES;
 
 	if(hasCpu) {
 		getcpu(&cpu);
@@ -437,18 +450,24 @@ int main(int argc, char *argv[]) {
 
 	signal(SIGQUIT, signal_handler);
 
-	int nn;
+	lines = 1000;
 	while(1) {
-		if(lines++ % LINES == 0) {
-			if(hasCpu && hasMem) {
-				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
-				cpu_mem_head("                         CPU (%%)                         ", "                      Memory Size      |     Swap      |  Real Memory (%%)  ");
-			}
+		sleep(delay);
 
-			if(hasCpu || hasMem) {
-				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
-				cpu_mem_head(" User  Nice System  Idle IOWait  IRQ SoftIRQ Stolen Guest", "  Total    Free  Cached Buffers  Shared|  Total    Free|Memory Cached  Swap");
-				cpu_mem_head("---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+		t = time(NULL);
+		localtime_r(&t, &tm);
+
+		if(ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize)) {
+			wsize.ws_row = 40;
+		}
+		if(lines >= wsize.ws_row) {
+			if(hasCpu && hasMem) {
+				cpu_mem_head("--------|", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+				cpu_mem_head("        |", "                         CPU (%%)                         ", "                      Memory Size      |     Swap      |  Real Memory (%%)  ");
+				cpu_mem_head("  Time  |", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+				cpu_mem_head("        |", " User  Nice System  Idle IOWait  IRQ SoftIRQ Stolen Guest", "  Total    Free  Cached Buffers  Shared|  Total    Free|Memory Cached  Swap");
+				cpu_mem_head("--------|", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
+				lines = 5;
 			}
 			
 			nproc = procarg(comm, nproc, pid, proc);
@@ -473,17 +492,19 @@ int main(int argc, char *argv[]) {
 				if(nn<=0 && comm == NULL) {
 					return 0;
 				}
-				printf("-------------------------------------------------------------------------------------------------------------\n");
-				printf("        |                          Memory Size                                    |        |     CPU (%%)    \n");
-				printf("   PID  |-------------------------------------------------------------------------|nThreads|-----------------\n");
-				printf("        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |User Kernel Total\n");
-				printf("--------|-------------------------------------------------------------------------|--------|-----------------\n");
+				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
+				printf("        |        |                          Memory Size                                    |        |     CPU (%%)    \n");
+				printf("  Time  |   PID  |-------------------------------------------------------------------------|nThreads|-----------------\n");
+				printf("        |        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |User Kernel Total\n");
+				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
+				lines = 5;
 			}
 			fflush(stdout);
-			lines = 1;
 		}
-
-		sleep(delay);
+		
+		if(hasCpu && hasMem) {
+			printf("%02d:%02d:%02d|", tm.tm_hour, tm.tm_min, tm.tm_sec);
+		}
 
 		if(hasCpu) {
 			getcpu(&cpu2);
@@ -528,6 +549,7 @@ int main(int argc, char *argv[]) {
 
 		if(hasCpu || hasMem) {
 			printf("\n");
+			lines ++;
 			fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
 
 			fflush(stdout);
@@ -541,7 +563,7 @@ int main(int argc, char *argv[]) {
 				nn--;
 				continue;
 			}
-
+			printf("%02d:%02d:%02d|", tm.tm_hour, tm.tm_min, tm.tm_sec);
 			printf("%8d|", pid[n]);
 			printf("%8s", fsize(proc2[n].size * 4));
 			printf("%9s", fsize(proc2[n].resident * 4));
@@ -564,11 +586,15 @@ int main(int argc, char *argv[]) {
 			printf("%7ld", stime);
 			printf("%6ld\n", ttime);
 
+			lines ++;
+
 			proc[n] = proc2[n];
 		}
 		if(nproc > 0 && nn <= 0 && comm == NULL) {
 			return 0;
 		} else if(nn > 1) {
+			lines ++;
+
 			printf("--------------------------------------------------------------------------------------------------------------------\n");
 		} else if(nn == 0) {
 			lines = 0;
