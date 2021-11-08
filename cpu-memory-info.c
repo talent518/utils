@@ -457,8 +457,8 @@ int main(int argc, char *argv[]) {
 		t = time(NULL);
 		localtime_r(&t, &tm);
 
-		if(ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize)) {
-			wsize.ws_row = 40;
+		if(ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize) || wsize.ws_row < 20) {
+			wsize.ws_row = 20;
 		}
 		if(lines >= wsize.ws_row) {
 			if(hasCpu && hasMem) {
