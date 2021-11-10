@@ -398,10 +398,14 @@ int main(int argc, char *argv[]) {
 					case 'c':
 						hasMem = 0;
 						hasCpu = 1;
+						comm = NULL;
+						nproc = 0;
 						break;
 					case 'm':
 						hasMem = 1;
 						hasCpu = 0;
+						comm = NULL;
+						nproc = 0;
 						break;
 					case 'P':
 						if(i+1 < argc && nproc == 0) {
@@ -434,7 +438,7 @@ int main(int argc, char *argv[]) {
 				}
 				break;
 			default:
-				delay = atoi(argv[1]);
+				delay = atoi(argv[i]);
 				if(delay <= 0) {
 					delay = 1;
 				}
@@ -447,21 +451,20 @@ int main(int argc, char *argv[]) {
 
 		all = cpu.user + cpu.nice + cpu.system + cpu.idle + cpu.iowait + cpu.irq + cpu.softirq + cpu.stolen + cpu.guest;
 	}
+	
+	if(hasCpu) lines = 1000;
 
 	signal(SIGQUIT, signal_handler);
 
-	lines = 1000;
 	while(1) {
-		sleep(delay);
-
-		t = time(NULL);
-		localtime_r(&t, &tm);
+		if(lines) sleep(delay);
 
 		if(ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize) || wsize.ws_row < 20) {
 			wsize.ws_row = 20;
 		}
-		if(lines >= wsize.ws_row) {
-			if(hasCpu && hasMem) {
+		if(lines == 0 || lines >= wsize.ws_row) {
+			if(hasCpu || hasMem) {
+				sleep(delay);
 				cpu_mem_head("--------|", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
 				cpu_mem_head("        |", "                         CPU (%%)                         ", "                      Memory Size      |     Swap      |  Real Memory (%%)  ");
 				cpu_mem_head("  Time  |", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
@@ -492,6 +495,7 @@ int main(int argc, char *argv[]) {
 				if(nn<=0 && comm == NULL) {
 					return 0;
 				}
+				sleep(delay);
 				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
 				printf("        |        |                          Memory Size                                    |        |     CPU (%%)    \n");
 				printf("  Time  |   PID  |-------------------------------------------------------------------------|nThreads|-----------------\n");
@@ -499,10 +503,21 @@ int main(int argc, char *argv[]) {
 				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
 				lines = 5;
 			}
+			
+			if(lines == 0) {
+				if(!comm) break;
+
+				sleep(delay);
+				continue;
+			}
+
 			fflush(stdout);
 		}
+
+		t = time(NULL);
+		localtime_r(&t, &tm);
 		
-		if(hasCpu && hasMem) {
+		if(hasCpu || hasMem) {
 			printf("%02d:%02d:%02d|", tm.tm_hour, tm.tm_min, tm.tm_sec);
 		}
 
@@ -575,8 +590,8 @@ int main(int argc, char *argv[]) {
 			printf("%9s|", fsize(proc2[n].rssFile));
 			printf("%8d|", proc2[n].threads);
 
-			long int utime = proc2[n].utime + proc2[n].cutime - proc[n].utime - proc[n].cutime;
-			long int stime = proc2[n].stime + proc2[n].cstime - proc[n].stime - proc[n].cstime;
+			long int utime = (proc2[n].utime + proc2[n].cutime - proc[n].utime - proc[n].cutime) / delay;
+			long int stime = (proc2[n].stime + proc2[n].cstime - proc[n].stime - proc[n].cstime) / delay;
 			long int ttime = utime + stime;
 			if(ttime > proc2[n].threads * 100) {
 				ttime = proc2[n].threads * 100;
