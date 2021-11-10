@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <sys/time.h>
 #include <time.h>
 
 #define NPROC 1000
@@ -367,6 +368,9 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc) {
 
 static int lines = 0;
 
+static void ignore_handler(int sig) {
+}
+
 static void signal_handler(int sig) {
 	lines = 0;
 	printf("\r");
@@ -455,6 +459,15 @@ int main(int argc, char *argv[]) {
 	if(hasCpu) lines = 1000;
 
 	signal(SIGQUIT, signal_handler);
+	signal(SIGALRM, ignore_handler);
+	
+	{
+        struct itimerval itv;
+
+        itv.it_interval.tv_sec = itv.it_value.tv_sec = delay;
+        itv.it_interval.tv_usec = itv.it_value.tv_usec = 0;
+        setitimer(ITIMER_REAL, &itv, NULL);
+    }
 
 	while(1) {
 		if(lines) sleep(delay);
@@ -496,11 +509,11 @@ int main(int argc, char *argv[]) {
 					return 0;
 				}
 				sleep(delay);
-				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
-				printf("        |        |                          Memory Size                                    |        |     CPU (%%)    \n");
-				printf("  Time  |   PID  |-------------------------------------------------------------------------|nThreads|-----------------\n");
-				printf("        |        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |User Kernel Total\n");
-				printf("--------|--------|-------------------------------------------------------------------------|--------|-----------------\n");
+				printf("--------|--------|-------------------------------------------------------------------------|--------|---------------------\n");
+				printf("        |        |                          Memory Size                                    |        |       CPU (%%)      \n");
+				printf("  Time  |   PID  |-------------------------------------------------------------------------|nThreads|---------------------\n");
+				printf("        |        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |   User Kernel  Total\n");
+				printf("--------|--------|-------------------------------------------------------------------------|--------|---------------------\n");
 				lines = 5;
 			}
 			
@@ -593,13 +606,13 @@ int main(int argc, char *argv[]) {
 			long int utime = (proc2[n].utime + proc2[n].cutime - proc[n].utime - proc[n].cutime) / delay;
 			long int stime = (proc2[n].stime + proc2[n].cstime - proc[n].stime - proc[n].cstime) / delay;
 			long int ttime = utime + stime;
-			if(ttime > proc2[n].threads * 100) {
+			if(ttime > proc2[n].threads * 100 && utime <= proc2[n].threads * 100) {
 				ttime = proc2[n].threads * 100;
 				stime = ttime - utime;
 			}
-			printf("%4ld", utime);
+			printf("%7ld", utime);
 			printf("%7ld", stime);
-			printf("%6ld\n", ttime);
+			printf("%7ld\n", ttime);
 
 			lines ++;
 
