@@ -36,6 +36,7 @@ static const opt_struct OPTIONS[] = {
 	{'s', 0, "ssl"},
 	{'R', 0, "resume"},
 	{'S', 0, "soft"},
+	{'?', 0, "help"},
 
 	{'-', 0, NULL} /* end of args */
 };
@@ -79,6 +80,7 @@ static void usage(char *argv0) {
 		"  -R, --resume                      Resume\n"
 		"  -S, --soft                        Upload soft link target file\n"
 		"  -H, --hide-args                   Hidden cmd args\n"
+		"  -?                                display this help and exit\n"
 		"example:\n"
 		"  %s -h host [-p port] [-u user] [-w password] -m get -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
 		"  %s -h host [-p port] [-u user] [-w password] -m put -r remote -l local [-o file]" USAGE_FTP_SSL " [-d]\n"
@@ -492,8 +494,10 @@ int main(int argc, char *argv[]) {
 			case 'H':
 				hide_argv = 1;
 				break;
+			case '?':
 			default:
-				break;
+				usage(argv[0]);
+				return 1;
 		}
 	}
 
