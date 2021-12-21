@@ -236,7 +236,7 @@ loop:
 			bn-=2;
 		} else {
 			strncat(nstr, p, 1);
-			strncat(nstr, "0", 1);
+			strcat(nstr, "0");
 			p++;
 			bn = 0;
 		}
@@ -250,7 +250,7 @@ loop:
 			*pv++ = '.';
 			isdot = 0;
 		}
-		strncat(nstr, "00", 2);
+		strcat(nstr, "00");
 		scale--;
 	}
 	

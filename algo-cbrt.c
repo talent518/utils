@@ -296,7 +296,7 @@ loop:
 			*pv++ = '.';
 			isdot = 0;
 		}
-		strncat(nstr, "000", 3);
+		strcat(nstr, "000");
 		scale--;
 	}
 	

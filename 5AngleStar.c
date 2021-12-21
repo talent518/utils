@@ -4,7 +4,7 @@
 #include <math.h>
 
 #define PI 3.14159265F
-#define N 60
+#define N 61
 #define R 30
 
 int main(int argc, char *argv[]) {
@@ -16,12 +16,12 @@ int main(int argc, char *argv[]) {
 
 	for(i=0; i<720; i+=144) {
 		angle = (90+i) * PI / 180.0;
-		x1 = R+R*cos(angle);
-		y1 = R-R*sin(angle);
+		x1 = round(R+R*cos(angle));
+		y1 = round(R-R*sin(angle));
 
 		angle = (90+i+144) * PI / 180.0;
-		x2 = R+R*cos(angle);
-		y2 = R-R*sin(angle);
+		x2 = round(R+R*cos(angle));
+		y2 = round(R-R*sin(angle));
 		
 		nX = abs(x1-x2);
 		nY = abs(y1-y2);
@@ -44,8 +44,8 @@ int main(int argc, char *argv[]) {
 	
 	for(i=0; i<360; i++) {
 		angle = i * PI / 180.0;
-		x = R+R*cos(angle);
-		y = R-R*sin(angle);
+		x = round(R+R*cos(angle));
+		y = round(R-R*sin(angle));
 		A[y][x] = '*';
 	}
 
