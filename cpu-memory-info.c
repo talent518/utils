@@ -603,8 +603,8 @@ int main(int argc, char *argv[]) {
 			printf("%9s|", fsize(proc2[n].rssFile));
 			printf("%8d|", proc2[n].threads);
 
-			long int utime = (proc2[n].utime + proc2[n].cutime - proc[n].utime - proc[n].cutime) / delay;
-			long int stime = (proc2[n].stime + proc2[n].cstime - proc[n].stime - proc[n].cstime) / delay;
+			long int utime = (proc2[n].utime/* + proc2[n].cutime*/ - proc[n].utime/* - proc[n].cutime*/) / delay;
+			long int stime = (proc2[n].stime/* + proc2[n].cstime*/ - proc[n].stime/* - proc[n].cstime*/) / delay;
 			long int ttime = utime + stime;
 			if(ttime > proc2[n].threads * 100 && utime <= proc2[n].threads * 100) {
 				ttime = proc2[n].threads * 100;
