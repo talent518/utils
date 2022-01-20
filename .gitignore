@@ -85,3 +85,4 @@ mkfont
 pstore
 lsblk
 conn-stat
+thread
