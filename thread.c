@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 			case 'h':
 			case '?':
 			default:
-				fprintf(stderr, "Usage: %s [-i <periId>] [-f <inputfile>] [-b <buflen>] [{-h | -?}]\n", argv[0]);
+				fprintf(stderr, "Usage: %s [-d] [{-h | -?}]\n    -d    detached thread\n", argv[0]);
 				return 0;
 		}
 	}
