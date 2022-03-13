@@ -144,6 +144,8 @@ kexec command:
   * lsblk.c => 列出当前系统中已挂载文件系统等信息
   * thread.c => pthread线程的创建与回收
   * Browser.java => javafx实现的内嵌浏览器
+  * asound.c => alsa音频播放(PCM)
+  * x11winlist.cpp => X11窗口列表
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

@@ -86,3 +86,5 @@ pstore
 lsblk
 conn-stat
 thread
+asound
+x11winlist

@@ -1,11 +1,14 @@
 include Makefile.inc
 
 CC = gcc
+CXX = g++
 AR = ar
 RL = ranlib
 
 CFLAGS := $(CFLAGS) -O3 -I. -D_GNU_SOURCE -Wno-deprecated-declarations -Wno-pointer-sign -Wformat-truncation=0 # -DHAVE_FTP_SSL
 LFLAGS := $(LFLAGS) -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
+CXXFLAGS :=
+LXXFLAGS :=
 
 CFLAGS += $(call cc-option,-Wno-unused-result,)
 
@@ -411,11 +414,27 @@ thread: thread.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -pthread
 
+all: asound
+asound: asound.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lasound
+
+all: x11winlist
+x11winlist: x11winlist.o
+	@echo LD $@
+	@$(CXX) -o $@ $^ $(LXXFLAGS) -lX11
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
+
+%.o: %.cpp
+	@echo CXX $^
+	@$(CXX) $(CXXFLAGS) -o $(@:.o=.s) -S $^
+	@$(CXX) $(CXXFLAGS) -o $(@:.o=.e) -E $^
+	@$(CXX) $(CXXFLAGS) -c $^ -o $@
 
 %.O: %.c
 	@echo CC $^
