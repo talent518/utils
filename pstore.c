@@ -23,25 +23,40 @@ static int g_file_mode = (S_IWUSR | S_IRUSR);
 #ifdef USE_SYSLOG
 #	include <syslog.h>
 
-#	define LOG_OPEN() openlog("pstore", LOG_PID, LOG_USER)
+#	define LOG_OPEN() \
+	do { \
+		openlog("pstore", LOG_PID, LOG_USER); \
+		if(!mkdir_p(g_dump_dir)) return 1; \
+	} while(0)
 #	define LOGI(fmt, args...) syslog(LOG_INFO, fmt, args)
-#	define LOGE(fmt, args...) syslog(LOG_ERR, fmt ": %s", args, strerror(errno))
+#	define LOGE(fmt, args...) \
+	do { \
+		char *__err = strerror(errno); \
+		syslog(LOG_ERR, fmt ": %s", args, __err); \
+	} while(0)
 #	define LOG_CLOSE() closelog()
 #else // ifdef USE_SYSLOG
 	static const char *g_dump_log = "/var/pstore/stdout.log";
 	static const char *g_dump_err = "/var/pstore/stderr.log";
 	static int g_max_log_size = 2 * 1024 * 1024;
 
-#	define LOG_OPEN() { \
+#	define LOG_OPEN() \
+	do { \
+		if(!mkdir_p(g_dump_dir)) return 1; \
 		std2file(g_dump_log, 1); \
 		std2file(g_dump_err, 2); \
-	}
+	} while(0)
 #	define LOGI(fmt, args...) fprintf(stdout, "[%s] " fmt "\n", nowtime(), args)
-#	define LOGE(fmt, args...) fprintf(stderr, "[%s] " fmt ": %s\n", nowtime(), args, strerror(errno))
-#	define LOG_CLOSE() { \
+#	define LOGE(fmt, args...) \
+	do { \
+		char *__err = strerror(errno); \
+		fprintf(stderr, "[%s] " fmt ": %s\n", nowtime(), args, __err); \
+	} while(0)
+#	define LOG_CLOSE() \
+	do { \
 		fflush(stdout); \
 		fflush(stderr); \
-	}
+	} while(0)
 
 /// @brief 获取ISO格式的当前日期时间字符串
 ///
@@ -363,8 +378,6 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(delay > 0) sleep(delay);
-
-	if(!mkdir_p(g_dump_dir)) return 1;
 
 	LOG_OPEN();
 

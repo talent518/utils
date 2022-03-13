@@ -406,6 +406,11 @@ conn-stat: conn-stat.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: thread
+thread: thread.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -pthread
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
