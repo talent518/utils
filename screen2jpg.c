@@ -96,7 +96,9 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 	cinfo.image_width = fb_width;
 	cinfo.image_height = fb_height;
 	cinfo.input_components = fb_bpp / 8;
-	
+#if JPEG_LIB_VERSION >= 90
+	cinfo.in_color_space = JCS_RGB;
+#else
 	switch(cinfo.input_components) {
 		case 1:
 			cinfo.in_color_space = JCS_GRAYSCALE; // todo: no check is right
@@ -114,6 +116,7 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 			fprintf(stderr, "color type error\n");
 			break;
 	}
+#endif
 
 	jpeg_set_defaults(&cinfo);
 
