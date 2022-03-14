@@ -424,6 +424,31 @@ x11winlist: x11winlist.o
 	@echo LD $@
 	@$(CXX) -o $@ $^ $(LXXFLAGS) -lX11
 
+all: sigurg-server
+sigurg-server: sigurg-server.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: sigurg-client
+sigurg-client: sigurg-client.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: sigpipe-server
+sigpipe-server: sigpipe-server.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: sigpipe-client
+sigpipe-client: sigpipe-client.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
+all: sighup
+sighup: sighup.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^

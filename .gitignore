@@ -88,3 +88,8 @@ conn-stat
 thread
 asound
 x11winlist
+sighup
+sigurg-server
+sigurg-client
+sigpipe-server
+sigpipe-client
