@@ -159,7 +159,7 @@ void signal_handle(int sig) {
 
 int main(int argc, char *argv[]) {
     char bufs[2][16384], *p, *p2;
-    int rows = 0, times = 0, is_tty;
+    int rows = 0, rows2 = 0, times = 0, is_tty;
 
     int i, j;
     int c;
@@ -269,7 +269,7 @@ retry:
             if(j!=10) p += sprintf(p, formats[j], listens[i].n[j]);
         }
         if(is_prog) {
-            p += sprintf(p, "%8d %s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
+            p += sprintf(p, "%8d %-15s\n", listens[i].pid, listens[i].prog ? listens[i].prog : "-");
             if(listens[i].prog) free((void*) listens[i].prog);
         } else p += sprintf(p, "\n");
         rows ++;
@@ -280,9 +280,9 @@ retry:
             p2 = bufs[1];
             p = bufs[0];
             while(*p) {
-                if(*p != *p2) {
+                if(*p != *p2 && *p != '\n') {
                     fprintf(stdout, "\033[47;30m");
-                    while(*p != *p2) {
+                    while(*p && *p != '\n' && *p != *p2) {
                         fputc(*p, stdout);
                         p++;
                         p2++;
@@ -305,6 +305,12 @@ retry:
     times ++;
 
     if(is_running && interval > 0) {
+    	if(is_tty) {
+			for(;rows < rows2;rows++) {
+				fprintf(stdout, "\033[2K\r\n\033[0m");
+			}
+			rows2 = rows;
+		}
         sleep(interval);
         goto retry;
     }
