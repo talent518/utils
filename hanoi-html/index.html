@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="Author" content="abao">
+	<title>河内塔</title>
+	<script type="text/javascript" src="jquery.js"></script>
+	<style type="text/css">
+		form{text-align:center;line-height:30px;padding-bottom:10px;}
+		.hanoi_box{position:relative;width:602px;height:400px;overflow:hidden;margin:0px auto;border:1px #efefef solid;}
+		.hanoi_box>span{position:absolute;top:0px;width:10px;height:100%;background:#efefef;}
+		.hanoi_box>span.bg1{left:95px;}
+		.hanoi_box>span.bg2{left:296px;}
+		.hanoi_box>span.bg3{right:95px;}
+		.hanoi_box>span.line1{left:200px;width:1px;}
+		.hanoi_box>span.line2{right:200px;width:1px;}
+		.hanoi_box>div{position:absolute;z-index:2;bottom:0px;width:200px;}
+		.hanoi_box>div.box1{left:0px;}
+		.hanoi_box>div.box2{left:201px;}
+		.hanoi_box>div.box3{right:0px;}
+		.hanoi_box>div>span{display:block;height:20px;margin:0px auto;background:#999;text-align:center;line-height:20px;}
+	</style>
+</head>
+<body>
+<form id="submitId">
+	<label for="N">盘数: </label><input type="text" id="N" value="5"/> &nbsp; &nbsp; <label>Moves: </label><span id="moves"></span><br/>
+	<label for="delay">延时: </label><input type="text" id="delay" value="200"/>
+	<button type="submit">执行</button>
+</form>
+<div class="hanoi_box">
+	<span class="bg1"></span>
+	<span class="bg2"></span>
+	<span class="bg3"></span>
+	<span class="line1"></span>
+	<span class="line2"></span>
+	<div class="box1"></div>
+	<div class="box2"></div>
+	<div class="box3"></div>
+</div>
+<script type="text/javascript">
+(function($) {
+	var N;
+	var i, I;
+	var moves;
+	var timer;
+
+	function hanoi(n, A, B, C) {
+		if(n == 1) {
+			moves.push({sheet:n, from:A, to:C});
+		} else {
+			hanoi(n-1, A, C, B);
+			moves.push({sheet:n, from:A, to:C});
+			hanoi(n-1, B, A, C);
+		}
+	}
+
+	$('#submitId').submit(function() {
+		clearInterval(timer);
+		$('.hanoi_box>div').empty();
+
+		N = Math.min(20, Math.max(3, parseInt($('#N').val())));
+		I = 200/N;
+
+		$('#N').val(N);
+
+		$('.hanoi_box').height(N*20);
+		for(i=1; i<=N; i++) {
+			$('<span/>').width(i*I).attr({title:i,id:'ring'+i}).text(i).appendTo('.box1');
+		}
+
+		moves = [];
+		hanoi(N, '.box1', '.box2', '.box3');
+		$('#moves').text(moves.length);
+		console.log(moves);
+
+		i = 0;
+		timer = setInterval(function() {
+			if(i >= moves.length) {
+				clearInterval(timer);
+				return;
+			}
+
+			$('#ring'+moves[i].sheet).prependTo(moves[i].to);
+
+			i++;
+		}, Math.max(0, Math.min(5000, parseInt($('#delay').val()))));
+
+		return false;
+	});
+})(jQuery);
+</script>
+</body>
+</html>
