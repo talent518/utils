@@ -203,8 +203,8 @@ unsigned long int getprocessdirtys(int pid) {
 	fp = fopen(fname, "r");
 	if(!fp) return 0;
 
-	while(fgets(buff, sizeof(buff), fp) && sscanf(buff, "%[^:]: %ld", key, &val)) {
-		if(!strcmp(key, "Private_Dirty") || !strcmp(key, "Shared_Dirty")) {
+	while(fgets(buff, sizeof(buff), fp)) {
+		if(sscanf(buff, "%[^:]: %ld", key, &val) === 2 && (!strcmp(key, "Private_Dirty") || !strcmp(key, "Shared_Dirty"))) {
 			dirtys += val;
 		}
 	}
@@ -273,8 +273,8 @@ int getprocessinfo(int pid, process_t *proc) {
 
 	proc->dirty = 0;
 	proc->rssFile = 0;
-	while(fgets(buff, sizeof(buff), fp) && sscanf(buff, "%[^:]: %ld", key, &val)) {
-		if(!strcmp(key, "RssFile")) {
+	while(fgets(buff, sizeof(buff), fp)) {
+		if(sscanf(buff, "%[^:]: %ld", key, &val) === 2 && !strcmp(key, "RssFile")) {
 			proc->rssFile = val;
 			proc->dirty = proc->resident * 4 - val;
 		}
