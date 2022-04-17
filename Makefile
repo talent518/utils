@@ -22,9 +22,12 @@ ifeq ($(shell $(MYSQL_CONFIG) --version 2>/dev/null),)
 $(error $(MYSQL_CONFIG) not runnable)
 endif
 CFLAGS += $(shell $(MYSQL_CONFIG) --cflags)
+LFLAGS += -Wl,-rpath,$(shell $(MYSQL_CONFIG) --variable=pkglibdir) $(shell $(MYSQL_CONFIG) --libs)
 
 CFLAGS += $(shell pkg-config --cflags libmongoc-1.0 libbson-1.0)
-CFLAGS += $(shell pkg-config --cflags glib-2.0)
+LFLAGS += $(shell pkg-config --libs libmongoc-1.0 libbson-1.0)
+CFLAGS += $(shell pkg-config --cflags glib-2.0 gdk-pixbuf-2.0)
+LFLAGS += $(shell pkg-config --libs glib-2.0 gdk-pixbuf-2.0)
 
 all:
 	@echo -n
@@ -162,12 +165,12 @@ dirs-sqlite3: dirs-sqlite3.o
 all: dirs-mysql
 dirs-mysql: dirs-mysql.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) -Wl,-rpath,$(shell $(MYSQL_CONFIG) --variable=pkglibdir) $(shell $(MYSQL_CONFIG) --libs)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: dirs-mongo
 dirs-mongo: dirs-mongo.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs libmongoc-1.0 libbson-1.0)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: algo-dec2bin
 algo-dec2bin: algo-dec2bin.o
@@ -337,7 +340,7 @@ sem2: sem2.o
 all: glib
 glib: glib.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(LFLAGS) $(shell pkg-config --libs glib-2.0)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: crc16
 crc16: crc16.o
@@ -390,9 +393,9 @@ keyboard: keyboard.o
 	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: mkfont
-mkfont: mkfont.c
+mkfont: mkfont.o
 	@echo LD $@
-	@$(CC) -o $@ $^ $(shell pkg-config --cflags --libs gdk-pixbuf-2.0)
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: pstore
 pstore: pstore.o
