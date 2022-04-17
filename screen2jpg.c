@@ -95,10 +95,11 @@ void save_jpeg_to_stream(FILE* fp, const char *sp) {
 
 	cinfo.image_width = fb_width;
 	cinfo.image_height = fb_height;
-	cinfo.input_components = fb_bpp / 8;
 #if JPEG_LIB_VERSION >= 90
+	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
 #else
+	cinfo.input_components = fb_bpp / 8;
 	switch(cinfo.input_components) {
 		case 1:
 			cinfo.in_color_space = JCS_GRAYSCALE; // todo: no check is right
