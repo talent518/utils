@@ -463,6 +463,11 @@ sighup: sighup.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: continuity-blank-line
+continuity-blank-line: continuity-blank-line.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
