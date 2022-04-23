@@ -151,6 +151,8 @@ kexec command:
     * sigurg-server.c, sigurg-client.c => 用SIGURG信号产生socket带外数据接收事件
     * sigpipe-server.c, sigpipe-client.c => 向已关闭的管道或socket写入数据时引发SIGPIPE信号
     * sighup.c => 终端退出防止进程退出
+  * continuity-blank-line.sh => 显示连续空白行
+
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
 ![开平方算法](algo-sqrt.jpg "开平方算法")
