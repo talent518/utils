@@ -366,6 +366,44 @@ int procarg(char *comm, int nproc, int *pid, process_t *proc) {
 	return nproc;
 }
 
+char *thread_comm(int pid) {
+	char path[128], path2[512], comm[128];
+	DIR *dp;
+	struct dirent *dt;
+	FILE *fp;
+	int n;
+	char *tasks = NULL;
+
+	sprintf(path, "/proc/%d/task", pid);
+	
+	dp = opendir(path);
+	while((dt = readdir(dp)) != NULL) {
+		if(dt->d_name[0] >= '0' && dt->d_name[0] <= '9') {
+			sprintf(path2, "/proc/%d/task/%s/comm", pid, dt->d_name);
+
+			fp = fopen(path2, "r");
+			if(fp) {
+				n = fread(comm, 1, sizeof(comm)-1, fp);
+				if(n > 0) {
+					comm[n--] = '\0';
+					while(comm[n] == '\r' || comm[n] == '\n') comm[n--] = '\0';
+
+					if(tasks) {
+						asprintf(&tasks, "%s, [%s] %s", tasks, dt->d_name, comm);
+					} else {
+						asprintf(&tasks, "[%s] %s", dt->d_name, comm);
+					}
+				}
+				fclose(fp);
+				fp = NULL;
+			}
+		}
+	}
+	closedir(dp);
+	
+	return tasks;
+}
+
 static int lines = 0;
 
 static void ignore_handler(int sig) {
@@ -386,7 +424,7 @@ int main(int argc, char *argv[]) {
 
 	double total;
 	long int realUsed;
-	char hasCpu = 1, hasMem = 1;
+	char hasCpu = 1, hasMem = 1, isTask = 0, isQuiet = 0;
 	int nproc = 0, n;
 	char *comm = NULL;
 
@@ -394,6 +432,7 @@ int main(int argc, char *argv[]) {
 	struct winsize wsize;
 	time_t t;
 	struct tm tm;
+	int istty = isatty(1);
 
 	for(i=1; i<argc; i++) {
 		switch(argv[i][0]) {
@@ -431,12 +470,20 @@ int main(int argc, char *argv[]) {
 							i++;
 							break;
 						}
+					case 'L':
+						isTask = 1;
+						break;
+					case 'q':
+						isQuiet = 1;
+						break;
 					default:
-						printf("Usage: %s [ -c | -m | -P <comm> | -p <pid> | -h | -? ] [ delay]\n"
+						printf("Usage: %s [ -c | -m | -P <comm> [-L | -q] | -p <pid> [-L | -q] | -h | -? ] [ delay]\n"
 								"  -c        Cpu info\n"
 								"  -m        Memory info\n"
 								"  -P <comm> Process comm\n"
 								"  -p <pid>  Process info(Multiple)\n"
+								"  -L        List thread of comm\n"
+								"  -q        Quiet\n"
 								"  -h,-?     This help\n", argv[0]);
 						return 0;
 				}
@@ -483,24 +530,32 @@ int main(int argc, char *argv[]) {
 				cpu_mem_head("  Time  |", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
 				cpu_mem_head("        |", " User  Nice System  Idle IOWait  IRQ SoftIRQ Stolen Guest", "  Total    Free  Cached Buffers  Shared|  Total    Free|Memory Cached  Swap");
 				cpu_mem_head("--------|", "---------------------------------------------------------", "---------------------------------------|---------------|-------------------");
-				lines = 5;
+				lines = 6;
 			}
 			
 			nproc = procarg(comm, nproc, pid, proc);
 
 			if(nproc > 0) {
 				nn = nproc;
-				for(n=0; n<nproc; n++) {
+				for(n=0; n<nproc && isQuiet == 0; n++) {
 					if(pid[n]>0) {
 						unsigned int mtime = proc[n].etime/60;
 						unsigned int htime = mtime/60;
 						unsigned int dtime = htime/24;
-						printf("%d:\n  Run Time:(%u seconds) ", pid[n], proc[n].etime);
+						if(istty) printf("\033[JK\r");
+						printf("%d:\n  Run Time: (%u seconds) ", pid[n], proc[n].etime);
 						if(dtime>0) {
 							printf("%u-", dtime);
 						}
 						printf("%02u:%02u:%02u\n", htime%24, mtime%60, proc[n].etime%60);
-						printf("  Command: %s\n", procArgStr[n]);
+						printf("   Command: %s\n", procArgStr[n]);
+						if(isTask) {
+							char *p = thread_comm(pid[n]);
+							if(p) {
+								printf("   Threads: %s\n", p);
+								free(p);
+							}
+						}
 					} else {
 						nn --;
 					}
@@ -514,7 +569,7 @@ int main(int argc, char *argv[]) {
 				printf("  Time  |   PID  |-------------------------------------------------------------------------|nThreads|---------------------\n");
 				printf("        |        |    Size      RSS    Share     Text  Library Data+Stack    Dirty     Real|        |   User Kernel  Total\n");
 				printf("--------|--------|-------------------------------------------------------------------------|--------|---------------------\n");
-				lines = 5;
+				lines = 6;
 			}
 			
 			if(lines == 0) {
@@ -629,7 +684,7 @@ int main(int argc, char *argv[]) {
 			continue;
 		}
 
-		fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
+		if(istty) fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
 		fflush(stdout);
 	}
 
