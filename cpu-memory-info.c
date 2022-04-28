@@ -460,6 +460,7 @@ int main(int argc, char *argv[]) {
 							i++;
 							break;
 						}
+						goto usage;
 					case 'p':
 						if(i+1 < argc && comm == NULL) {
 							hasCpu = 0;
@@ -470,6 +471,7 @@ int main(int argc, char *argv[]) {
 							i++;
 							break;
 						}
+						goto usage;
 					case 'L':
 						isTask = 1;
 						break;
@@ -477,6 +479,7 @@ int main(int argc, char *argv[]) {
 						isQuiet = 1;
 						break;
 					default:
+						usage:
 						printf("Usage: %s [ -c | -m | -P <comm> [-L | -q] | -p <pid> [-L | -q] | -h | -? ] [ delay]\n"
 								"  -c        Cpu info\n"
 								"  -m        Memory info\n"
@@ -491,7 +494,7 @@ int main(int argc, char *argv[]) {
 			default:
 				delay = atoi(argv[i]);
 				if(delay <= 0) {
-					delay = 1;
+					goto usage;
 				}
 				break;
 		}
