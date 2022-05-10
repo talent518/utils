@@ -153,6 +153,7 @@ kexec command:
     * sighup.c => 终端退出防止进程退出
   * continuity-blank-line.sh => 显示连续空白行
   * continuity-blank-line.c => 显示连续空白行
+  * apport.sh => 显示最后一次进程崩溃的调用𣏾(需要使用 ulimit -c unlimited 开启内核转储)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
