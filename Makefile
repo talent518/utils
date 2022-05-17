@@ -457,6 +457,11 @@ continuity-blank-line: continuity-blank-line.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: chkpwd
+chkpwd: chkpwd.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lcrypt
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
