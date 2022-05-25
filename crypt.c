@@ -130,9 +130,18 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 	data = NULL;
 	
 	if(mode) {
+		for(i=0; i<10; i++) {
+			if(result[i] < '0' || result[i] > '9') {
+				free(result);
+				return 0;
+			}
+		}
+		
+		j = result[10];
+		result[10] = '\0';
 		i = strtol(result, (char**) &data, 10);nprint(result, retlen);
-	
-		if(data == result + 10 && (i == 0 || i-time(NULL) > 0)) {
+		result[10] = j;
+		if(i == 0 || i-time(NULL) > 0) {
 			MD5Init(&md5);
 			MD5Update(&md5, (unsigned char *)(result+26), (unsigned int)(retlen-26));
 			MD5Update(&md5, keyb, 32);
