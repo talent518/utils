@@ -132,7 +132,7 @@ unsigned int crypt_code(const char *str, unsigned int len, char **ret, const cha
 	if(mode) {
 		i = strtol(result, (char**) &data, 10);nprint(result, retlen);
 	
-		if(i == 0 || i-time(NULL) > 0) {
+		if(data == result + 10 && (i == 0 || i-time(NULL) > 0)) {
 			MD5Init(&md5);
 			MD5Update(&md5, (unsigned char *)(result+26), (unsigned int)(retlen-26));
 			MD5Update(&md5, keyb, 32);
