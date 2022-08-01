@@ -625,8 +625,8 @@ int main(int argc, char *argv[]) {
 			printf("%8s", fsize(mem.cached));
 			printf("%8s", fsize(mem.buffers));
 			printf("%8s|", fsize(mem.shared));
-			printf("%7s", fsize(mem.total));
-			printf("%8s|", fsize(mem.free));
+			printf("%7s", fsize(mem.swapTotal));
+			printf("%8s|", fsize(mem.swapFree));
 			//printf("%6.2f", (float)((double)(mem.total - mem.free) * 100.0 / (double)mem.total)); // MemPercent
 			printf("%6.2f", (float)((double)(realUsed = mem.total - mem.free - mem.cached - mem.buffers) * 100.0 / (double)mem.total)); // MemRealPercent
 			printf("%7.2f", (float)((double)(mem.cached) * 100.0 / (double)mem.total)); // MemCachedPercent
