@@ -636,7 +636,7 @@ int main(int argc, char *argv[]) {
 		if(hasCpu || hasMem) {
 			printf("\n");
 			lines ++;
-			fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
+			if(istty) fprintf(stderr, "Press Ctrl+\\ key for show table head\r");
 
 			fflush(stdout);
 			continue;
