@@ -422,6 +422,11 @@ asound: asound.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lasound
 
+all: asoundcap
+asoundcap: asoundcap.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lasound
+
 all: x11winlist
 x11winlist: x11winlist.o
 	@echo LD $@

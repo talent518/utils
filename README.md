@@ -146,6 +146,7 @@ kexec command:
   * thread.c => pthread线程的创建与回收
   * Browser.java => javafx实现的内嵌浏览器
   * asound.c => alsa音频播放(PCM)
+  * asoundcap.c => alsa录音(PCM)
   * x11winlist.cpp => X11窗口列表
   * [网络编程的三个重要信号(SIGHUP, SIGPIPE, SIGURG)](https://blog.csdn.net/z_ryan/article/details/80952498)
     * sigurg-server.c, sigurg-client.c => 用SIGURG信号产生socket带外数据接收事件
