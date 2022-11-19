@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	FILE * fp = fopen(argv[1], "r");
+	FILE * fp = (strcmp(argv[1], "-") ? fopen(argv[1], "r") : fdopen(0, "r"));
 	if (fp == NULL) {
 		printf("can't open wav file\n");
 		return -1;

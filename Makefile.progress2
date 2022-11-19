@@ -442,6 +442,11 @@ asoundcap: asoundcap.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lasound
 
+all: asoundcap2
+asoundcap2: asoundcap2.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lasound -pthread
+
 all: x11winlist
 x11winlist: x11winlist.o
 	@$(ECHO) LD $@

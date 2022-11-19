@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	FILE * fp = fopen(argv[1], "w");
+	FILE * fp = (strcmp(argv[1], "-") ? fopen(argv[1], "w") : fdopen(1, "w"));
 	if (fp == NULL) {
 		printf("can't open wav file\n");
 		return -1;
@@ -152,10 +152,9 @@ int main(int argc, char *argv[]) {
 
 	size_t rc;
 	while(is_running) {
-	prepare:
 		ret = snd_pcm_readi(gp_handle, gp_buffer, g_frames);
 		if (ret == -EPIPE) {
-			goto prepare;
+			continue;
 		} else if(ret == -EINTR) {
 			break;
 		} else if (ret < 0) {
