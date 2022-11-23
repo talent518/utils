@@ -12,6 +12,7 @@
 #include <alsa/asoundlib.h>
 #include <signal.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
@@ -98,12 +99,6 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	}
 	
 	snd_pcm_hw_params_get_period_size(gp_params, &g_frames, 0);
-	g_bufsize = g_frames * channels * format_size / 8;
-	gp_buffer = (char *)malloc(g_bufsize);
-	if (gp_buffer == NULL) {
-		printf("malloc failed\n");
-		goto err1;
-	}
 
 	return 0;
 
@@ -191,12 +186,6 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	}
 
 	snd_pcm_hw_params_get_period_size(gp_params_cap, &g_frames_cap, 0);
-	g_bufsize_cap = g_frames_cap * channels * format_size / 8;
-	gp_buffer_cap = (char *)malloc(g_bufsize_cap);
-	if (gp_buffer == NULL) {
-		printf("malloc failed\n");
-		goto err1;
-	}
 
 	return 0;
 
@@ -212,26 +201,36 @@ void sig_handle(int sig) {
 	printf("\r");
 }
 
+static sem_t sem;
+#define SIZE 16
+static char *bufs[SIZE];
+
 void *play_thread(void *arg) {
-	int fd = * (int*) arg, ret;
+	int fd = * (int*) arg, ret, pos = -1;
 	size_t rc;
 	
 	snd_pcm_pause(gp_handle, 0);
+	snd_pcm_prepare(gp_handle);
 	
 	while(is_running) {
-		rc = read(fd, gp_buffer, g_bufsize);
-		if (rc != g_bufsize) {
-			break;
-		}
+		sem_wait(&sem);
+		
+		if(!is_running) break;
+		
+		pos ++;
+		if(pos >= SIZE) pos = 0;
 
 	prepare:
-		ret = snd_pcm_writei(gp_handle, gp_buffer, g_frames);
+		ret = snd_pcm_writei(gp_handle, bufs[pos], g_frames);
 		if (ret == -EPIPE) {
+			// printf("write pipe\n");
 			snd_pcm_prepare(gp_handle);
 			goto prepare;
 		} else if (ret < 0) {
 			printf("error from writei: %s\n", snd_strerror(ret));
 			break;
+		} else if(ret != g_frames) {
+			printf("write ret: %d\n", ret);
 		}
 	}
 	
@@ -262,10 +261,24 @@ int main(int argc, char *argv[]) {
 		printf("setcap_hardware_params error\n");
 		return -1;
 	}
+	if(g_frames != g_frames_cap) {
+		printf("frames is not equals: play %lu, capture %lu\n", g_frames, g_frames_cap);
+		return -1;
+	}
 
-	printf("sample_rate: %d, channels: %d, format_size: %d\n", sample_rate, channels, format_size);
+	printf("sample_rate: %d, channels: %d, format_size: %d, frames: %lu\n", sample_rate, channels, format_size, g_frames);
 
 	signal(SIGINT, sig_handle);
+	
+	sem_init(&sem, 0, 0);
+	memset(bufs, 0, sizeof(bufs));
+	for(int i = 0; i < SIZE; i ++) {
+		bufs[i] = (char*) malloc(g_frames * channels * format_size / 8);
+		if(!bufs[i]) {
+			printf("malloc failure\n");
+			return -1;
+		}
+	}
 	
 	pthread_t thread;
 	pthread_attr_t attr;
@@ -279,14 +292,20 @@ int main(int argc, char *argv[]) {
 		perror("pthread_create failure");
 		return -1;
 	}
-	
-	snd_pcm_prepare(gp_handle_cap);
 
 	size_t rc;
+	int pos = -1;
+	
+	snd_pcm_pause(gp_handle_cap, 0);
+	snd_pcm_prepare(gp_handle_cap);
 	while(is_running) {
+		pos ++;
+		if(pos >= SIZE) pos = 0;
+		
 	prepare:
-		ret = snd_pcm_readi(gp_handle_cap, gp_buffer_cap, g_frames_cap);
+		ret = snd_pcm_readi(gp_handle_cap, bufs[pos], g_frames_cap);
 		if (ret == -EPIPE) {
+			printf("read pipe\n");
 			snd_pcm_prepare(gp_handle_cap);
 			goto prepare;
 		} else if(ret == -EINTR) {
@@ -295,16 +314,20 @@ int main(int argc, char *argv[]) {
 			printf("error from writei: %s\n", snd_strerror(ret));
 			break;
 		} else {
-			rc = write(fds[1], gp_buffer_cap, g_bufsize_cap);
-			if(rc != g_bufsize_cap) {
-				break;
+			sem_post(&sem);
+			if(ret != g_frames) {
+				printf("write ret: %d\n", ret);
 			}
 		}
 	}
 	
+	is_running = false;
+	sem_post(&sem);
 	if(pthread_join(thread, NULL)) {
 		perror("pthread_join failure");
 	}
+	
+	sem_destroy(&sem);
 
 	snd_pcm_drain(gp_handle);
 	snd_pcm_close(gp_handle);
