@@ -202,30 +202,53 @@ void sig_handle(int sig) {
 }
 
 static sem_t sem;
-#define SIZE 16
+#define SIZE 128
 static char *bufs[SIZE];
 
 void *play_thread(void *arg) {
 	int fd = * (int*) arg, ret, pos = -1;
 	size_t rc;
+	// snd_output_t *log;
+	// snd_output_stdio_attach(&log, stderr, 0);
 	
 	snd_pcm_pause(gp_handle, 0);
 	snd_pcm_prepare(gp_handle);
 	
+	sem_wait(&sem);
+	usleep(500000);
+	goto next;
+	
 	while(is_running) {
 		sem_wait(&sem);
+		
+		next:
 		
 		if(!is_running) break;
 		
 		pos ++;
 		if(pos >= SIZE) pos = 0;
 
+		char *data = bufs[pos];
+		snd_pcm_uframes_t count = g_frames;
+		
 	prepare:
-		ret = snd_pcm_writei(gp_handle, bufs[pos], g_frames);
+		ret = snd_pcm_writei(gp_handle, data, count);
 		if (ret == -EPIPE) {
 			// printf("write pipe\n");
-			snd_pcm_prepare(gp_handle);
-			goto prepare;
+			snd_pcm_status_t *status;
+			snd_pcm_status_alloca(&status);
+			if((ret = snd_pcm_status(gp_handle, status)) < 0) {
+				printf("snd_pcm_status failure: %s\n", snd_strerror(ret));
+				break;
+			}
+			// snd_pcm_status_dump(status, log);
+			if(snd_pcm_status_get_state(status) == SND_PCM_STATE_XRUN) {
+				if ((ret = snd_pcm_prepare(gp_handle)) < 0) {
+					printf("snd_pcm_prepare failure: %s\n", snd_strerror(ret));
+					break;
+				}
+				goto prepare;
+			}
 		} else if (ret < 0) {
 			printf("error from writei: %s\n", snd_strerror(ret));
 			break;
@@ -238,6 +261,8 @@ void *play_thread(void *arg) {
 	snd_pcm_close(gp_handle_cap);
 	free(gp_buffer_cap);
 	close(fd);
+	
+	// snd_output_close(log);
 	
 	pthread_exit(NULL);
 }
