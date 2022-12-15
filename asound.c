@@ -23,12 +23,12 @@ u32 g_bufsize;
 int set_hardware_params(int sample_rate, int channels, int format_size) {
 	int rc;
 	
-	printf("sample_rate: %d, channels: %d, format_size: %d\n", sample_rate, channels, format_size);
+	fprintf(stderr, "sample_rate: %d, channels: %d, format_size: %d\n", sample_rate, channels, format_size);
 	
 	/* Open PCM device for playback */
 	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
 	if (rc < 0) {
-		printf("unable to open pcm device\n");
+		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
 	}
 
@@ -39,14 +39,14 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	/* Fill it in with default values. */
 	rc = snd_pcm_hw_params_any(gp_handle, gp_params);
 	if (rc < 0) {
-		printf("unable to Fill it in with default values.\n");
+		fprintf(stderr, "unable to Fill it in with default values.\n");
 		goto err1;
 	}
 
 	/* Interleaved mode */
 	rc = snd_pcm_hw_params_set_access(gp_handle, gp_params, SND_PCM_ACCESS_RW_INTERLEAVED);
 	if (rc < 0) {
-		printf("unable to Interleaved mode.\n");
+		fprintf(stderr, "unable to Interleaved mode.\n");
 		goto err1;
 	}
 
@@ -61,7 +61,7 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	} else if (32 == format_size) {
 		format = SND_PCM_FORMAT_U32_LE;
 	} else {
-		printf("SND_PCM_FORMAT_UNKNOWN.\n");
+		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
 		format = SND_PCM_FORMAT_UNKNOWN;
 		goto err1;
 	}
@@ -69,14 +69,14 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	/* set format */
 	rc = snd_pcm_hw_params_set_format(gp_handle, gp_params, format);
 	if (rc < 0) {
-		printf("unable to set format.\n");
+		fprintf(stderr, "unable to set format.\n");
 		goto err1;
 	}
 
 	/* set channels (stero) */
 	rc = snd_pcm_hw_params_set_channels(gp_handle, gp_params, channels);
 	if (rc < 0) {
-		printf("unable to set channels (stero).\n");
+		fprintf(stderr, "unable to set channels (stero).\n");
 		goto err1;
 	}
 
@@ -85,18 +85,18 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
 		int val = 0, val2 = 0;
-		printf("unable to set sampling rate.\n");
+		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 	if(rate != sample_rate) {
-		printf("set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
 		goto err1;
 	}
 
 	/* Write the parameters to the dirver */
 	rc = snd_pcm_hw_params(gp_handle, gp_params);
 	if (rc < 0) {
-		printf("unable to set hw parameters: %s\n", snd_strerror(rc));
+		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
 		goto err1;
 	}
 
@@ -104,7 +104,7 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	g_bufsize = g_frames * channels * format_size / 8;
 	gp_buffer = (u8 *)malloc(g_bufsize);
 	if (gp_buffer == NULL) {
-		printf("malloc failed\n");
+		fprintf(stderr, "malloc failed\n");
 		goto err1;
 	}
 
@@ -117,13 +117,13 @@ err1:
 
 int main(int argc, char *argv[]) {
 	if (argc < 3) {
-		printf("usage: %s file.pcm sample_rate channels format_size\n", argv[0]);
+		fprintf(stderr, "usage: %s file.pcm sample_rate channels format_size\n", argv[0]);
 		return -1;
 	}
 
 	FILE * fp = (strcmp(argv[1], "-") ? fopen(argv[1], "r") : fdopen(0, "r"));
 	if (fp == NULL) {
-		printf("can't open wav file\n");
+		fprintf(stderr, "can't open wav file\n");
 		return -1;
 	}
 	int sample_rate = atoi(argv[2]);
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 	int format_size = atoi(argv[4]);
 	int ret = set_hardware_params(sample_rate, channels, format_size);
 	if (ret < 0) {
-		printf("set_hardware_params error\n");
+		fprintf(stderr, "set_hardware_params error\n");
 		return -1;
 	}
 	
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 			snd_pcm_prepare(gp_handle);
 			goto prepare;
 		} else if (ret < 0) {
-			printf("error from writei: %s\n", snd_strerror(ret));
+			fprintf(stderr, "error from writei: %s\n", snd_strerror(ret));
 			break;
 		}
 	}

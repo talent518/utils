@@ -26,7 +26,7 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	/* Open PCM device for playback */
 	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
 	if (rc < 0) {
-		printf("unable to open pcm device\n");
+		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
 	}
 
@@ -37,14 +37,14 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	/* Fill it in with default values. */
 	rc = snd_pcm_hw_params_any(gp_handle, gp_params);
 	if (rc < 0) {
-		printf("unable to Fill it in with default values.\n");
+		fprintf(stderr, "unable to Fill it in with default values.\n");
 		goto err1;
 	}
 
 	/* Interleaved mode */
 	rc = snd_pcm_hw_params_set_access(gp_handle, gp_params, SND_PCM_ACCESS_RW_INTERLEAVED);
 	if (rc < 0) {
-		printf("unable to Interleaved mode.\n");
+		fprintf(stderr, "unable to Interleaved mode.\n");
 		goto err1;
 	}
 
@@ -59,7 +59,7 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	} else if (32 == format_size) {
 		format = SND_PCM_FORMAT_U32_LE;
 	} else {
-		printf("SND_PCM_FORMAT_UNKNOWN.\n");
+		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
 		format = SND_PCM_FORMAT_UNKNOWN;
 		goto err1;
 	}
@@ -67,14 +67,14 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	/* set format */
 	rc = snd_pcm_hw_params_set_format(gp_handle, gp_params, format);
 	if (rc < 0) {
-		printf("unable to set format.\n");
+		fprintf(stderr, "unable to set format.\n");
 		goto err1;
 	}
 
 	/* set channels (stero) */
 	rc = snd_pcm_hw_params_set_channels(gp_handle, gp_params, channels);
 	if (rc < 0) {
-		printf("unable to set channels (stero).\n");
+		fprintf(stderr, "unable to set channels (stero).\n");
 		goto err1;
 	}
 
@@ -83,18 +83,18 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
 		int val = 0, val2 = 0;
-		printf("unable to set sampling rate.\n");
+		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 	if(rate != sample_rate) {
-		printf("set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
 		goto err1;
 	}
 
 	/* Write the parameters to the dirver */
 	rc = snd_pcm_hw_params(gp_handle, gp_params);
 	if (rc < 0) {
-		printf("unable to set hw parameters: %s\n", snd_strerror(rc));
+		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
 		goto err1;
 	}
 	
@@ -113,7 +113,7 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	/* Open PCM device for playback */
 	rc = snd_pcm_open(&gp_handle_cap, "default", SND_PCM_STREAM_CAPTURE, 0);
 	if (rc < 0) {
-		printf("unable to open pcm device\n");
+		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
 	}
 
@@ -124,14 +124,14 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	/* Fill it in with default values. */
 	rc = snd_pcm_hw_params_any(gp_handle_cap, gp_params_cap);
 	if (rc < 0) {
-		printf("unable to Fill it in with default values.\n");
+		fprintf(stderr, "unable to Fill it in with default values.\n");
 		goto err1;
 	}
 
 	/* Interleaved mode */
 	rc = snd_pcm_hw_params_set_access(gp_handle_cap, gp_params_cap, SND_PCM_ACCESS_RW_INTERLEAVED);
 	if (rc < 0) {
-		printf("unable to Interleaved mode.\n");
+		fprintf(stderr, "unable to Interleaved mode.\n");
 		goto err1;
 	}
 
@@ -146,7 +146,7 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	} else if (32 == format_size) {
 		format = SND_PCM_FORMAT_U32_LE;
 	} else {
-		printf("SND_PCM_FORMAT_UNKNOWN.\n");
+		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
 		format = SND_PCM_FORMAT_UNKNOWN;
 		goto err1;
 	}
@@ -154,14 +154,14 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	/* set format */
 	rc = snd_pcm_hw_params_set_format(gp_handle_cap, gp_params_cap, format);
 	if (rc < 0) {
-		printf("unable to set format.\n");
+		fprintf(stderr, "unable to set format.\n");
 		goto err1;
 	}
 
 	/* set channels (stero) */
 	rc = snd_pcm_hw_params_set_channels(gp_handle_cap, gp_params_cap, channels);
 	if (rc < 0) {
-		printf("unable to set channels (stero).\n");
+		fprintf(stderr, "unable to set channels (stero).\n");
 		goto err1;
 	}
 
@@ -170,18 +170,18 @@ int setcap_hardware_params(int sample_rate, int channels, int format_size) {
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle_cap, gp_params_cap, &rate, 0);
 	if (rc < 0) {
 		int val = 0, val2 = 0;
-		printf("unable to set sampling rate.\n");
+		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 	if(rate != sample_rate) {
-		printf("set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
 		goto err1;
 	}
 
 	/* Write the parameters to the dirver */
 	rc = snd_pcm_hw_params(gp_handle_cap, gp_params_cap);
 	if (rc < 0) {
-		printf("unable to set hw parameters: %s\n", snd_strerror(rc));
+		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
 		goto err1;
 	}
 
@@ -196,18 +196,17 @@ err1:
 
 volatile bool is_running = true;
 void sig_handle(int sig) {
-	// printf("sig: %d\n", sig);
+	// fprintf(stderr, "sig: %d\n", sig);
 	is_running = false;
-	printf("\r");
+	fprintf(stderr, "\r");
 }
 
 static sem_t sem;
 #define SIZE 128
 static char *bufs[SIZE];
 
-void *play_thread(void *arg) {
-	int fd = * (int*) arg, ret, pos = -1;
-	size_t rc;
+static void *play_thread(void *arg) {
+	int ret, pos = -1;
 	// snd_output_t *log;
 	// snd_output_stdio_attach(&log, stderr, 0);
 	
@@ -216,15 +215,8 @@ void *play_thread(void *arg) {
 	
 	sem_wait(&sem);
 	usleep(500000);
-	goto next;
 	
 	while(is_running) {
-		sem_wait(&sem);
-		
-		next:
-		
-		if(!is_running) break;
-		
 		pos ++;
 		if(pos >= SIZE) pos = 0;
 
@@ -234,33 +226,33 @@ void *play_thread(void *arg) {
 	prepare:
 		ret = snd_pcm_writei(gp_handle, data, count);
 		if (ret == -EPIPE) {
-			// printf("write pipe\n");
+			// fprintf(stderr, "write pipe\n");
 			snd_pcm_status_t *status;
 			snd_pcm_status_alloca(&status);
 			if((ret = snd_pcm_status(gp_handle, status)) < 0) {
-				printf("snd_pcm_status failure: %s\n", snd_strerror(ret));
+				fprintf(stderr, "snd_pcm_status failure: %s\n", snd_strerror(ret));
 				break;
 			}
 			// snd_pcm_status_dump(status, log);
 			if(snd_pcm_status_get_state(status) == SND_PCM_STATE_XRUN) {
 				if ((ret = snd_pcm_prepare(gp_handle)) < 0) {
-					printf("snd_pcm_prepare failure: %s\n", snd_strerror(ret));
+					fprintf(stderr, "snd_pcm_prepare failure: %s\n", snd_strerror(ret));
 					break;
 				}
 				goto prepare;
 			}
 		} else if (ret < 0) {
-			printf("error from writei: %s\n", snd_strerror(ret));
+			fprintf(stderr, "error from writei: %s\n", snd_strerror(ret));
 			break;
 		} else if(ret != g_frames) {
-			printf("write ret: %d\n", ret);
+			fprintf(stderr, "write ret: %d\n", ret);
 		}
+		
+		sem_wait(&sem);
 	}
 	
-	snd_pcm_drop(gp_handle_cap);
-	snd_pcm_close(gp_handle_cap);
-	free(gp_buffer_cap);
-	close(fd);
+	snd_pcm_drain(gp_handle);
+	snd_pcm_close(gp_handle);
 	
 	// snd_output_close(log);
 	
@@ -269,7 +261,7 @@ void *play_thread(void *arg) {
 
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
-		printf("usage: %s sample_rate channels format_size\n", argv[0]);
+		fprintf(stderr, "usage: %s sample_rate channels format_size\n", argv[0]);
 		return -1;
 	}
 
@@ -278,20 +270,20 @@ int main(int argc, char *argv[]) {
 	int format_size = atoi(argv[3]);
 	int ret = set_hardware_params(sample_rate, channels, format_size);
 	if (ret < 0) {
-		printf("set_hardware_params error\n");
+		fprintf(stderr, "set_hardware_params error\n");
 		return -1;
 	}
 	ret = setcap_hardware_params(sample_rate, channels, format_size);
 	if (ret < 0) {
-		printf("setcap_hardware_params error\n");
+		fprintf(stderr, "setcap_hardware_params error\n");
 		return -1;
 	}
 	if(g_frames != g_frames_cap) {
-		printf("frames is not equals: play %lu, capture %lu\n", g_frames, g_frames_cap);
+		fprintf(stderr, "frames is not equals: play %lu, capture %lu\n", g_frames, g_frames_cap);
 		return -1;
 	}
 
-	printf("sample_rate: %d, channels: %d, format_size: %d, frames: %lu\n", sample_rate, channels, format_size, g_frames);
+	fprintf(stderr, "sample_rate: %d, channels: %d, format_size: %d, frames: %lu\n", sample_rate, channels, format_size, g_frames);
 
 	signal(SIGINT, sig_handle);
 	
@@ -300,7 +292,7 @@ int main(int argc, char *argv[]) {
 	for(int i = 0; i < SIZE; i ++) {
 		bufs[i] = (char*) malloc(g_frames * channels * format_size / 8);
 		if(!bufs[i]) {
-			printf("malloc failure\n");
+			fprintf(stderr, "malloc failure\n");
 			return -1;
 		}
 	}
@@ -308,12 +300,7 @@ int main(int argc, char *argv[]) {
 	pthread_t thread;
 	pthread_attr_t attr;
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	int fds[2]; // 0: read, 1: write
-	if(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) < 0) {
-		perror("pipe failure");
-		return -1;
-	}
-	if(pthread_create(&thread, &attr, play_thread, &fds[0])) {
+	if(pthread_create(&thread, &attr, play_thread, NULL)) {
 		perror("pthread_create failure");
 		return -1;
 	}
@@ -330,18 +317,18 @@ int main(int argc, char *argv[]) {
 	prepare:
 		ret = snd_pcm_readi(gp_handle_cap, bufs[pos], g_frames_cap);
 		if (ret == -EPIPE) {
-			printf("read pipe\n");
+			fprintf(stderr, "read pipe\n");
 			snd_pcm_prepare(gp_handle_cap);
 			goto prepare;
 		} else if(ret == -EINTR) {
 			break;
 		} else if (ret < 0) {
-			printf("error from writei: %s\n", snd_strerror(ret));
+			fprintf(stderr, "error from writei: %s\n", snd_strerror(ret));
 			break;
 		} else {
 			sem_post(&sem);
 			if(ret != g_frames) {
-				printf("write ret: %d\n", ret);
+				fprintf(stderr, "write ret: %d\n", ret);
 			}
 		}
 	}
@@ -354,11 +341,14 @@ int main(int argc, char *argv[]) {
 	
 	sem_destroy(&sem);
 
-	snd_pcm_drain(gp_handle);
-	snd_pcm_close(gp_handle);
+	snd_pcm_drop(gp_handle_cap);
+	snd_pcm_close(gp_handle_cap);
 	free(gp_buffer);
-	close(fds[0]);
 	
-	printf("Exited\n");
+	for(int i = 0; i < SIZE; i ++) {
+		if(bufs[i]) free(bufs[i]);
+	}
+	
+	fprintf(stderr, "Exited\n");
 	return 0;
 }

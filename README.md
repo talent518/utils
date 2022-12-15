@@ -148,6 +148,7 @@ kexec command:
   * asound.c => alsa音频播放(PCM)
   * asoundcap.c => alsa录音(PCM)
   * asoundcap2.c => alsa录音并播放(PCM)
+  * asoundcap3.c => alsa录音并计算分贝(PCM)
   * x11winlist.cpp => X11窗口列表
   * [网络编程的三个重要信号(SIGHUP, SIGPIPE, SIGURG)](https://blog.csdn.net/z_ryan/article/details/80952498)
     * sigurg-server.c, sigurg-client.c => 用SIGURG信号产生socket带外数据接收事件
