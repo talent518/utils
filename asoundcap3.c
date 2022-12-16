@@ -3,6 +3,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -82,12 +84,18 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	int rate = sample_rate;
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
-		int val = 0, val2 = 0;
 		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 	if(rate != sample_rate) {
 		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		goto err1;
+	}
+
+	g_frames = sample_rate / 20;
+	rc = snd_pcm_hw_params_set_period_size_near(gp_handle, gp_params, &g_frames, 0);
+	if(rc < 0) {
+		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 
@@ -105,6 +113,19 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 err1:
 	snd_pcm_close(gp_handle);
 	return -1;
+}
+
+char *nowtime(char *buf, int max) {
+	struct timeval tv;
+	if(gettimeofday(&tv, NULL)) {
+		perror("gettimeofday error");
+	} else {
+		struct tm tm;
+		localtime_r(&tv.tv_sec, &tm);
+		int n = strftime(buf, max, "%F %T", &tm);
+		if(n > 0 && n < max) n = snprintf(buf + n, max - n, ".%03d", (int)(tv.tv_usec / 1000));
+		return buf;
+	}
 }
 
 volatile bool is_running = true;
@@ -127,9 +148,10 @@ static void *calc_thread(void *arg) {
 	int channels = * (int*) arg;
 	int ret, pos = -1, i, c;
 	short *data;
+	char buf[128];
 	calc_t *dBs = malloc(channels * sizeof(calc_t));
 
-	fprintf(stderr, "%9s%9s\n", "channel1", "channel2");
+	fprintf(stderr, "%23s%9s%9s\n", "time", "channel1", "channel2");
 	
 	sem_wait(&sem);
 	while(is_running) {
@@ -143,6 +165,7 @@ static void *calc_thread(void *arg) {
 				dBs[c].sum += abs(data[i + c]);
 			}
 		}
+		printf("%s", nowtime(buf, sizeof(buf)));
 		for(i = 0; i < channels; i++) {
 			dBs[i].db = dBs[i].sum * 500.0 / (g_frames * 32767.0);
 			if(dBs[i].db > 100) dBs[i].db = 100;

@@ -85,12 +85,18 @@ int set_hardware_params(int sample_rate, int channels, int format_size) {
 	int rate = sample_rate;
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
-		int val = 0, val2 = 0;
 		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 	if(rate != sample_rate) {
 		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		goto err1;
+	}
+
+	g_frames = sample_rate / 20;
+	rc = snd_pcm_hw_params_set_period_size_near(gp_handle, gp_params, &g_frames, 0);
+	if(rc < 0) {
+		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}
 
