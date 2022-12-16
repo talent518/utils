@@ -128,6 +128,8 @@ static void *calc_thread(void *arg) {
 	int ret, pos = -1, i, c;
 	short *data;
 	calc_t *dBs = malloc(channels * sizeof(calc_t));
+
+	fprintf(stderr, "%9s%9s\n", "channel1", "channel2");
 	
 	sem_wait(&sem);
 	while(is_running) {
@@ -144,7 +146,7 @@ static void *calc_thread(void *arg) {
 		for(i = 0; i < channels; i++) {
 			dBs[i].db = dBs[i].sum * 500.0 / (g_frames * 32767.0);
 			if(dBs[i].db > 100) dBs[i].db = 100;
-			printf("%schannel%d: %d", (i ? ", " : ""), i, dBs[i].db);
+			printf("%9d", dBs[i].db);
 		}
 		printf("\n");
 		

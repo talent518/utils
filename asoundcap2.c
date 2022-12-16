@@ -214,7 +214,7 @@ static void *play_thread(void *arg) {
 	snd_pcm_prepare(gp_handle);
 	
 	sem_wait(&sem);
-	usleep(500000);
+	usleep(250000);
 	
 	while(is_running) {
 		pos ++;
