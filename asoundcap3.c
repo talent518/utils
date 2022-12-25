@@ -212,9 +212,15 @@ int main(int argc, char *argv[]) {
 	
 	pthread_t thread;
 	pthread_attr_t attr;
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-	if(pthread_create(&thread, &attr, calc_thread, &channels)) {
-		perror("pthread_create failure");
+	pthread_attr_init(&attr);
+	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+	if(ret) {
+		fprintf(stderr, "pthread_attr_setdetachstate failure: %d", ret);
+		return -1;
+	}
+	ret = pthread_create(&thread, &attr, calc_thread, &channels);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
 		return -1;
 	}
 
@@ -249,7 +255,7 @@ int main(int argc, char *argv[]) {
 	if(pthread_join(thread, NULL)) {
 		perror("pthread_join failure");
 	}
-	
+	pthread_attr_destroy(&attr);
 	sem_destroy(&sem);
 
 	snd_pcm_drop(gp_handle);
