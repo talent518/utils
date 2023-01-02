@@ -39,6 +39,8 @@ CFLAGS += $(shell pkg-config --cflags libmongoc-1.0 libbson-1.0)
 LFLAGS += $(shell pkg-config --libs libmongoc-1.0 libbson-1.0)
 CFLAGS += $(shell pkg-config --cflags glib-2.0 gdk-pixbuf-2.0)
 LFLAGS += $(shell pkg-config --libs glib-2.0 gdk-pixbuf-2.0)
+CFLAGS += $(shell pkg-config --cflags gtk+-2.0)
+LFLAGS += $(shell pkg-config --libs gtk+-2.0)
 
 all:
 	@echo -n
@@ -445,6 +447,11 @@ asoundcap2: asoundcap2.o
 
 all: asoundcap3
 asoundcap3: asoundcap3.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lasound -pthread
+
+all: asoundcap-gtk
+asoundcap-gtk: asoundcap-gtk.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lasound -pthread
 
