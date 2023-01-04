@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <math.h>
 
 #include <gtk/gtk.h>
 
@@ -148,8 +149,8 @@ typedef struct {
 	short db;
 } calc_t;
 
-static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL;
-static GtkObject *sigVolume = NULL, *sigWave = NULL;
+static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
+static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
 static void *calc_thread(void *arg) {
 	sem_wait(&sem);
@@ -157,6 +158,7 @@ static void *calc_thread(void *arg) {
 		gdk_threads_enter();
 		gtk_signal_emit_by_name(sigVolume, "da_event");
 		gtk_signal_emit_by_name(sigWave, "da_event");
+		gtk_signal_emit_by_name(sigFFT, "da_event");
 		gdk_threads_leave();
 
 		sem_wait(&sem);
@@ -188,7 +190,7 @@ static void *cap_thread(void *arg) {
 			fprintf(stderr, "write ret: %d\n", ret);
 			break;
 		} else {
-			if(!sigVolume || !pixmapVolume || !sigWave || !pixmapWave) {
+			if(!sigVolume || !pixmapVolume || !sigWave || !pixmapWave || !sigFFT || !pixmapFFT) {
 				pos = -1;
 			} else {
 				sem_post(&sem);
@@ -323,24 +325,210 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
 }
 
+static gboolean scribble_configure_event_fft(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
+	if(pixmapFFT) g_object_unref(G_OBJECT(pixmapFFT));
+
+	pixmapFFT = gdk_pixmap_new(widget->window, widget->allocation.width, widget->allocation.height, -1);
+
+	return TRUE;
+}
+
+static gboolean scribble_expose_event_fft(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
+	gdk_draw_drawable(widget->window, widget->style->fg_gc[GTK_WIDGET_STATE(widget)], pixmapFFT, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+
+	return FALSE;
+}
+
+typedef struct {
+	float real;
+	float imag;
+} complex;
+
+#ifndef PI
+# define PI 3.14159265358979323846264338327950288
+#endif
+
+/**
+   fft(v,N):
+   [0] If N==1 then return.
+   [1] For k = 0 to N/2-1, let ve[k] = v[2*k]
+   [2] Compute fft(ve, N/2);
+   [3] For k = 0 to N/2-1, let vo[k] = v[2*k+1]
+   [4] Compute fft(vo, N/2);
+   [5] For m = 0 to N/2-1, do [6] through [9]
+   [6]   Let w.real = cosf(2*PI*m/N)
+   [7]   Let w.imag = -sinf(2*PI*m/N)
+   [8]   Let v[m] = ve[m] + w*vo[m]
+   [9]   Let v[m+N/2] = ve[m] - w*vo[m]
+ */
+void fft(complex *v, int n, complex *tmp) {
+	int k,m;
+	complex z, w, *vo, *ve;
+
+	/* otherwise, do nothing and return */
+	if(n <= 1) return;
+
+	ve = tmp; vo = tmp+n/2;
+	for(k=0; k<n/2; k++)
+	{
+		ve[k] = v[2*k];
+		vo[k] = v[2*k+1];
+	}
+	/* FFT on even-indexed elements of v[] */
+	fft( ve, n/2, v );
+	/* FFT on odd-indexed elements of v[] */
+	fft( vo, n/2, v );
+	for(m = 0; m < n / 2; m ++) {
+		w.real = cosf(2*PI*m/(double)n);
+		w.imag = -sinf(2*PI*m/(double)n);
+		/* real(w*vo[m]) */
+		z.real = w.real*vo[m].real - w.imag*vo[m].imag;
+		/* imag(w*vo[m]) */
+		z.imag = w.real*vo[m].imag + w.imag*vo[m].real;
+		v[  m  ].real = ve[m].real + z.real;
+		v[  m  ].imag = ve[m].imag + z.imag;
+		v[m+n/2].real = ve[m].real - z.real;
+		v[m+n/2].imag = ve[m].imag - z.imag;
+	}
+}
+
+/**
+   ifft(v,N):
+   [0] If N==1 then return.
+   [1] For k = 0 to N/2-1, let ve[k] = v[2*k]
+   [2] Compute ifft(ve, N/2);
+   [3] For k = 0 to N/2-1, let vo[k] = v[2*k+1]
+   [4] Compute ifft(vo, N/2);
+   [5] For m = 0 to N/2-1, do [6] through [9]
+   [6]   Let w.real = cosf(2*PI*m/N)
+   [7]   Let w.imag = sinf(2*PI*m/N)
+   [8]   Let v[m] = ve[m] + w*vo[m]
+   [9]   Let v[m+N/2] = ve[m] - w*vo[m]
+ */
+void ifft(complex *v, int n, complex *tmp) {
+	int k,m;
+	complex z, w, *vo, *ve;
+
+	/* otherwise, do nothing and return */
+	if(n <= 1) return;
+
+	ve = tmp; vo = tmp+n/2;
+	for(k = 0; k < n / 2; k++) {
+		ve[k] = v[2*k];
+		vo[k] = v[2*k+1];
+	}
+
+	/* FFT on even-indexed elements of v[] */
+	ifft(ve, n/2, v);
+
+	/* FFT on odd-indexed elements of v[] */
+	ifft(vo, n/2, v);
+
+	for(m = 0; m < n/2; m++) {
+		w.real = cosf(2 * PI * m / (double) n);
+		w.imag = sinf(2 * PI * m / (double) n);
+		/* real(w*vo[m]) */
+		z.real = w.real*vo[m].real - w.imag*vo[m].imag;
+		/* imag(w*vo[m]) */
+		z.imag = w.real*vo[m].imag + w.imag*vo[m].real;
+		v[  m  ].real = ve[m].real + z.real;
+		v[  m  ].imag = ve[m].imag + z.imag;
+		v[m+n/2].real = ve[m].real - z.real;
+		v[m+n/2].imag = ve[m].imag - z.imag;
+	}
+}
+
+static complex *fft_val[] = {NULL, NULL}, *fft_res[] = {NULL, NULL};
+static GdkPoint *fft_pts[] = {NULL, NULL};
+
+static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
+	static int pos = -1;
+	GdkRectangle update_rect;
+	int i, c;
+	short *data;
+
+	if(pixmapFFT == NULL) return;
+
+	pos ++;
+	if(pos >= SIZE) pos = 0;
+
+	update_rect.x = 0;
+	update_rect.y = 0;
+	update_rect.width = widget->allocation.width;
+	update_rect.height = widget->allocation.height;
+
+	// printf("%s:%d %d\n", __func__, __LINE__, pos);
+
+	for(c = 0; c < channels; c ++) {
+		if(!fft_val[c]) fft_val[c] = (complex*) malloc(sizeof(complex) * g_frames);
+		if(!fft_res[c]) fft_res[c] = (complex*) malloc(sizeof(complex) * g_frames);
+	}
+
+	data = (short*) bufs[pos];
+	for(i = 0; i < g_frames * channels; i += channels) {
+		for(c = 0; c < channels; c ++) {
+			fft_val[c][i/channels].real = (float) data[i + c] / 32767.0f;
+			fft_val[c][i/channels].imag = 0;
+		}
+	}
+
+	gint h = widget->allocation.height / 2, h2 = h / 2;
+	double w = (double) widget->allocation.width / (double) g_frames;
+	for(c = 0; c < channels; c ++) {
+		fft(fft_val[c], g_frames, fft_res[c]);
+		if(!fft_pts[c]) {
+			fft_pts[c] = (GdkPoint*) malloc(sizeof(GdkPoint) * (g_frames + 2));
+			fft_pts[c][g_frames].x = widget->allocation.width;
+			fft_pts[c][g_frames].y = (c + 1) * h;
+			fft_pts[c][g_frames+1].x = 0;
+			fft_pts[c][g_frames+1].y = (c + 1) * h;
+		}
+		float max = -10000, min = 10000;
+		for(i = 0; i < g_frames; i ++) {
+			float f = sqrtf(fft_val[c][i].real * fft_val[c][i].real + fft_val[c][i].imag * fft_val[c][i].imag);
+			if(f > 200.0f) f = 200.0f;
+			fft_pts[c][i].x = i * w;
+			fft_pts[c][i].y = c * h + h - f * h / 200.0f;
+			if(f > max) max = f;
+			if(f < min) min = f;
+		}
+		printf("[c-%d] max: %f, min: %f\n", c, max, min);
+	}
+	gdk_draw_rectangle(pixmapFFT, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+
+	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
+	for(c = 0; c < channels; c ++) {
+		// gdk_draw_polygon(pixmapFFT, gcs[c], TRUE, fft_pts[c], g_frames + 2);
+		gdk_draw_lines(pixmapFFT, gcs[c], fft_pts[c], g_frames);
+	}
+
+	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
+}
+
 static void gtk_loop(int argc, char *argv[]) {
 	GtkWidget *window;
-	GtkWidget *vbox;
+	GtkWidget *vbox, *vbox2;
 	GtkWidget *frameVolume, *daVolume;
 	GtkWidget *frameWave, *daWave;
+	GtkWidget *frameFFT, *daFFT;
 
 	gtk_init(&argc, &argv);
 
 	g_signal_new("da_event", G_TYPE_OBJECT, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "声音音量和波形图的实时绘制");
+	gtk_window_set_title(GTK_WINDOW(window), "Sound FFT");
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(gtk_main_quit), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+
+	vbox2 = gtk_vbox_new(FALSE, 10);
+	gtk_container_set_border_width(GTK_CONTAINER(vbox2), 0);
+	gtk_container_add(GTK_CONTAINER(window), vbox2);
 
 	vbox = gtk_vbox_new(FALSE, 10);
 	gtk_container_set_border_width(GTK_CONTAINER(vbox), 0);
 	gtk_container_add(GTK_CONTAINER(window), vbox);
+	gtk_box_pack_start(GTK_BOX(vbox2), vbox, TRUE, TRUE, 0);
 
 	frameVolume = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameVolume), GTK_SHADOW_IN);
@@ -372,6 +560,21 @@ static void gtk_loop(int argc, char *argv[]) {
 
 	gtk_widget_set_events(daWave, gtk_widget_get_events(daWave) | GDK_LEAVE_NOTIFY_MASK);
 
+	frameFFT = gtk_frame_new(NULL);
+	gtk_frame_set_shadow_type(GTK_FRAME(frameFFT), GTK_SHADOW_IN);
+	gtk_box_pack_end(GTK_BOX(vbox2), frameFFT, TRUE, TRUE, 0);
+
+	daFFT = gtk_drawing_area_new();
+	gtk_widget_set_size_request(daFFT, 800, 100);
+	gtk_container_add(GTK_CONTAINER(frameFFT), daFFT);
+
+	sigFFT = (GtkObject*) G_OBJECT(daFFT);
+	g_signal_connect(sigFFT, "expose_event", G_CALLBACK(scribble_expose_event_fft), NULL);
+	g_signal_connect(sigFFT, "configure_event", G_CALLBACK(scribble_configure_event_fft), NULL);
+	g_signal_connect(sigFFT, "da_event", G_CALLBACK(scribble_da_event_fft), NULL);
+
+	gtk_widget_set_events(daFFT, gtk_widget_get_events(daFFT) | GDK_LEAVE_NOTIFY_MASK);
+
 	gtk_widget_show_all(window);
 
 	gdk_threads_enter();
@@ -380,6 +583,9 @@ static void gtk_loop(int argc, char *argv[]) {
 
 	for(int i = 0; i < 2; i ++) {
 		if(points[i]) free(points[i]);
+		if(fft_val[i]) free(fft_val[i]);
+		if(fft_res[i]) free(fft_res[i]);
+		if(fft_pts[i]) free(fft_pts[i]);
 	}
 }
 
