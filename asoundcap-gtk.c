@@ -303,8 +303,6 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 
 	// printf("%s:%d %d\n", __func__, __LINE__, pos);
 
-	gdk_draw_rectangle(pixmapWave, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
-
 	gint h = widget->allocation.height / 2, h2 = h / 2;
 	double w = (double) widget->allocation.width / (double) g_frames;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
@@ -318,6 +316,10 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 			points[c][i/channels].y = c * h + h2 - data[i + c] * h2 / 32767;
 		}
 	}
+
+	gdk_draw_rectangle(pixmapWave, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+
+	gdk_draw_line(pixmapWave, widget->style->black_gc, 0, h, widget->allocation.width, h);
 	for(i = 0; i < channels; i ++) {
 		gdk_draw_lines(pixmapWave, gcs[i], points[i], g_frames);
 	}
@@ -432,6 +434,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	}
 
 	int h = widget->allocation.height / 2, h2 = h / 2;
+	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	int N = fft_num / 2;
 	double w = (double) widget->allocation.width / (double) N;
 	for(c = 0; c < channels; c ++) {
@@ -445,25 +448,31 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 			p->x = 0;
 			p->y = (c + 1) * h;
 		}
+#ifdef FFT_DEBUG
 		float max = -10000, min = 10000;
+#endif
 		for(i = 0; i < N; i ++) {
 			v = &fft_val[c][i];
 			float f = sqrtf(v->real * v->real + v->imag * v->imag);
+#ifdef FFT_DEBUG
 			if(f > max) max = f;
 			if(f < min) min = f;
+#endif
 			if(f > FFT_MAG) f = FFT_MAG;
 
 			p = &fft_pts[c][i];
 			p->x = i * w;
 			p->y = c * h + h - f * h / FFT_MAG;
 		}
+#ifdef FFT_DEBUG
 		printf("[channel:%d] max: %f, min: %f\n", c, max, min);
+#endif
 	}
+
 	gdk_draw_rectangle(pixmapFFT, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
-	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	for(c = 0; c < channels; c ++) {
-#if 1
+#ifndef FFT_LINE
 		gdk_draw_polygon(pixmapFFT, gcs[c], TRUE, fft_pts[c], N + 2);
 #else
 		gdk_draw_lines(pixmapFFT, gcs[c], fft_pts[c], N);
