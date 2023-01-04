@@ -342,7 +342,7 @@ static gboolean scribble_expose_event_fft(GtkWidget *widget, GdkEventExpose *eve
 typedef struct {
 	float real;
 	float imag;
-} complex;
+} complex_t;
 
 #ifndef PI
 # define PI 3.14159265358979323846264338327950288
@@ -361,9 +361,9 @@ typedef struct {
    [8]   Let v[m] = ve[m] + w*vo[m]
    [9]   Let v[m+N/2] = ve[m] - w*vo[m]
  */
-void fft(complex *v, int n, complex *tmp) {
+void fft(complex_t *v, int n, complex_t *tmp) {
 	int k,m;
-	complex z, w, *vo, *ve;
+	complex_t z, w, *vo, *ve;
 
 	/* otherwise, do nothing and return */
 	if(n <= 1) return;
@@ -392,7 +392,7 @@ void fft(complex *v, int n, complex *tmp) {
 	}
 }
 
-static complex *fft_val[] = {NULL, NULL}, *fft_res[] = {NULL, NULL};
+static complex_t *fft_val[] = {NULL, NULL}, *fft_res[] = {NULL, NULL};
 static GdkPoint *fft_pts[] = {NULL, NULL};
 static int fft_num = 0;
 #define FFT_MAG (25.0f)
@@ -402,6 +402,8 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	GdkRectangle update_rect;
 	int i, c;
 	short *data;
+	complex_t *v;
+	GdkPoint *p;
 
 	if(pixmapFFT == NULL) return;
 
@@ -416,15 +418,16 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	// printf("%s:%d %d\n", __func__, __LINE__, pos);
 
 	for(c = 0; c < channels; c ++) {
-		if(!fft_val[c]) fft_val[c] = (complex*) malloc(sizeof(complex) * fft_num);
-		if(!fft_res[c]) fft_res[c] = (complex*) malloc(sizeof(complex) * fft_num);
+		if(!fft_val[c]) fft_val[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
+		if(!fft_res[c]) fft_res[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 	}
 
 	data = (short*) bufs[pos];
 	for(i = 0; i < fft_num * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
-			fft_val[c][i/channels].real = (float) data[i + c] / 32767.0f;
-			fft_val[c][i/channels].imag = 0;
+			v = &fft_val[c][i/channels];
+			v->real = (float) data[i + c] / 32767.0f;
+			v->imag = 0;
 		}
 	}
 
@@ -435,19 +438,24 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		fft(fft_val[c], fft_num, fft_res[c]);
 		if(!fft_pts[c]) {
 			fft_pts[c] = (GdkPoint*) malloc(sizeof(GdkPoint) * (N + 2));
-			fft_pts[c][N].x = widget->allocation.width;
-			fft_pts[c][N].y = (c + 1) * h;
-			fft_pts[c][N+1].x = 0;
-			fft_pts[c][N+1].y = (c + 1) * h;
+			p = &fft_pts[c][N];
+			p->x = widget->allocation.width;
+			p->y = (c + 1) * h - 1;
+			p ++;
+			p->x = 0;
+			p->y = (c + 1) * h;
 		}
 		float max = -10000, min = 10000;
 		for(i = 0; i < N; i ++) {
-			float f = sqrtf(fft_val[c][i].real * fft_val[c][i].real + fft_val[c][i].imag * fft_val[c][i].imag);
+			v = &fft_val[c][i];
+			float f = sqrtf(v->real * v->real + v->imag * v->imag);
 			if(f > max) max = f;
 			if(f < min) min = f;
 			if(f > FFT_MAG) f = FFT_MAG;
-			fft_pts[c][i].x = i * w;
-			fft_pts[c][i].y = c * h + h - f * h / FFT_MAG;
+
+			p = &fft_pts[c][i];
+			p->x = i * w;
+			p->y = c * h + h - f * h / FFT_MAG;
 		}
 		printf("[channel:%d] max: %f, min: %f\n", c, max, min);
 	}
@@ -455,7 +463,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	for(c = 0; c < channels; c ++) {
-#if 0
+#if 1
 		gdk_draw_polygon(pixmapFFT, gcs[c], TRUE, fft_pts[c], N + 2);
 #else
 		gdk_draw_lines(pixmapFFT, gcs[c], fft_pts[c], N);
