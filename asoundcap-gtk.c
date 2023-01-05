@@ -223,6 +223,7 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	short *data;
 	calc_t *dBs;
 	char buf[128];
+	unsigned short maxs[] = {0, 0}, m;
 
 	GdkRectangle update_rect;
 
@@ -244,13 +245,17 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	for(i = 0; i < channels; i++) dBs[i].sum = 0;
 	for(i = 0; i < g_frames * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
-			dBs[c].sum += abs(data[i + c]);
+			m = abs(data[i + c]);
+			dBs[c].sum += m;
+			if(m > maxs[c]) {
+				maxs[c] = m;
+			}
 		}
 	}
 
 	//printf("%s", nowtime(buf, sizeof(buf)));
 	for(i = 0; i < channels; i++) {
-		dBs[i].db = dBs[i].sum * 500.0 / (g_frames * 32767.0);
+		dBs[i].db = dBs[i].sum * 300.0 / (g_frames * 32767.0);
 		if(dBs[i].db > 100) dBs[i].db = 100;
 		// printf("%9d", dBs[i].db);
 	}
@@ -262,6 +267,7 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	for(i = 0; i < channels; i++) {
 		gdk_draw_rectangle(pixmapVolume, gcs[i], TRUE, 0, i * h, widget->allocation.width * dBs[i].db / 100, h);
+		gdk_draw_rectangle(pixmapVolume, widget->style->base_gc[5 - i], TRUE, (widget->allocation.width * maxs[i] / 32767) - 2, i * h, 4, h);
 	}
 
 	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
@@ -310,10 +316,12 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 		if(!points[i]) points[i] = (GdkPoint*) malloc(sizeof(GdkPoint) * g_frames);
 	}
 	data = (short*) bufs[pos];
+	GdkPoint *p;
 	for(i = 0; i < g_frames * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
-			points[c][i/channels].x = i * w;
-			points[c][i/channels].y = c * h + h2 - data[i + c] * h2 / 32767;
+			p = &points[c][i/channels];
+			p->x = i * w;
+			p->y = c * h + h2 - data[i + c] * h2 / 32767;
 		}
 	}
 
@@ -495,6 +503,7 @@ static void gtk_loop(int argc, char *argv[]) {
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(window), "Sound FFT");
+	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(gtk_main_quit), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 
