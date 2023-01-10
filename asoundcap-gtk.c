@@ -24,7 +24,8 @@ snd_pcm_hw_params_t *gp_params;  //设置流的硬件参数
 snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
 char *gp_buffer;
 unsigned int g_bufsize;
-int sample_rate = 0, channels = 0, format_size = 0;
+int sample_rate = 0, channels = 2;
+const int format_size = 16;
 
 int set_hardware_params() {
 	int rc;
@@ -149,6 +150,7 @@ typedef struct {
 	short db;
 } calc_t;
 
+static GtkWidget *window = NULL;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
@@ -255,7 +257,7 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 
 	//printf("%s", nowtime(buf, sizeof(buf)));
 	for(i = 0; i < channels; i++) {
-		dBs[i].db = dBs[i].sum * 300.0 / (g_frames * 32767.0);
+		dBs[i].db = dBs[i].sum * 100.0 / (g_frames * 32767.0);
 		if(dBs[i].db > 100) dBs[i].db = 100;
 		// printf("%9d", dBs[i].db);
 	}
@@ -309,7 +311,7 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 
 	// printf("%s:%d %d\n", __func__, __LINE__, pos);
 
-	gint h = widget->allocation.height / 2, h2 = h / 2;
+	gint h = widget->allocation.height / channels, h2 = h / 2;
 	double w = (double) widget->allocation.width / (double) g_frames;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	for(i = 0; i < channels; i ++) {
@@ -327,8 +329,8 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 
 	gdk_draw_rectangle(pixmapWave, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
-	gdk_draw_line(pixmapWave, widget->style->black_gc, 0, h, widget->allocation.width, h);
 	for(i = 0; i < channels; i ++) {
+		if(i % 2) gdk_draw_line(pixmapWave, widget->style->black_gc, 0, i * h, widget->allocation.width, h);
 		gdk_draw_lines(pixmapWave, gcs[i], points[i], g_frames);
 	}
 
@@ -404,8 +406,30 @@ void fft(complex_t *v, int n, complex_t *tmp) {
 
 static complex_t *fft_val[] = {NULL, NULL}, *fft_res[] = {NULL, NULL};
 static GdkPoint *fft_pts[] = {NULL, NULL};
+static float *fft_mags[] = {NULL, NULL};
 static int fft_num = 0;
-#define FFT_MAG (25.0f)
+static int fft_mode = 0;
+#define FFT_MAG (20.0f)
+
+static void scribble_clicked_event_fft(GtkWidget *widget, GdkEventButton *event, gpointer data) {
+	fft_mode ++;
+	if(fft_mode > 2) fft_mode = 0;
+
+	char *title;
+	switch(fft_mode) {
+		case 0:
+			title = "Sound FFT - Rectangle";
+			break;
+		case 1:
+			title = "Sound FFT - Polygon";
+			break;
+		case 2:
+		default:
+			title = "Sound FFT - Lines";
+			break;
+	}
+	gtk_window_set_title(GTK_WINDOW(window), title);
+}
 
 static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
 	static int pos = -1;
@@ -441,15 +465,61 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		}
 	}
 
-	int h = widget->allocation.height / 2, h2 = h / 2;
+	int h = widget->allocation.height / channels, h2 = h / 2;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
-	int N = fft_num / 2;
-	double w = (double) widget->allocation.width / (double) N;
+	int Ns[] = {0, 0};
+	int N = ((fft_num / 2) * 5 / 6), j, n;
+	const int NN = (fft_mode == 0 ? 50 : (fft_mode == 1 ? 200 : 300));
 	for(c = 0; c < channels; c ++) {
 		fft(fft_val[c], fft_num, fft_res[c]);
-		if(!fft_pts[c]) {
+		if(fft_mode && !fft_pts[c]) {
 			fft_pts[c] = (GdkPoint*) malloc(sizeof(GdkPoint) * (N + 2));
-			p = &fft_pts[c][N];
+		}
+		if(!fft_mags[c]) fft_mags[c] = (float*) malloc(sizeof(float) * N);
+
+		float max = -10000, min = 10000, f;
+		for(i = 0; i < N; i ++) {
+			v = &fft_val[c][i];
+			f = sqrtf(v->real * v->real + v->imag * v->imag);
+			if(f > max) max = f;
+			if(f < min) min = f;
+			fft_mags[c][i] = f;
+		}
+		float F = max / 5.0;
+		int nn = 0;
+		for(i = 0; i < N - 1; i ++) {
+			if(fft_mags[c][i] < F) {
+				fft_mags[c][nn++] = fft_mags[c][i];
+			}
+		}
+		const int n2 = nn / NN;
+		f = 0;
+		n = 0;
+		j = 0;
+		for(i = 0; i < nn; i ++) {
+			f += fft_mags[c][i];
+			n ++;
+			if(n == n2) {
+				n = 0;
+				f /= (float) n2;
+				if(f > FFT_MAG) f = FFT_MAG;
+				
+				fft_mags[c][j] = f / FFT_MAG;
+				
+				j ++;
+				f = 0;
+				if(j >= NN) break;
+			}
+		}
+		Ns[c] = j;
+		if(fft_mode) {
+			double w = (double) widget->allocation.width / (double) j;
+			for(i = 0; i < j; i ++) {
+				p = &fft_pts[c][i];
+				p->x = i * w;
+				p->y = c * h + h - fft_mags[c][i] * h;
+			}
+			p = &fft_pts[c][j];
 			p->x = widget->allocation.width;
 			p->y = (c + 1) * h - 1;
 			p ++;
@@ -457,41 +527,31 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 			p->y = (c + 1) * h;
 		}
 #ifdef FFT_DEBUG
-		float max = -10000, min = 10000;
-#endif
-		for(i = 0; i < N; i ++) {
-			v = &fft_val[c][i];
-			float f = sqrtf(v->real * v->real + v->imag * v->imag);
-#ifdef FFT_DEBUG
-			if(f > max) max = f;
-			if(f < min) min = f;
-#endif
-			if(f > FFT_MAG) f = FFT_MAG;
-
-			p = &fft_pts[c][i];
-			p->x = i * w;
-			p->y = c * h + h - f * h / FFT_MAG;
-		}
-#ifdef FFT_DEBUG
-		printf("[channel:%d] max: %f, min: %f\n", c, max, min);
+		printf("[channel:%d] max: %f, min: %f, count: %d\n", c, max, min, j);
 #endif
 	}
 
 	gdk_draw_rectangle(pixmapFFT, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
 	for(c = 0; c < channels; c ++) {
-#ifndef FFT_LINE
-		gdk_draw_polygon(pixmapFFT, gcs[c], TRUE, fft_pts[c], N + 2);
-#else
-		gdk_draw_lines(pixmapFFT, gcs[c], fft_pts[c], N);
-#endif
+		if(fft_mode == 0) {
+			float x = 0, stepX = (float) widget->allocation.width / (float) Ns[c];
+			for(i = 0; i < Ns[c]; i ++) {
+				n = h - fft_mags[c][i] * h;
+				gdk_draw_rectangle(pixmapFFT, gcs[c], TRUE, x + stepX / 4, c * h + n, stepX / 2, h - n);
+				x += stepX;
+			}
+		} else if(fft_mode == 1) {
+			gdk_draw_polygon(pixmapFFT, gcs[c], TRUE, fft_pts[c], Ns[c] + 2);
+		} else {
+			gdk_draw_lines(pixmapFFT, gcs[c], fft_pts[c], Ns[c]);
+		}
 	}
 
 	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
 }
 
 static void gtk_loop(int argc, char *argv[]) {
-	GtkWidget *window;
 	GtkWidget *vbox, *vbox2;
 	GtkWidget *frameVolume, *daVolume;
 	GtkWidget *frameWave, *daWave;
@@ -502,7 +562,7 @@ static void gtk_loop(int argc, char *argv[]) {
 	g_signal_new("da_event", G_TYPE_OBJECT, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "Sound FFT");
+	gtk_window_set_title(GTK_WINDOW(window), "Sound FFT - Rectangle");
 	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(gtk_main_quit), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
@@ -557,9 +617,10 @@ static void gtk_loop(int argc, char *argv[]) {
 	sigFFT = (GtkObject*) G_OBJECT(daFFT);
 	g_signal_connect(sigFFT, "expose_event", G_CALLBACK(scribble_expose_event_fft), NULL);
 	g_signal_connect(sigFFT, "configure_event", G_CALLBACK(scribble_configure_event_fft), NULL);
+	g_signal_connect(sigFFT, "button_press_event", G_CALLBACK(scribble_clicked_event_fft), NULL);
 	g_signal_connect(sigFFT, "da_event", G_CALLBACK(scribble_da_event_fft), NULL);
 
-	gtk_widget_set_events(daFFT, gtk_widget_get_events(daFFT) | GDK_LEAVE_NOTIFY_MASK);
+	gtk_widget_set_events(daFFT, gtk_widget_get_events(daFFT) | GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK);
 
 	gtk_widget_show_all(window);
 
@@ -572,19 +633,23 @@ static void gtk_loop(int argc, char *argv[]) {
 		if(fft_val[i]) free(fft_val[i]);
 		if(fft_res[i]) free(fft_res[i]);
 		if(fft_pts[i]) free(fft_pts[i]);
+		if(fft_mags[i]) free(fft_mags[i]);
 	}
 }
 
 int main(int argc, char *argv[]) {
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s sample_rate channels format_size\n", argv[0]);
+	int ret;
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "usage: %s sample_rate [channels]\n", argv[0]);
 		return -1;
 	}
 
 	sample_rate = atoi(argv[1]);
-	channels = atoi(argv[2]);
-	format_size = atoi(argv[3]);
-	int ret = set_hardware_params();
+	if(argc > 2) {
+		channels = atoi(argv[2]);
+		if(channels > 2) channels = 2;
+	}
+	ret = set_hardware_params();
 	if (ret < 0) {
 		fprintf(stderr, "set_hardware_params error\n");
 		return -1;
