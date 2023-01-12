@@ -495,6 +495,11 @@ chkpwd: chkpwd.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lcrypt
 
+all: YangHuiTriangle3
+YangHuiTriangle3: YangHuiTriangle3.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
