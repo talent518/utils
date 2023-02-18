@@ -1024,17 +1024,23 @@ static void gtk_end(void) {
 
 void sig_handle(int sig) {
 	// fprintf(stderr, "sig: %d\n", sig);
-	if(sig == SIGALRM) {
-		char *title;
+	is_running = false;
+	gtk_main_quit();
+	fprintf(stderr, "\r");
+}
+
+static void *video_fps_thread(void *arg) {
+	char *title;
+	while(is_running) {
+		sleep(1);
+		
 		video_fps = video_frames;
 		video_frames = 0;
 		title = get_title();
-		gtk_window_set_title(GTK_WINDOW(window), title);
+		gdk_threads_enter();
+		if(window) gtk_window_set_title(GTK_WINDOW(window), title);
+		gdk_threads_leave();
 		free(title);
-	} else {
-		is_running = false;
-		gtk_main_quit();
-		fprintf(stderr, "\r");
 	}
 }
 
@@ -1058,7 +1064,6 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	signal(SIGALRM, sig_handle);
 	signal(SIGTERM, sig_handle);
 	signal(SIGINT, sig_handle);
 	signal(SIGPIPE, SIG_IGN);
@@ -1083,7 +1088,7 @@ int main(int argc, char *argv[]) {
 	gtk_init(&argc, &argv);
 	gtk_begin();
 
-	pthread_t thread, thread2, thread3;
+	pthread_t thread, thread2, thread3, thread4;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -1105,27 +1110,16 @@ int main(int argc, char *argv[]) {
 		if(ret) {
 			fprintf(stderr, "pthread_create failure: %d", ret);
 		} else {
-			sem_post(&sem);
-			
-			{			
-				struct itimerval itv;
-
-				// Interval for periodic timer
-				// 周期计时器间隔，每次SIGALRM信号事件的时间间隔
-				itv.it_interval.tv_sec = 2;
-				itv.it_interval.tv_usec = 0;
-
-				// Time until next expiration
-				// 下次到期前的时间，首次SIGALRM信号事件的时间间隔
-				itv.it_value.tv_sec = 1;
-				itv.it_value.tv_usec = 0;
-
-				setitimer(ITIMER_REAL, &itv, NULL);
+			ret = pthread_create(&thread4, &attr, video_fps_thread, NULL);
+			if(ret) {
+				fprintf(stderr, "pthread_create failure: %d", ret);
+			} else {
+				sem_post(&sem);
+				
+				gdk_threads_enter();
+				gtk_main();
+				gdk_threads_leave();
 			}
-			
-			gdk_threads_enter();
-			gtk_main();
-			gdk_threads_leave();
 		}
 	}
 
@@ -1140,6 +1134,10 @@ int main(int argc, char *argv[]) {
 	}
 	pthread_kill(thread3, SIGTERM);
 	if(pthread_join(thread3, NULL)) {
+		perror("pthread_join failure");
+	}
+	pthread_kill(thread4, SIGTERM);
+	if(pthread_join(thread4, NULL)) {
 		perror("pthread_join failure");
 	}
 	pthread_attr_destroy(&attr);
