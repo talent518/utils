@@ -444,6 +444,11 @@ asoundcap-gtk: asoundcap-gtk.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS) -lasound -pthread
 
+all: weditor
+weditor: weditor.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -lasound -pthread
+
 all: x11winlist
 x11winlist: x11winlist.o
 	@echo LD $@
