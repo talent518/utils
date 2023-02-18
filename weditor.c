@@ -163,7 +163,7 @@ static void *play_sound_thread(void *arg) {
 	while(is_running) {
 		playpos ++;
 		if(playpos >= SIZE) playpos = 0;
-		if((bufpos + 10) % SIZE < playpos) {
+		if(!sem_getvalue(&sem, &ret) && ret > 8) {
 			sem_wait(&sem);
 			continue;
 		}
