@@ -144,6 +144,7 @@ void sig_handle(int sig) {
 static sem_t sem;
 #define SIZE 128
 static char *bufs[SIZE];
+static int bufpos = -1;
 
 typedef struct {
 	int sum;
@@ -157,6 +158,9 @@ static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 static void *calc_thread(void *arg) {
 	sem_wait(&sem);
 	while(is_running) {
+		bufpos ++;
+		if(bufpos >= SIZE) bufpos = 0;
+
 		gdk_threads_enter();
 		gtk_signal_emit_by_name(sigVolume, "da_event");
 		gtk_signal_emit_by_name(sigWave, "da_event");
@@ -220,7 +224,6 @@ static gboolean scribble_expose_event_volume(GtkWidget *widget, GdkEventExpose *
 }
 
 static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
-	static int pos = -1;
 	int i, c;
 	short *data;
 	calc_t *dBs;
@@ -231,9 +234,6 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 
 	if(pixmapVolume == NULL) return;
 
-	pos ++;
-	if(pos >= SIZE) pos = 0;
-
 	update_rect.x = 0;
 	update_rect.y = 0;
 	update_rect.width = widget->allocation.width;
@@ -243,7 +243,7 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 
 	dBs = (calc_t*) malloc(channels * sizeof(calc_t));
 
-	data = (short*) bufs[pos];
+	data = (short*) bufs[bufpos];
 	for(i = 0; i < channels; i++) dBs[i].sum = 0;
 	for(i = 0; i < g_frames * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
@@ -294,15 +294,11 @@ static gboolean scribble_expose_event_wave(GtkWidget *widget, GdkEventExpose *ev
 static GdkPoint *points[] = {NULL, NULL};
 
 static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
-	static int pos = -1;
 	GdkRectangle update_rect;
 	int i, c;
 	short *data;
 
 	if(pixmapWave == NULL) return;
-
-	pos ++;
-	if(pos >= SIZE) pos = 0;
 
 	update_rect.x = 0;
 	update_rect.y = 0;
@@ -317,7 +313,7 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	for(i = 0; i < channels; i ++) {
 		if(!points[i]) points[i] = (GdkPoint*) malloc(sizeof(GdkPoint) * g_frames);
 	}
-	data = (short*) bufs[pos];
+	data = (short*) bufs[bufpos];
 	GdkPoint *p;
 	for(i = 0; i < g_frames * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
@@ -432,7 +428,6 @@ static void scribble_clicked_event_fft(GtkWidget *widget, GdkEventButton *event,
 }
 
 static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
-	static int pos = -1;
 	GdkRectangle update_rect;
 	int i, c;
 	short *data;
@@ -440,9 +435,6 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	GdkPoint *p;
 
 	if(pixmapFFT == NULL) return;
-
-	pos ++;
-	if(pos >= SIZE) pos = 0;
 
 	update_rect.x = 0;
 	update_rect.y = 0;
@@ -456,7 +448,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		if(!fft_res[c]) fft_res[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 	}
 
-	data = (short*) bufs[pos];
+	data = (short*) bufs[bufpos];
 	for(i = 0; i < fft_num * channels; i += channels) {
 		for(c = 0; c < channels; c ++) {
 			v = &fft_val[c][i/channels];
