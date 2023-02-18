@@ -154,17 +154,22 @@ static GtkWidget *window = NULL;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
+static int playpos = -1;
 static void *play_sound_thread(void *arg) {
-	int ret, pos = -1;
+	int ret;
 	
 	snd_pcm_pause(gp_handle, 0);
 	sem_wait(&sem);
 	while(is_running) {
-		pos ++;
-		if(pos >= SIZE) pos = 0;
+		playpos ++;
+		if(playpos >= SIZE) playpos = 0;
+		if((bufpos + 10) % SIZE < playpos) {
+			sem_wait(&sem);
+			continue;
+		}
 		
 	prepare:
-		ret = snd_pcm_writei(gp_handle, bufs[pos], g_frames);
+		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
 		if (ret == -EPIPE) {
 			fprintf(stderr, "read pipe\n");
 			snd_pcm_prepare(gp_handle);
@@ -542,14 +547,13 @@ static void *conn_video_thread(void *arg) {
 				if(videoImg) {
 					GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
 					GdkPixbuf *pixbuf;
-					if(gdk_pixbuf_loader_write(loader, ptr, sz, NULL)) {
-						pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-						if(pixbuf) {
-							if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, gdk_pixbuf_get_height(pixbuf));
-							if(videoFrame) gtk_widget_set_size_request(videoFrame, gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf));
-							if(videoImg) gtk_image_set_from_pixbuf(videoImg, pixbuf);
-							g_object_unref(pixbuf);
-						}
+					gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
+					gdk_pixbuf_loader_close(loader, NULL);
+					pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+					if(pixbuf) {
+						if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, gdk_pixbuf_get_height(pixbuf));
+						if(videoFrame) gtk_widget_set_size_request(videoFrame, gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf));
+						if(videoImg) gtk_image_set_from_pixbuf(videoImg, pixbuf);
 					}
 					g_object_unref(loader);
 				}
