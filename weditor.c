@@ -192,16 +192,43 @@ static void *play_sound_thread(void *arg) {
 static char *servhost;
 static int servport;
 static struct sockaddr_in servaddr;
-static int ws_conn(const char *func, const char *path) {
+static int ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
 	int size = 0, ret, sz = 0;
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	int flags = fcntl(fd, F_GETFL, 0);
+	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	
 	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr))) {
-		fprintf(stderr, "[%s] connect %s failure\n", nowtime(buf, sizeof(buf)), func);
+		if(EINPROGRESS == errno) {
+			struct timeval tv;
+			fd_set set;
+			
+			tv.tv_sec = timeout;
+			tv.tv_usec = 0;
+			
+			FD_ZERO(&set);
+			FD_SET(fd, &set);
+			
+			ret = select(fd+1, &set, NULL, NULL, &tv);
+			if(ret > 0) {
+				socklen_t len = sizeof(ret);
+				if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) || ret) {
+					fprintf(stderr, "[%s] connect %s failure: get connect status error\n", nowtime(buf, sizeof(buf)), func);
+				} else {
+					goto connok;
+				}
+			} else {
+				fprintf(stderr, "[%s] connect %s failure: timeout\n", nowtime(buf, sizeof(buf)), func);
+			}
+		} else {
+			char *err = strerror(errno);
+			fprintf(stderr, "[%s] connect %s failure: %s\n", nowtime(buf, sizeof(buf)), func, err);
+		}
 		close(fd);
 		return 0;
 	} else {
+	connok:
 		fprintf(stderr, "[%s] connect %s success\n", nowtime(buf, sizeof(buf)), func);
 		
 		size += snprintf(buf + size, sizeof(buf), "GET %s HTTP/1.1\r\n", path);
@@ -213,6 +240,8 @@ static int ws_conn(const char *func, const char *path) {
 		size += snprintf(buf + size, sizeof(buf), "Upgrade: websocket\r\n");
 		size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
 		size += snprintf(buf + size, sizeof(buf), "\r\n");
+		
+		fcntl(fd, F_SETFL, flags);
 		
 	loopsend:
 		ret = send(fd, buf + sz, size - sz, 0);
@@ -517,7 +546,7 @@ static void *conn_sound_thread(void *arg) {
 				fd = 0;
 			}
 		} else {
-			fd = ws_conn(__func__, "/ws/v1/minisound");
+			fd = ws_conn(__func__, "/ws/v1/minisound", 5);
 			if(!fd) {
 				sleep(5);
 			}
@@ -565,7 +594,7 @@ static void *conn_video_thread(void *arg) {
 				fd = 0;
 			}
 		} else {
-			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:");
+			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", 5);
 			if(!fd) {
 				sleep(5);
 			}
