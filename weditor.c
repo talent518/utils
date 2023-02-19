@@ -171,7 +171,6 @@ static void *play_sound_thread(void *arg) {
 	prepare:
 		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
 		if (ret == -EPIPE) {
-			fprintf(stderr, "read pipe\n");
 			snd_pcm_prepare(gp_handle);
 			goto prepare;
 		} else if(ret == -EINTR) {
@@ -189,6 +188,24 @@ static void *play_sound_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
+static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer, int recv_buffer) {
+	setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(int)); // 发送超时
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(int)); // 接收超时
+
+	setsockopt(s, SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(int));//发送缓冲区大小
+	setsockopt(s, SOL_SOCKET, SO_RCVBUF, &recv_buffer, sizeof(int));//接收缓冲区大小
+
+	typedef struct {
+		u_short l_onoff;
+		u_short l_linger;
+	} linger;
+	linger m_sLinger;
+	m_sLinger.l_onoff = 0;//(在closesocket()调用,但是还有数据没发送完毕的时候容许逗留)
+	// 如果m_sLinger.l_onoff=0;则功能和2.)作用相同;
+	m_sLinger.l_linger = 0;//(容许逗留的时间为5秒)
+	setsockopt(s, SOL_SOCKET, SO_LINGER, &m_sLinger, sizeof(linger));
+}
+
 static char *servhost;
 static int servport;
 static struct sockaddr_in servaddr;
@@ -196,10 +213,10 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
 	int size = 0, ret, sz = 0;
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
-	int flags = fcntl(fd, F_GETFL, 0);
+	int flags = fcntl(fd, F_GETFL);
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	
-	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr))) {
+	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
 		if(EINPROGRESS == errno) {
 			struct timeval tv;
 			fd_set set;
@@ -210,7 +227,7 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			FD_ZERO(&set);
 			FD_SET(fd, &set);
 			
-			ret = select(fd+1, &set, NULL, NULL, &tv);
+			ret = select(fd+1, NULL, &set, NULL, &tv);
 			if(ret > 0) {
 				socklen_t len = sizeof(ret);
 				if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) || ret) {
@@ -344,6 +361,22 @@ static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, const char
 	} else {
 		*prev_n = 0;
 	}
+
+begin:
+	do {
+		struct timeval tv;
+		fd_set set;
+		
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
+		
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		
+		ret = select(fd+1, &set, NULL, NULL, &tv);
+	} while(ret == 0 && is_running);
+	
+	if(ret < 0 || !is_running) goto err;
 	
 head:
 	ret = recv(fd, buf + n, sizeof(buf) + n, 0);
@@ -477,17 +510,17 @@ head:
 			case 0x9: // ping
 				fprintf(stderr, "[%s] websocket %s ping: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
 				if(!ws_send(fd, 0x8a, ptr, sz)) goto err;
-				goto gohead;
+				goto gobegin;
 			case 0xA: // pong
 				fprintf(stderr, "[%s] websocket %s pong: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
 				
-				gohead:
+				gobegin:
 				if(ptr) {
 					free(ptr);
 					ptr = NULL;
 				}
 				n = 0;
-				goto head;
+				goto begin;
 				break;
 			default:
 				fprintf(stderr, "unknown control code: %d\n", ctl);
@@ -547,7 +580,9 @@ static void *conn_sound_thread(void *arg) {
 			}
 		} else {
 			fd = ws_conn(__func__, "/ws/v1/minisound", 5);
-			if(!fd) {
+			if(fd) {
+				ws_setopt(fd, 1000, 1000, 1024, 32*1024);
+			} else {
 				sleep(5);
 			}
 		}
@@ -591,11 +626,12 @@ static void *conn_video_thread(void *arg) {
 				free(ptr);
 			} else {
 				close(fd);
-				fd = 0;
 			}
 		} else {
 			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", 5);
-			if(!fd) {
+			if(fd) {
+				ws_setopt(fd, 1000, 1000, 1024, 256*1024);
+			} else {
 				sleep(5);
 			}
 		}
@@ -1057,8 +1093,10 @@ static void gtk_end(void) {
 
 void sig_handle(int sig) {
 	// fprintf(stderr, "sig: %d\n", sig);
-	is_running = false;
-	gtk_main_quit();
+	if(is_running) {
+		is_running = false;
+		gtk_main_quit();
+	}
 	fprintf(stderr, "\r");
 }
 
@@ -1121,7 +1159,7 @@ int main(int argc, char *argv[]) {
 	gtk_init(&argc, &argv);
 	gtk_begin();
 
-	pthread_t thread, thread2, thread3, thread4;
+	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -1129,50 +1167,53 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "pthread_attr_setdetachstate failure: %d", ret);
 		return -1;
 	}
-	ret = pthread_create(&thread, &attr, play_sound_thread, NULL);
+	ret = pthread_create(&play_tid, &attr, play_sound_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
-		return -1;
+		goto end;
 	}
 
-	ret = pthread_create(&thread2, &attr, conn_sound_thread, NULL);
+	ret = pthread_create(&sound_tid, &attr, conn_sound_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+	
+	ret = pthread_create(&video_tid, &attr, conn_video_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+	
+	ret = pthread_create(&fps_tid, &attr, video_fps_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
 	} else {
-		ret = pthread_create(&thread3, &attr, conn_video_thread, NULL);
-		if(ret) {
-			fprintf(stderr, "pthread_create failure: %d", ret);
-		} else {
-			ret = pthread_create(&thread4, &attr, video_fps_thread, NULL);
-			if(ret) {
-				fprintf(stderr, "pthread_create failure: %d", ret);
-			} else {
-				sem_post(&sem);
-				
-				gdk_threads_enter();
-				gtk_main();
-				gdk_threads_leave();
-			}
-		}
+		sem_post(&sem);
+		
+		gdk_threads_enter();
+		gtk_main();
+		gdk_threads_leave();
 	}
 
+end:
 	is_running = false;
 	sem_post(&sem);
-	if(pthread_join(thread, NULL)) {
+	
+	if(pthread_join(play_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	pthread_kill(thread2, SIGTERM);
-	if(pthread_join(thread2, NULL)) {
+	if(pthread_join(sound_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	pthread_kill(thread3, SIGTERM);
-	if(pthread_join(thread3, NULL)) {
+	if(pthread_join(video_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	pthread_kill(thread4, SIGTERM);
-	if(pthread_join(thread4, NULL)) {
+	if(pthread_join(fps_tid, NULL)) {
 		perror("pthread_join failure");
 	}
+	
 	pthread_attr_destroy(&attr);
 	
 	gtk_end();
