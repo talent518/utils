@@ -140,8 +140,8 @@ static char *get_title();
 volatile bool is_running = true;
 
 static sem_t sem;
-#define SIZE 64
-static short *bufs[SIZE];
+#define BUFSIZE 64
+static short *bufs[BUFSIZE];
 static int bufsize;
 static int bufpos = 0;
 
@@ -169,14 +169,14 @@ static void *play_sound_thread(void *arg) {
 
 			for(; ret > MIN_QUE; ret--) {
 				playpos ++;
-				if(playpos >= SIZE) playpos = 0;
+				if(playpos >= BUFSIZE) playpos = 0;
 
 				sem_wait(&sem);
 			}
 		}
 
 		playpos ++;
-		if(playpos >= SIZE) playpos = 0;
+		if(playpos >= BUFSIZE) playpos = 0;
 		
 	prepare:
 		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
@@ -308,6 +308,15 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 	}
 }
 
+#define WS_CTL_TXT_MASK 0x81
+#define WS_CTL_TXT_NOMASK 0x01
+#define WS_CTL_BIN_MASK 0x82
+#define WS_CTL_BIN_NOMASK 0x02
+#define WS_CTL_PING_MASK 0x89
+#define WS_CTL_PING_NOMASK 0x09
+#define WS_CTL_PONG_MASK 0x8a
+#define WS_CTL_PONG_NOMASK 0x0a
+
 static int ws_send(int fd, int ctl, char *buf, int size) {
 	char *ptr = (char*) malloc(size + 14), *mask = "1234";
 	int i = 0, j, sz, ret;
@@ -329,12 +338,14 @@ static int ws_send(int fd, int ctl, char *buf, int size) {
 		}
 	}
 	
-	memcpy(ptr + i, mask, 4);
-	i += 4;
-	
-	j = 0;
-	while(size > 0) {
-		ptr[i++] = buf[j] ^ mask[j % 4];
+	if(ctl & 0x80) { // have mask
+		memcpy(ptr + i, mask, 4);
+		i += 4;
+		
+		j = 0;
+		while(size > 0) {
+			ptr[i++] = buf[j] ^ mask[j % 4];
+		}
 	}
 	
 	sz = 0;
@@ -393,72 +404,66 @@ head:
 	if(ret > 0) {
 		n += ret;
 		
-	#ifdef RECV_MASK
-		if(n < 6) goto head;
-		
-		if(!(buf[0] & 0x80) || (buf[0] & 0x70) || !(buf[1] & 0x80)) { // !FIN || (RSV1 || RSV2 || RSV3) || !Mask
+		if(n < 2) goto head;
+
+		ctl = buf[0] & 0xf;
+		sz = buf[1] & 0x7f;
+
+		if(!(buf[0] & 0x80) || (buf[0] & 0x70) || (ctl != 0x1 && ctl != 0x2 && ctl != 0x8 && ctl != 0x9 && ctl != 0xa)) { // !FIN || (RSV1 || RSV2 || RSV3) || (invalid ctl)
 			fprintf(stderr, "[%s] websocket %s protocol type error\n", nowtime(buf, sizeof(buf)), func);
 			goto err;
 		}
-		
-		ctl = buf[0] & 0xf;
-		sz = buf[1] & 0x7f;
-		if(sz == 126) {
-			if(n < 8) goto head;
-			
-			sz = (buf[2] << 8) | buf[3];
-			memcpy(mask, buf + 4, 4);
-			*size = sz;
-			i = 8;
-		} else if(sz == 127) {
-			if(n < 14) goto head;
-			
-			sz = 0;
-			for(int i = 0; i < 8; i++) {
-				sz |= buf[2+i];
-				sz <<= 8;
-			}
-			
-			memcpy(mask, buf + 10, 4);
-			*size = sz;
-			i = 14;
-		} else {
-			memcpy(mask, buf + 2, 4);
-			*size = sz;
-			i = 6;
-		}
-	#else
-		if(n < 2) goto head;
 
-		if(!(buf[0] & 0x80) || (buf[0] & 0x70) || (buf[1] & 0x80)) { // !FIN || (RSV1 || RSV2 || RSV3) || Mask
-			fprintf(stderr, "[%s] websocket %s protocol type error: %02x %02x\n", nowtime(buf, sizeof(buf)), func, buf[0], buf[1]);
-			goto err;
-		}
-		
-		ctl = buf[0] & 0xf;
-		sz = buf[1] & 0x7f;
-		if(sz == 126) {
-			if(n < 4) goto head;
+		if(buf[1] & 0x80) {
+			if(n < 6) goto head;
 			
-			sz = (buf[2] << 8) | buf[3];
-			*size = sz;
-			i = 4;
-		} else if(sz == 127) {
-			if(n < 10) goto head;
-			
-			sz = 0;
-			for(int i = 0; i < 8; i++) {
-				sz <<= 8;
-				sz |= buf[2+i];
+			if(sz == 126) {
+				if(n < 8) goto head;
+				
+				sz = (buf[2] << 8) | buf[3];
+				memcpy(mask, buf + 4, 4);
+				*size = sz;
+				i = 8;
+			} else if(sz == 127) {
+				if(n < 14) goto head;
+				
+				sz = 0;
+				for(int i = 0; i < 8; i++) {
+					sz |= buf[2+i];
+					sz <<= 8;
+				}
+				
+				memcpy(mask, buf + 10, 4);
+				*size = sz;
+				i = 14;
+			} else {
+				memcpy(mask, buf + 2, 4);
+				*size = sz;
+				i = 6;
 			}
-			
-			*size = sz;
-			i = 10;
 		} else {
-			*size = sz;
-			i = 2;
+			if(sz == 126) {
+				if(n < 4) goto head;
+				
+				sz = (buf[2] << 8) | buf[3];
+				*size = sz;
+				i = 4;
+			} else if(sz == 127) {
+				if(n < 10) goto head;
+				
+				sz = 0;
+				for(int i = 0; i < 8; i++) {
+					sz <<= 8;
+					sz |= buf[2+i];
+				}
+				
+				*size = sz;
+				i = 10;
+			} else {
+				*size = sz;
+				i = 2;
+			}
 		}
-	#endif
 		
 		ptr = (char*) malloc(sz + 1);
 		ptr[sz] = 0;
@@ -508,7 +513,7 @@ head:
 				break;
 			case 0x9: // ping
 				fprintf(stderr, "[%s] websocket %s ping: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
-				if(!ws_send(fd, 0x8a, ptr, sz)) goto err;
+				if(!ws_send(fd, WS_CTL_PONG_MASK, ptr, sz)) goto err;
 				goto gobegin;
 			case 0xA: // pong
 				fprintf(stderr, "[%s] websocket %s pong: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
@@ -556,7 +561,7 @@ static void *conn_sound_thread(void *arg) {
 					fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, bufsize);
 				} else {
 					bufpos ++;
-					if(bufpos >= SIZE) bufpos = 0;
+					if(bufpos >= BUFSIZE) bufpos = 0;
 					
 					memcpy(bufs[bufpos], ptr, sz);
 
@@ -1155,7 +1160,7 @@ int main(int argc, char *argv[]) {
 	sem_init(&sem, 0, 0);
 	memset(bufs, 0, sizeof(bufs));
 	bufsize = g_frames * channels * 2;
-	for(int i = 0; i < SIZE; i ++) {
+	for(int i = 0; i < BUFSIZE; i ++) {
 		bufs[i] = (short*) malloc(bufsize);
 		if(bufs[i]) {
 			memset(bufs[i], 0, bufsize);
@@ -1233,7 +1238,7 @@ end:
 	snd_pcm_drain(gp_handle);
 	snd_pcm_close(gp_handle);
 
-	for(int i = 0; i < SIZE; i ++) {
+	for(int i = 0; i < BUFSIZE; i ++) {
 		if(bufs[i]) free(bufs[i]);
 	}
 
