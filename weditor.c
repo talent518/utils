@@ -549,7 +549,7 @@ err:
 }
 
 static void *conn_sound_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0;
+	int fd = 0, sz = 0, n = 0, delay = 0, i;
 	char *ptr, *old = NULL;
 	
 	while(is_running) {
@@ -564,7 +564,16 @@ static void *conn_sound_thread(void *arg) {
 					
 					memcpy(bufs[bufpos], ptr, sz);
 
-					sem_post(&sem);
+					if(delay > 4) {
+						sem_post(&sem);
+					} else if(delay < 4) {
+						delay ++;
+					} else {
+						for(i = 0; i < delay; i ++) {
+							sem_post(&sem);
+						}
+						delay ++;
+					}
 
 					gdk_threads_enter();
 					if(sigVolume) gtk_signal_emit_by_name(sigVolume, "da_event");
@@ -576,14 +585,17 @@ static void *conn_sound_thread(void *arg) {
 				free(ptr);
 			} else {
 				close(fd);
-				fd = 0;
+				for(i = 0; i < delay; i ++) {
+					sem_post(&sem);
+				}
+				fd = delay = 0;
 			}
 		} else {
 			fd = ws_conn(__func__, "/ws/v1/minisound", 5);
 			if(fd) {
 				ws_setopt(fd, 1000, 1000, 1024, 32*1024);
 			} else {
-				sleep(5);
+				delay = 0;
 			}
 		}
 	}
