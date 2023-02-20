@@ -140,7 +140,7 @@ static char *get_title();
 volatile bool is_running = true;
 
 static sem_t sem;
-#define SIZE 128
+#define SIZE 64
 static short *bufs[SIZE];
 static int bufsize;
 static int bufpos = 0;
@@ -156,19 +156,27 @@ static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
 static int playpos = -1;
 static void *play_sound_thread(void *arg) {
+	const int MIN_QUE = 4;
 	const int MAX_QUE = 20; // 20 frames per second
 	int ret;
+	char buf[128];
 	
 	snd_pcm_pause(gp_handle, 0);
 	sem_wait(&sem);
 	while(is_running) {
+		if(!sem_getvalue(&sem, &ret) && ret > MAX_QUE) {
+			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
+
+			for(; ret > MIN_QUE; ret--) {
+				playpos ++;
+				if(playpos >= SIZE) playpos = 0;
+
+				sem_wait(&sem);
+			}
+		}
+
 		playpos ++;
 		if(playpos >= SIZE) playpos = 0;
-
-		if(!sem_getvalue(&sem, &ret) && ret > MAX_QUE) {
-			sem_wait(&sem);
-			continue;
-		}
 		
 	prepare:
 		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
@@ -536,7 +544,7 @@ err:
 }
 
 static void *conn_sound_thread(void *arg) {
-	const int DELAY = 5;
+	const int DELAY = 4;
 	int fd = 0, sz = 0, n = 0, delay = 0, i;
 	char *ptr, *old = NULL;
 	
@@ -557,7 +565,7 @@ static void *conn_sound_thread(void *arg) {
 					} else if(delay < DELAY) {
 						delay ++;
 					} else {
-						for(i = 0; i < delay; i ++) {
+						for(i = 0; i <= delay; i ++) {
 							sem_post(&sem);
 						}
 						delay ++;
