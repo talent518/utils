@@ -122,6 +122,19 @@ err1:
 	return -1;
 }
 
+#define MICRO_IN_SEC 1000000.00
+
+static inline double microtime()
+{
+	struct timeval tp = {0};
+
+	if (gettimeofday(&tp, NULL)) {
+		return 0;
+	}
+
+	return (double)(tp.tv_sec + tp.tv_usec / MICRO_IN_SEC);
+}
+
 char *nowtime(char *buf, int max) {
 	struct timeval tv;
 	if(gettimeofday(&tv, NULL)) {
@@ -193,10 +206,25 @@ static void *play_sound_thread(void *arg) {
 			break;
 		}
 
-		sem_wait(&sem);
+		while(sem_trywait(&sem) && is_running) usleep(10000); // sleep 10ms
 	}
 	pthread_exit(NULL);
 }
+
+#define WS_SELECT_USEC 20000 // 20ms
+
+#define WS_CONN_TIMEOUT 5
+#define WS_SEND_TIMEOUT 5
+#define WS_RECV_TIMEOUT 5
+
+#define WS_CTL_TXT_MASK 0x81
+#define WS_CTL_TXT_NOMASK 0x01
+#define WS_CTL_BIN_MASK 0x82
+#define WS_CTL_BIN_NOMASK 0x02
+#define WS_CTL_PING_MASK 0x89
+#define WS_CTL_PING_NOMASK 0x09
+#define WS_CTL_PONG_MASK 0x8a
+#define WS_CTL_PONG_NOMASK 0x0a
 
 static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer, int recv_buffer) {
 	setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(int)); // 发送超时
@@ -231,13 +259,18 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			struct timeval tv;
 			fd_set set;
 			
-			tv.tv_sec = timeout;
-			tv.tv_usec = 0;
+			double t = microtime() + timeout;
 			
-			FD_ZERO(&set);
-			FD_SET(fd, &set);
+			do {
+				tv.tv_sec = 0;
+				tv.tv_usec = WS_SELECT_USEC;
+				
+				FD_ZERO(&set);
+				FD_SET(fd, &set);
+				
+				ret = select(fd+1, NULL, &set, NULL, &tv);
+			} while(ret == 0 && microtime() < t && is_running);
 			
-			ret = select(fd+1, NULL, &set, NULL, &tv);
 			if(ret > 0) {
 				socklen_t len = sizeof(ret);
 				if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) || ret) {
@@ -298,6 +331,17 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			
 			if(strncmp(buf, "HTTP/1.1 101 ", sizeof("HTTP/1.1 101 ") - 1)) goto err;
 			
+		#if 1
+			if(!strstr(buf, "\r\nUpgrade: websocket\r\n")) goto err;
+			if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
+			if(!strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n")) goto err;
+		#elif 0
+			ptr = strstr(buf, "Sec-WebSocket-Accept:");
+			printf("%p\n", ptr);
+		#else
+			printf("%s", buf);
+		#endif
+			
 			fprintf(stderr, "[%s] websocket %s connected\n", nowtime(buf, sizeof(buf)), func);
 		} else {
 		err:
@@ -308,18 +352,13 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 	}
 }
 
-#define WS_CTL_TXT_MASK 0x81
-#define WS_CTL_TXT_NOMASK 0x01
-#define WS_CTL_BIN_MASK 0x82
-#define WS_CTL_BIN_NOMASK 0x02
-#define WS_CTL_PING_MASK 0x89
-#define WS_CTL_PING_NOMASK 0x09
-#define WS_CTL_PONG_MASK 0x8a
-#define WS_CTL_PONG_NOMASK 0x0a
-
-static int ws_send(int fd, int ctl, char *buf, int size) {
+static int ws_send(int fd, int ctl, char *buf, int size, int timeout) {
 	char *ptr = (char*) malloc(size + 14), *mask = "1234";
 	int i = 0, j, sz, ret;
+	struct timeval tv;
+	fd_set set;
+	double t;
+	
 	ptr[i++] = ctl;
 	if(size <= 125) {
 		ptr[i++] = size;
@@ -349,7 +388,21 @@ static int ws_send(int fd, int ctl, char *buf, int size) {
 	}
 	
 	sz = 0;
+	t = microtime() + timeout;
 loopsend:
+			
+	do {
+		tv.tv_sec = 0;
+		tv.tv_usec = WS_SELECT_USEC;
+		
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		
+		ret = select(fd+1, NULL, &set, NULL, &tv);
+	} while(ret == 0 && microtime() < t && is_running);
+	
+	if(ret <= 0 || !is_running) goto err;
+	
 	ret = send(fd, ptr + sz, i - sz, 0);
 	if(ret > 0) {
 		sz += ret;
@@ -359,16 +412,20 @@ loopsend:
 		free(ptr);
 		return 1;
 	} else {
+	err:
 		free(ptr);
 		return 0;
 	}
 }
 
-static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, const char *func) {
+static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, int timeout, const char *func) {
 	char *ptr = NULL;
 	int ret, i, n = 0, sz, ctl;
 	unsigned char buf[1024] = {0};
 	char mask[8];
+	struct timeval tv;
+	fd_set set;
+	double t;
 	
 begin:
 	if(*prev_ptr) {
@@ -384,18 +441,17 @@ begin:
 		*prev_n = 0;
 	}
 
+	t = microtime() + timeout;
+	
 	do {
-		struct timeval tv;
-		fd_set set;
-		
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
+		tv.tv_sec = 0;
+		tv.tv_usec = WS_SELECT_USEC;
 		
 		FD_ZERO(&set);
 		FD_SET(fd, &set);
 		
 		ret = select(fd+1, &set, NULL, NULL, &tv);
-	} while(ret == 0 && is_running);
+	} while(ret == 0 && microtime() < t && is_running);
 	
 	if(ret < 0 || !is_running) goto err;
 	
@@ -482,6 +538,18 @@ head:
 			memcpy(ptr, buf + i, n);
 			
 			while(n < sz) {
+				do {
+					tv.tv_sec = 0;
+					tv.tv_usec = WS_SELECT_USEC;
+					
+					FD_ZERO(&set);
+					FD_SET(fd, &set);
+					
+					ret = select(fd+1, &set, NULL, NULL, &tv);
+				} while(ret == 0 && microtime() < t && is_running);
+				
+				if(ret < 0 || !is_running) goto err;
+
 				ret = recv(fd, ptr + n, sz - n, 0);
 				if(ret > 0) {
 					n += ret;
@@ -513,7 +581,7 @@ head:
 				break;
 			case 0x9: // ping
 				fprintf(stderr, "[%s] websocket %s ping: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
-				if(!ws_send(fd, WS_CTL_PONG_MASK, ptr, sz)) goto err;
+				if(!ws_send(fd, WS_CTL_PONG_MASK, ptr, sz, WS_SEND_TIMEOUT)) goto err;
 				goto gobegin;
 			case 0xA: // pong
 				fprintf(stderr, "[%s] websocket %s pong: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
@@ -548,6 +616,8 @@ err:
 	return NULL;
 }
 
+static int sound_loading = 0;
+
 static void *conn_sound_thread(void *arg) {
 	const int DELAY = 4;
 	int fd = 0, sz = 0, n = 0, delay = 0, i;
@@ -555,7 +625,7 @@ static void *conn_sound_thread(void *arg) {
 	
 	while(is_running) {
 		if(fd) {
-			ptr = ws_recv(fd, &sz, &old, &n, __func__);
+			ptr = ws_recv(fd, &sz, &old, &n, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(sz != bufsize) {
 					fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, bufsize);
@@ -597,7 +667,9 @@ static void *conn_sound_thread(void *arg) {
 				delay = 0;
 			}
 		} else {
-			fd = ws_conn(__func__, "/ws/v1/minisound", 5);
+			sound_loading = 1;
+			fd = ws_conn(__func__, "/ws/v1/minisound", WS_CONN_TIMEOUT);
+			sound_loading = 0;
 		}
 	}
 	
@@ -609,7 +681,7 @@ static void *conn_sound_thread(void *arg) {
 
 static GtkWidget *videoFrame = NULL, *sizeFrame = NULL;
 static GtkImage *videoImg = NULL;
-static int video_fps = 0, video_frames = 0;
+static int video_fps = 0, video_frames = 0, video_loading = 0;
 
 static void *conn_video_thread(void *arg) {
 	int fd = 0, sz = 0, n = 0;
@@ -617,7 +689,7 @@ static void *conn_video_thread(void *arg) {
 	
 	while(is_running) {
 		if(fd) {
-			ptr = ws_recv(fd, &sz, &old, &n, __func__);
+			ptr = ws_recv(fd, &sz, &old, &n, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(is_running) {
 					gdk_threads_enter();
@@ -646,7 +718,9 @@ static void *conn_video_thread(void *arg) {
 				close(fd);
 			}
 		} else {
-			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", 5);
+			video_loading = 1;
+			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", WS_CONN_TIMEOUT);
+			video_loading = 0;
 		}
 	}
 	
@@ -1002,7 +1076,9 @@ static char *get_title() {
 	}
 	
 	char *title = NULL;
-	asprintf(&title, "Sound FFT - %s:%d - %s - %d", servhost, servport, mode, video_fps);
+	asprintf(&title, "Sound FFT - %s:%d - %s - %d fps", servhost, servport, mode, video_fps);
+	if(sound_loading) asprintf(&title, "%s - Sound loading", title);
+	if(video_loading) asprintf(&title, "%s - Video loading", title);
 	
 	return title;
 }
@@ -1035,7 +1111,7 @@ static void gtk_begin() {
 	gtk_box_pack_start(GTK_BOX(sizeFrame), vbox2, TRUE, TRUE, 0);
 	
 	videoFrame = gtk_image_new();
-	gtk_widget_set_size_request(videoFrame, 200, 200);
+	gtk_widget_set_size_request(videoFrame, 800, 200);
 	gtk_box_pack_start(GTK_BOX(sizeFrame), videoFrame, TRUE, TRUE, 0);
 	
 	videoImg = GTK_IMAGE(videoFrame);
@@ -1216,6 +1292,9 @@ end:
 	is_running = false;
 	sem_post(&sem);
 	
+	snd_pcm_drain(gp_handle);
+	snd_pcm_close(gp_handle);
+
 	if(pthread_join(play_tid, NULL)) {
 		perror("pthread_join failure");
 	}
@@ -1234,9 +1313,6 @@ end:
 	gtk_end();
 
 	sem_destroy(&sem);
-
-	snd_pcm_drain(gp_handle);
-	snd_pcm_close(gp_handle);
 
 	for(int i = 0; i < BUFSIZE; i ++) {
 		if(bufs[i]) free(bufs[i]);
