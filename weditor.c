@@ -152,7 +152,7 @@ static char *get_title();
 
 volatile bool is_running = true;
 
-static sem_t sem;
+static sem_t play_sem;
 #define BUFSIZE 64
 static short *bufs[BUFSIZE];
 static int bufsize;
@@ -175,16 +175,16 @@ static void *play_sound_thread(void *arg) {
 	char buf[128];
 	
 	snd_pcm_pause(gp_handle, 0);
-	sem_wait(&sem);
+	sem_wait(&play_sem);
 	while(is_running) {
-		if(!sem_getvalue(&sem, &ret) && ret > MAX_QUE) {
+		if(!sem_getvalue(&play_sem, &ret) && ret > MAX_QUE) {
 			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
 
 			for(; ret > MIN_QUE; ret--) {
 				playpos ++;
 				if(playpos >= BUFSIZE) playpos = 0;
 
-				sem_wait(&sem);
+				sem_wait(&play_sem);
 			}
 		}
 
@@ -206,7 +206,7 @@ static void *play_sound_thread(void *arg) {
 			break;
 		}
 
-		while(sem_trywait(&sem) && is_running) usleep(10000); // sleep 10ms
+		while(sem_trywait(&play_sem) && is_running) usleep(10000); // sleep 10ms
 	}
 	pthread_exit(NULL);
 }
@@ -216,19 +216,23 @@ static void *play_sound_thread(void *arg) {
 #define WS_CONN_TIMEOUT 5
 #define WS_SEND_TIMEOUT 5
 #define WS_RECV_TIMEOUT 5
+#define WS_SEND_MASK 1
 
-#define WS_CTL_TXT_MASK 0x81
-#define WS_CTL_TXT_NOMASK 0x01
-#define WS_CTL_BIN_MASK 0x82
-#define WS_CTL_BIN_NOMASK 0x02
-#define WS_CTL_PING_MASK 0x89
-#define WS_CTL_PING_NOMASK 0x09
-#define WS_CTL_PONG_MASK 0x8a
-#define WS_CTL_PONG_NOMASK 0x0a
+#define WS_CTL_TXT 0x81
+#define WS_CTL_BIN 0x82
+#define WS_CTL_PING 0x89
+#define WS_CTL_PONG 0x8a
 
 static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer, int recv_buffer) {
-	setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(int)); // 发送超时
-	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(int)); // 接收超时
+	struct timeval tv;
+ 
+    tv.tv_usec = 0;
+    tv.tv_sec = send_timeout;
+	setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)); // 发送超时
+
+    tv.tv_usec = 0;
+    tv.tv_sec = recv_timeout;
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)); // 接收超时
 
 	setsockopt(s, SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(int));//发送缓冲区大小
 	setsockopt(s, SOL_SOCKET, SO_RCVBUF, &recv_buffer, sizeof(int));//接收缓冲区大小
@@ -301,7 +305,8 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 		size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
 		size += snprintf(buf + size, sizeof(buf), "\r\n");
 		
-		fcntl(fd, F_SETFL, flags);
+		flags = fcntl(fd, F_GETFL);
+		fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
 		
 	loopsend:
 		ret = send(fd, buf + sz, size - sz, 0);
@@ -331,16 +336,9 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			
 			if(strncmp(buf, "HTTP/1.1 101 ", sizeof("HTTP/1.1 101 ") - 1)) goto err;
 			
-		#if 1
 			if(!strstr(buf, "\r\nUpgrade: websocket\r\n")) goto err;
 			if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
 			if(!strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n")) goto err;
-		#elif 0
-			ptr = strstr(buf, "Sec-WebSocket-Accept:");
-			printf("%p\n", ptr);
-		#else
-			printf("%s", buf);
-		#endif
 			
 			fprintf(stderr, "[%s] websocket %s connected\n", nowtime(buf, sizeof(buf)), func);
 		} else {
@@ -348,26 +346,36 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			close(fd);
 			fd = 0;
 		}
-		return fd;
+		if(fd) {
+			ws_setopt(fd, 300, 300, 128 * 1024, 128 * 1024);
+			return fd;
+		} else {
+			return 0;
+		}
 	}
 }
 
-static int ws_send(int fd, int ctl, char *buf, int size, int timeout) {
-	char *ptr = (char*) malloc(size + 14), *mask = "1234";
+#define WS_SEND(fd, ctl, is_mask, str, timeout) ws_send(fd, ctl, is_mask, str, sizeof(str) - 1, timeout, __func__)
+
+static int ws_send(int fd, int ctl, int is_mask, char *data, int size, int timeout, const char *func) {
+	char *ptr, mask[8] = {0x33, 0x66, 0x99, 0xcc}, buf[128];
 	int i = 0, j, sz, ret;
 	struct timeval tv;
 	fd_set set;
 	double t;
 	
+	if(is_mask) is_mask = 0x80;
+	
+	ptr = (char*) malloc(size + 14);
 	ptr[i++] = ctl;
 	if(size <= 125) {
-		ptr[i++] = size;
+		ptr[i++] = size | is_mask;
 	} else if(size > 125 && size < 65536) {
-		ptr[i++] = 126;
+		ptr[i++] = 126 | is_mask;
 		ptr[i++] = size >> 8;
 		ptr[i++] = size;
 	} else {
-		ptr[i++] = 127;
+		ptr[i++] = 127 | is_mask;
 		ptr[i++] = 0;
 		ptr[i++] = 0;
 		ptr[i++] = 0;
@@ -377,20 +385,23 @@ static int ws_send(int fd, int ctl, char *buf, int size, int timeout) {
 		}
 	}
 	
-	if(ctl & 0x80) { // have mask
+	if(is_mask) {
 		memcpy(ptr + i, mask, 4);
 		i += 4;
 		
-		j = 0;
-		while(size > 0) {
-			ptr[i++] = buf[j] ^ mask[j % 4];
+		for(j = 0; j < size; j ++) {
+			ptr[i++] = data[j] ^ mask[j % 4];
+		}
+	} else {
+		for(j = 0; j < size; j ++) {
+			ptr[i++] = data[j];
 		}
 	}
 	
 	sz = 0;
 	t = microtime() + timeout;
+
 loopsend:
-			
 	do {
 		tv.tv_sec = 0;
 		tv.tv_usec = WS_SELECT_USEC;
@@ -412,6 +423,7 @@ loopsend:
 		free(ptr);
 		return 1;
 	} else {
+		if(ret == 0) fprintf(stderr, "[%s] websocket %s disconnected\n", nowtime(buf, sizeof(buf)), func);
 	err:
 		free(ptr);
 		return 0;
@@ -420,7 +432,7 @@ loopsend:
 
 static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, int *is_bin, int timeout, const char *func) {
 	char *ptr = NULL;
-	int ret, i, n = 0, sz, ctl;
+	int ret, i, n, sz, ctl;
 	unsigned char buf[1024] = {0};
 	char mask[8];
 	struct timeval tv;
@@ -428,6 +440,7 @@ static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, int *is_bi
 	double t;
 	
 begin:
+	n = 0;
 	if(*prev_ptr) {
 		if(*prev_n > 0) {
 			n = *prev_n;
@@ -443,6 +456,8 @@ begin:
 
 	t = microtime() + timeout;
 	
+	if(n > 0) goto protocol;
+slt:
 	do {
 		tv.tv_sec = 0;
 		tv.tv_usec = WS_SELECT_USEC;
@@ -453,13 +468,14 @@ begin:
 		ret = select(fd+1, &set, NULL, NULL, &tv);
 	} while(ret == 0 && microtime() < t && is_running);
 	
-	if(ret < 0 || !is_running) goto err;
+	if(ret <= 0 || !is_running) goto err;
 	
 head:
 	ret = recv(fd, buf + n, sizeof(buf) - n, 0);
 	if(ret > 0) {
 		n += ret;
 		
+	protocol:
 		if(n < 2) goto head;
 
 		ctl = buf[0] & 0xf;
@@ -471,8 +487,6 @@ head:
 		}
 
 		if(buf[1] & 0x80) {
-			if(n < 6) goto head;
-			
 			if(sz == 126) {
 				if(n < 8) goto head;
 				
@@ -493,6 +507,8 @@ head:
 				*size = sz;
 				i = 14;
 			} else {
+				if(n < 6) goto head;
+				
 				memcpy(mask, buf + 2, 4);
 				*size = sz;
 				i = 6;
@@ -535,7 +551,7 @@ head:
 				memcpy(*prev_ptr, buf + i + sz, n);
 			}
 		} else {
-			memcpy(ptr, buf + i, n);
+			if(n > 0) memcpy(ptr, buf + i, n);
 			
 			while(n < sz) {
 				do {
@@ -548,7 +564,7 @@ head:
 					ret = select(fd+1, &set, NULL, NULL, &tv);
 				} while(ret == 0 && microtime() < t && is_running);
 				
-				if(ret < 0 || !is_running) goto err;
+				if(ret <= 0 || !is_running) goto err;
 
 				ret = recv(fd, ptr + n, sz - n, 0);
 				if(ret > 0) {
@@ -560,6 +576,8 @@ head:
 				}
 			}
 		}
+		
+		n = 0;
 		
 		if((buf[1] & 0x80)) { // Mask
 			for(i = 0; i < sz; i++) {
@@ -584,8 +602,9 @@ head:
 				break;
 			case 0x9: // ping
 				fprintf(stderr, "[%s] websocket %s ping: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
-				if(!ws_send(fd, WS_CTL_PONG_MASK, ptr, sz, WS_SEND_TIMEOUT)) goto err;
+				if(!ws_send(fd, WS_CTL_PONG, WS_SEND_MASK, ptr, sz, WS_SEND_TIMEOUT, __func__)) goto err;
 				goto gobegin;
+				break;
 			case 0xA: // pong
 				fprintf(stderr, "[%s] websocket %s pong: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
 				
@@ -594,8 +613,6 @@ head:
 					free(ptr);
 					ptr = NULL;
 				}
-				n = 0;
-				sz = 0;
 				goto begin;
 				break;
 			default:
@@ -603,12 +620,14 @@ head:
 				goto err;
 				break;
 		}
-	} else {
+		
+		return ptr;
+	} else if(ret) {
 		char *err = strerror(errno);
 		fprintf(stderr, "[%s] websocket %s protocol head error: %s\n", nowtime(buf, sizeof(buf)), func, err);
+	} else {
+		fprintf(stderr, "[%s] websocket %s disconnected\n", nowtime(buf, sizeof(buf)), func);
 	}
-	
-	return ptr;
 
 err:
 	if(ptr) {
@@ -641,12 +660,12 @@ static void *conn_sound_thread(void *arg) {
 						memcpy(bufs[bufpos], ptr, sz);
 
 						if(delay > DELAY) {
-							sem_post(&sem);
+							sem_post(&play_sem);
 						} else if(delay < DELAY) {
 							delay ++;
 						} else {
 							for(i = 0; i <= delay; i ++) {
-								sem_post(&sem);
+								sem_post(&play_sem);
 							}
 							delay ++;
 						}
@@ -664,17 +683,24 @@ static void *conn_sound_thread(void *arg) {
 				}
 				
 				free(ptr);
+				ptr = NULL;
 			} else {
 				close(fd);
 				fd = 0;
 				if(delay < DELAY) {
 					for(i = 0; i < delay; i ++) {
-						sem_post(&sem);
+						sem_post(&play_sem);
 					}
 				}
 				delay = 0;
 			}
 		} else {
+			n = 0;
+			if(old) {
+				free(old);
+				old = NULL;
+			}
+			
 			sound_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minisound", WS_CONN_TIMEOUT);
 			sound_loading = 0;
@@ -688,8 +714,7 @@ static void *conn_sound_thread(void *arg) {
 }
 
 static GtkWidget *videoFrame = NULL, *sizeFrame = NULL;
-static GtkImage *videoImg = NULL;
-static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0;
+static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0, video_width = 0, video_height = 0;
 
 static void *conn_video_thread(void *arg) {
 	int fd = 0, sz = 0, n = 0, is_bin = 0;
@@ -705,7 +730,7 @@ static void *conn_video_thread(void *arg) {
 						GdkPixbufLoader *loader;
 						GdkPixbuf *pixbuf;
 
-						if(videoImg) {
+						if(videoFrame) {
 							gdk_threads_enter();
 							video_frames ++;
 							loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
@@ -713,9 +738,13 @@ static void *conn_video_thread(void *arg) {
 							if(gdk_pixbuf_loader_close(loader, NULL)) {
 								pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 								if(pixbuf) {
-									if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, gdk_pixbuf_get_height(pixbuf));
-									if(videoFrame) gtk_widget_set_size_request(videoFrame, gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf));
-									if(videoImg) gtk_image_set_from_pixbuf(videoImg, pixbuf);
+									video_width = gdk_pixbuf_get_width(pixbuf);
+									video_height = gdk_pixbuf_get_height(pixbuf);
+									if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, video_height);
+									if(videoFrame) {
+										gtk_widget_set_size_request(videoFrame, video_width, video_height);
+										gdk_draw_pixbuf(videoFrame->window, videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)], pixbuf, 0, 0, 0, 0, video_width, video_height, GDK_RGB_DITHER_NORMAL, 0, 0);
+									}
 								}
 							}
 							g_object_unref(loader);
@@ -736,9 +765,199 @@ static void *conn_video_thread(void *arg) {
 				close(fd);
 			}
 		} else {
+			n = 0;
+			if(old) {
+				free(old);
+				old = NULL;
+			}
+			
 			video_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", WS_CONN_TIMEOUT);
 			video_loading = 0;
+		}
+	}
+	
+	if(fd) close(fd);
+	if(old) free(old);
+	pthread_exit(NULL);
+}
+
+typedef struct {
+	int e;
+	float x;
+	float y;
+} touch_event_t;
+
+#define TOUCH_EVENT_SIZE 512
+static touch_event_t touch_events[TOUCH_EVENT_SIZE];
+volatile int touch_event_pos = 0, touch_event_size = 0, touch_event_loading = 0;
+static pthread_mutex_t touch_lock;
+
+static void touch_event_push(int event, int x, int y) {
+	touch_event_t *ptr;
+	int pos, x2, y2, w, h;
+	
+	if(touch_event_loading) return;
+
+	switch(video_rotation) {
+        case 0:
+        default:
+        	w = video_width;
+        	h = video_height;
+        	x2 = x;
+        	y2 = y;
+            break;
+        case 90:
+        	w = video_height;
+        	h = video_width;
+            x2 = video_height - y;
+            y2 = x;
+            break;
+        case 180:
+        	w = video_width;
+        	h = video_height;
+            x2 = video_width - x;
+            y2 = video_height - y;
+            break;
+        case 270:
+        	w = video_height;
+        	h = video_width;
+            x2 = y;
+            y2 = video_width - x;
+            break;
+    }
+	
+	pthread_mutex_lock(&touch_lock);
+	if(touch_event_size < TOUCH_EVENT_SIZE) {
+		pos = touch_event_pos + (touch_event_size++);
+		if(pos >= TOUCH_EVENT_SIZE) pos = 0;
+		ptr = &touch_events[pos];
+		
+		ptr->e = event;
+		ptr->x = (float) x2 / (float) w;
+		ptr->y = (float) y2 / (float) h;
+	}
+	pthread_mutex_unlock(&touch_lock);
+}
+
+static int touch_event_send(int fd) {
+	touch_event_t *ptr;
+	int sz, e;
+	float x, y;
+	char buf[256];
+	
+	while(1) {
+		pthread_mutex_lock(&touch_lock);
+		if(touch_event_size) {
+			touch_event_size --;
+			
+			ptr = &touch_events[touch_event_pos];
+
+			e = ptr->e;
+			x = ptr->x;
+			y = ptr->y;
+			
+			touch_event_pos ++;
+			if(touch_event_pos >= TOUCH_EVENT_SIZE) touch_event_pos = 0;
+			
+			sz = 1;
+		} else {
+			sz = 0;
+		}
+		pthread_mutex_unlock(&touch_lock);
+		
+		if(sz) {
+			sz = snprintf(buf, sizeof(buf), "{\"operation\":\"%c\",\"index\":0,\"pressure\":0.5,\"xP\":%g,\"yP\":%g}", e, x, y);
+			if(sz >= sizeof(buf)) {
+				fprintf(stderr, "[%s] snprintf buffer size error\n", nowtime(buf, sizeof(buf)));
+				return 0;
+			}
+			if(!ws_send(fd, WS_CTL_TXT, WS_SEND_MASK, buf, sz, WS_SEND_TIMEOUT, __func__)) {
+				return 0;
+			}
+			if(!WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"c\"}", WS_SEND_TIMEOUT)) {
+				return 0;
+			}
+		} else {
+			break;
+		}
+	}
+	return 1;
+}
+
+static void *touch_event_thread(void *arg) {
+	int fd = 0, sz = 0, n = 0, is_bin = 0, pos, ret;
+	char *ptr, *old = NULL;
+	struct timeval tv;
+	fd_set set;
+	touch_event_t evt;
+	char buf[128];
+	
+	while(is_running) {
+		if(fd) {
+			// ======== recv touch message ========
+			
+			tv.tv_sec = 0;
+			tv.tv_usec = WS_SELECT_USEC;
+			
+			FD_ZERO(&set);
+			FD_SET(fd, &set);
+			
+			ret = 0;
+			if((ret = select(fd+1, &set, NULL, NULL, &tv)) > 0) {
+			recv:
+				ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
+				if(ptr) {
+					if(is_running) {
+						if(is_bin) printf("[%s] touch data is binary\n", nowtime(buf, sizeof(buf)));
+						else printf("[%s] touch data: %s\n", nowtime(buf, sizeof(buf)), ptr);
+					}
+					
+					free(ptr);
+					ptr = NULL;
+					if(old && n) goto recv;
+				} else {
+					printf("%s:%d close\n", __func__, __LINE__);
+					close(fd);
+					fd = 0;
+					continue;
+				}
+			} else if(ret < 0) {
+				printf("%s:%d close\n", __func__, __LINE__);
+				close(fd);
+				fd = 0;
+				continue;
+			}
+			
+			// ======== send touch event ========
+			
+			tv.tv_sec = 0;
+			tv.tv_usec = WS_SELECT_USEC;
+			
+			FD_ZERO(&set);
+			FD_SET(fd, &set);
+			
+			ret = 0;
+			if(((ret = select(fd+1, NULL, &set, NULL, &tv)) > 0 && !touch_event_send(fd)) || ret < 0) {
+				printf("%s:%d close\n", __func__, __LINE__);
+				close(fd);
+				fd = 0;
+				continue;
+			}
+		} else {
+			n = 0;
+			if(old) {
+				free(old);
+				old = NULL;
+			}
+			
+			touch_event_loading = 1;
+			fd = ws_conn(__func__, "/ws/v1/minitouch?deviceId=android:", WS_CONN_TIMEOUT);
+			touch_event_loading = 0;
+			if(fd && !WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"r\"}", WS_SEND_TIMEOUT)) {
+				close(fd);
+				fd = 0;
+			}
 		}
 	}
 	
@@ -779,8 +998,6 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
 
-	// printf("%s:%d %d\n", __func__, __LINE__, pos);
-
 	dBs = (calc_t*) malloc(channels * sizeof(calc_t));
 
 	data = bufs[bufpos];
@@ -795,13 +1012,10 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 		}
 	}
 
-	//printf("%s", nowtime(buf, sizeof(buf)));
 	for(i = 0; i < channels; i++) {
 		dBs[i].db = dBs[i].sum * 100.0 / (g_frames * 32767.0);
 		if(dBs[i].db > 100) dBs[i].db = 100;
-		// printf("%9d", dBs[i].db);
 	}
-	// printf("\n");
 
 	gdk_draw_rectangle(pixmapVolume, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
@@ -844,8 +1058,6 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	update_rect.y = 0;
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
-
-	// printf("%s:%d %d\n", __func__, __LINE__, pos);
 
 	gint h = widget->allocation.height / channels, h2 = h / 2;
 	double w = (double) widget->allocation.width / (double) g_frames;
@@ -970,8 +1182,6 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
 
-	// printf("%s:%d %d\n", __func__, __LINE__, pos);
-
 	for(c = 0; c < channels; c ++) {
 		if(!fft_val[c]) fft_val[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 		if(!fft_res[c]) fft_res[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
@@ -1077,8 +1287,33 @@ static void scribble_delete_event(GtkWidget *widget, GdkEventButton *event, gpoi
 	gtk_main_quit();
 }
 
+static int video_is_press = 0;
+static void scribble_button_press_event_video(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
+	touch_event_push('d', event->x, event->y);
+	video_is_press = 1;
+	// printf("mouse press: button = %d, type = %d, x = %f, y = %f\n", event->button, event->type, event->x, event->y);
+}
+
+static void scribble_motion_notify_event_video(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
+
+	if(video_is_press) {
+		touch_event_push('m', event->x, event->y);
+		
+		// printf("motion x = %f, motion y = %f\n", event->x, event->y);
+	}
+}
+
+static void scribble_button_release_event_video(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
+	if(video_is_press) {
+		video_is_press = 0;
+		touch_event_push('u', event->x, event->y);
+		
+		// printf("mouse release: button = %d, type = %d, x = %f, y = %f\n", event->button, event->type, event->x, event->y);
+	}
+}
+
 static char *get_title() {
-	char *mode = NULL;
+	char *mode = NULL, *title = NULL;
 	
 	switch(fft_mode) {
 		case 0:
@@ -1093,10 +1328,10 @@ static char *get_title() {
 			break;
 	}
 	
-	char *title = NULL;
 	asprintf(&title, "Sound FFT - %s:%d - %s - %d fps", servhost, servport, mode, video_fps);
 	if(sound_loading) asprintf(&title, "%s - Sound loading", title);
 	if(video_loading) asprintf(&title, "%s - Video loading", title);
+	if(touch_event_loading) asprintf(&title, "%s - Touch loading", title);
 	
 	return title;
 }
@@ -1128,11 +1363,19 @@ static void gtk_begin() {
 	gtk_container_set_border_width(GTK_CONTAINER(vbox2), 0);
 	gtk_box_pack_start(GTK_BOX(sizeFrame), vbox2, TRUE, TRUE, 0);
 	
-	videoFrame = gtk_image_new();
+	videoFrame = gtk_drawing_area_new();
 	gtk_widget_set_size_request(videoFrame, 800, 200);
-	gtk_box_pack_start(GTK_BOX(sizeFrame), videoFrame, TRUE, TRUE, 0);
-	
-	videoImg = GTK_IMAGE(videoFrame);
+	gtk_box_pack_end(GTK_BOX(sizeFrame), videoFrame, TRUE, TRUE, 0);
+
+	{
+		GtkObject *obj = (GtkObject*) G_OBJECT(videoFrame);
+		
+		g_signal_connect(obj, "button_press_event", G_CALLBACK(scribble_button_press_event_video), NULL);
+		g_signal_connect(obj, "motion_notify_event", G_CALLBACK(scribble_motion_notify_event_video), NULL);
+		g_signal_connect(obj, "button_release_event", G_CALLBACK(scribble_button_release_event_video), NULL);
+		
+		gtk_widget_add_events(videoFrame, GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK);
+	}
 
 	vbox = gtk_vbox_new(FALSE, 10);
 	gtk_container_set_border_width(GTK_CONTAINER(vbox), 0);
@@ -1151,7 +1394,7 @@ static void gtk_begin() {
 	g_signal_connect(sigVolume, "configure_event", G_CALLBACK(scribble_configure_event_volume), NULL);
 	g_signal_connect(sigVolume, "da_event", G_CALLBACK(scribble_da_event_volume), NULL);
 
-	gtk_widget_set_events(daVolume, gtk_widget_get_events(daVolume) | GDK_LEAVE_NOTIFY_MASK);
+	gtk_widget_add_events(daVolume, GDK_LEAVE_NOTIFY_MASK);
 
 	frameWave = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameWave), GTK_SHADOW_IN);
@@ -1166,7 +1409,7 @@ static void gtk_begin() {
 	g_signal_connect(sigWave, "configure_event", G_CALLBACK(scribble_configure_event_wave), NULL);
 	g_signal_connect(sigWave, "da_event", G_CALLBACK(scribble_da_event_wave), NULL);
 
-	gtk_widget_set_events(daWave, gtk_widget_get_events(daWave) | GDK_LEAVE_NOTIFY_MASK);
+	gtk_widget_add_events(daWave, GDK_LEAVE_NOTIFY_MASK);
 
 	frameFFT = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameFFT), GTK_SHADOW_IN);
@@ -1182,7 +1425,7 @@ static void gtk_begin() {
 	g_signal_connect(sigFFT, "button_press_event", G_CALLBACK(scribble_clicked_event_fft), NULL);
 	g_signal_connect(sigFFT, "da_event", G_CALLBACK(scribble_da_event_fft), NULL);
 
-	gtk_widget_set_events(daFFT, gtk_widget_get_events(daFFT) | GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK);
+	gtk_widget_add_events(daFFT, GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK);
 
 	gtk_widget_show_all(window);
 }
@@ -1251,7 +1494,9 @@ int main(int argc, char *argv[]) {
 
 	fft_num = powf(2, floorf(log2f(g_frames)));
 
-	sem_init(&sem, 0, 0);
+	sem_init(&play_sem, 0, 0);
+	pthread_mutex_init(&touch_lock, NULL);
+	
 	memset(bufs, 0, sizeof(bufs));
 	bufsize = g_frames * channels * 2;
 	for(int i = 0; i < BUFSIZE; i ++) {
@@ -1268,7 +1513,7 @@ int main(int argc, char *argv[]) {
 
 	gtk_begin();
 
-	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0;
+	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -1298,17 +1543,23 @@ int main(int argc, char *argv[]) {
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
-	} else {
-		sem_post(&sem);
-		
-		gdk_threads_enter();
-		gtk_main();
-		gdk_threads_leave();
 	}
+	
+	ret = pthread_create(&touch_tid, &attr, touch_event_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+	
+	sem_post(&play_sem);
+	
+	gdk_threads_enter();
+	gtk_main();
+	gdk_threads_leave();
 
 end:
 	is_running = false;
-	sem_post(&sem);
+	sem_post(&play_sem);
 	
 	snd_pcm_drain(gp_handle);
 	snd_pcm_close(gp_handle);
@@ -1325,12 +1576,16 @@ end:
 	if(pthread_join(fps_tid, NULL)) {
 		perror("pthread_join failure");
 	}
+	if(pthread_join(touch_tid, NULL)) {
+		perror("pthread_join failure");
+	}
 	
 	pthread_attr_destroy(&attr);
 	
 	gtk_end();
 
-	sem_destroy(&sem);
+	sem_destroy(&play_sem);
+	pthread_mutex_destroy(&touch_lock);
 
 	for(int i = 0; i < BUFSIZE; i ++) {
 		if(bufs[i]) free(bufs[i]);
