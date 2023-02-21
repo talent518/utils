@@ -418,7 +418,7 @@ loopsend:
 	}
 }
 
-static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, int timeout, const char *func) {
+static char *ws_recv(int fd, int *size, char **prev_ptr, int *prev_n, int *is_bin, int timeout, const char *func) {
 	char *ptr = NULL;
 	int ret, i, n = 0, sz, ctl;
 	unsigned char buf[1024] = {0};
@@ -569,7 +569,10 @@ head:
 		
 		switch(ctl) {
 			case 0x1: // text
+				if(is_bin) *is_bin = 0;
+				break;
 			case 0x2: // binary
+				if(is_bin) *is_bin = 1;
 				break;
 			case 0x8: // close
 				if(sz > 2) {
@@ -620,39 +623,44 @@ static int sound_loading = 0;
 
 static void *conn_sound_thread(void *arg) {
 	const int DELAY = 4;
-	int fd = 0, sz = 0, n = 0, delay = 0, i;
+	int fd = 0, sz = 0, n = 0, is_bin = 0, delay = 0, i;
 	char *ptr, *old = NULL;
+	char buf[128];
 	
 	while(is_running) {
 		if(fd) {
-			ptr = ws_recv(fd, &sz, &old, &n, WS_RECV_TIMEOUT, __func__);
+			ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
-				if(sz != bufsize) {
-					fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, bufsize);
-				} else {
-					bufpos ++;
-					if(bufpos >= BUFSIZE) bufpos = 0;
-					
-					memcpy(bufs[bufpos], ptr, sz);
-
-					if(delay > DELAY) {
-						sem_post(&sem);
-					} else if(delay < DELAY) {
-						delay ++;
+				if(is_bin) {
+					if(sz != bufsize) {
+						fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, bufsize);
 					} else {
-						for(i = 0; i <= delay; i ++) {
-							sem_post(&sem);
-						}
-						delay ++;
-					}
+						bufpos ++;
+						if(bufpos >= BUFSIZE) bufpos = 0;
+						
+						memcpy(bufs[bufpos], ptr, sz);
 
-					if(is_running) {
-						gdk_threads_enter();
-						if(sigVolume) gtk_signal_emit_by_name(sigVolume, "da_event");
-						if(sigWave) gtk_signal_emit_by_name(sigWave, "da_event");
-						if(sigFFT) gtk_signal_emit_by_name(sigFFT, "da_event");
-						gdk_threads_leave();
+						if(delay > DELAY) {
+							sem_post(&sem);
+						} else if(delay < DELAY) {
+							delay ++;
+						} else {
+							for(i = 0; i <= delay; i ++) {
+								sem_post(&sem);
+							}
+							delay ++;
+						}
+
+						if(is_running) {
+							gdk_threads_enter();
+							if(sigVolume) gtk_signal_emit_by_name(sigVolume, "da_event");
+							if(sigWave) gtk_signal_emit_by_name(sigWave, "da_event");
+							if(sigFFT) gtk_signal_emit_by_name(sigFFT, "da_event");
+							gdk_threads_leave();
+						}
 					}
+				} else {
+					printf("[%s] sound data: %s\n", nowtime(buf, sizeof(buf)), ptr);
 				}
 				
 				free(ptr);
@@ -681,35 +689,45 @@ static void *conn_sound_thread(void *arg) {
 
 static GtkWidget *videoFrame = NULL, *sizeFrame = NULL;
 static GtkImage *videoImg = NULL;
-static int video_fps = 0, video_frames = 0, video_loading = 0;
+static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0;
 
 static void *conn_video_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0;
+	int fd = 0, sz = 0, n = 0, is_bin = 0;
 	char *ptr, *old = NULL;
+	char buf[128];
 	
 	while(is_running) {
 		if(fd) {
-			ptr = ws_recv(fd, &sz, &old, &n, WS_RECV_TIMEOUT, __func__);
+			ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(is_running) {
-					gdk_threads_enter();
-					video_frames ++;
-					if(videoImg) {
-						GdkPixbufLoader *loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
+					if(is_bin) {
+						GdkPixbufLoader *loader;
 						GdkPixbuf *pixbuf;
 
-						gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
-						if(gdk_pixbuf_loader_close(loader, NULL)) {
-							pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-							if(pixbuf) {
-								if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, gdk_pixbuf_get_height(pixbuf));
-								if(videoFrame) gtk_widget_set_size_request(videoFrame, gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf));
-								if(videoImg) gtk_image_set_from_pixbuf(videoImg, pixbuf);
+						if(videoImg) {
+							gdk_threads_enter();
+							video_frames ++;
+							loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
+							gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
+							if(gdk_pixbuf_loader_close(loader, NULL)) {
+								pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+								if(pixbuf) {
+									if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, gdk_pixbuf_get_height(pixbuf));
+									if(videoFrame) gtk_widget_set_size_request(videoFrame, gdk_pixbuf_get_width(pixbuf), gdk_pixbuf_get_height(pixbuf));
+									if(videoImg) gtk_image_set_from_pixbuf(videoImg, pixbuf);
+								}
 							}
+							g_object_unref(loader);
+							gdk_threads_leave();
 						}
-						g_object_unref(loader);
+					} else {
+						printf("[%s] video data: %s\n", nowtime(buf, sizeof(buf)), ptr);
+						
+						if(!strncmp(ptr, "rotation ", sizeof("rotation ") - 1)) {
+							video_rotation = atoi(ptr + sizeof("rotation ") - 1);
+						}
 					}
-					gdk_threads_leave();
 				}
 				
 				free(ptr);
