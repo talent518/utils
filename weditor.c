@@ -180,6 +180,8 @@ static void *play_sound_thread(void *arg) {
 		if(!sem_getvalue(&play_sem, &ret) && ret > MAX_QUE) {
 			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
 
+			snd_pcm_reset(gp_handle);
+
 			for(; ret > MIN_QUE; ret--) {
 				playpos ++;
 				if(playpos >= BUFSIZE) playpos = 0;
@@ -1562,6 +1564,7 @@ end:
 	sem_post(&play_sem);
 	
 	snd_pcm_drain(gp_handle);
+	snd_pcm_reset(gp_handle);
 	snd_pcm_close(gp_handle);
 
 	if(pthread_join(play_tid, NULL)) {
