@@ -496,20 +496,14 @@ YangHuiTriangle3: YangHuiTriangle3.o
 
 %.o: %.c
 	@echo CC $^
-	@$(CC) $(CFLAGS) -o $(@:.o=.s) -S $^
-	@$(CC) $(CFLAGS) -o $(@:.o=.e) -E $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
 
 %.o: %.cpp
 	@echo CXX $^
-	@$(CXX) $(CXXFLAGS) -o $(@:.o=.s) -S $^
-	@$(CXX) $(CXXFLAGS) -o $(@:.o=.e) -E $^
 	@$(CXX) $(CXXFLAGS) -c $^ -o $@
 
 %.O: %.c
 	@echo CC $^
-	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.S) -S $^
-	@$(CC) $(CFLAGS) -fpic -fPIC -o $(@:.O=.E) -E $^
 	@$(CC) $(CFLAGS) -fpic -fPIC -c $^ -o $@
 
 test: url greatestCommonDivisor re mkfont
