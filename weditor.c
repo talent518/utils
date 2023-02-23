@@ -360,7 +360,7 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 #define WS_SEND(fd, ctl, is_mask, str, timeout) ws_send(fd, ctl, is_mask, str, sizeof(str) - 1, timeout, __func__)
 
 static int ws_send(int fd, int ctl, int is_mask, char *data, int size, int timeout, const char *func) {
-	char *ptr, mask[8] = {0x33, 0x66, 0x99, 0xcc}, buf[128];
+	char *ptr, mask[4], buf[128];
 	int i = 0, j, sz, ret;
 	struct timeval tv;
 	fd_set set;
@@ -388,6 +388,10 @@ static int ws_send(int fd, int ctl, int is_mask, char *data, int size, int timeo
 	}
 	
 	if(is_mask) {
+		srand(time(NULL));
+		for(j = 0; j < 4; j ++) {
+			mask[j] = rand() & 0xff;
+		}
 		memcpy(ptr + i, mask, 4);
 		i += 4;
 		
