@@ -17,6 +17,10 @@
 #include <time.h>
 #include <sys/time.h>
 
+#ifndef FB_FILE
+#define FB_FILE "/dev/fb0"
+#endif
+
 double microtime() {
 	struct timeval tp = {0};
 
@@ -55,9 +59,9 @@ static struct fb_var_screeninfo fb_vinfo;
 static int fb_init(void) {
 	int fd;
 	
-	fd = open("/dev/fb0", O_RDWR);
+	fd = open(FB_FILE, O_RDWR);
 	if(fd < 0) {
-		perror("/dev/fb0");
+		perror(FB_FILE);
 		exit(1);
 	}
 
