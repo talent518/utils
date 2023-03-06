@@ -52,6 +52,12 @@ typedef struct {
 static listen_t listens[128];
 static const int nlisten = sizeof(listens)/sizeof(listens[0]);
 
+static int compare(const void *_a, const void *_b) {
+	const listen_t *a = (listen_t*) _a;
+	const listen_t *b = (listen_t*) _b;
+	return b->port - a->port;
+}
+
 void do_stat(const char *file, int is_udp, int is_verb) {
     char line[2048];
     char localaddr[48], remaddr[48];
@@ -78,6 +84,7 @@ void do_stat(const char *file, int is_udp, int is_verb) {
                 if(remport == 0) {
                     listens[i].port = localport;
                     listens[i].inode = inode;
+                    qsort(listens, nlisten, sizeof(listen_t), compare);
                 }
                 break;
             } else if(listens[i].port == localport) {
