@@ -84,7 +84,6 @@ void do_stat(const char *file, int is_udp, int is_verb) {
                 if(remport == 0) {
                     listens[i].port = localport;
                     listens[i].inode = inode;
-                    qsort(listens, nlisten, sizeof(listen_t), compare);
                 }
                 break;
             } else if(listens[i].port == localport) {
@@ -237,6 +236,8 @@ retry:
     }
 
     if(is_prog) do_prog("/proc", 0);
+
+    qsort(listens, nlisten, sizeof(listen_t), compare);
 
     if(is_tty) {
         if(times > 0) fprintf(stdout, "\033[%dF", rows);
