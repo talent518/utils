@@ -10,7 +10,10 @@ repo forall -c 'echo "$REPO_PATH" "$(echo $REPO_RREV|cut -d / -f3)"' > repo2git.
 CNT=$(cat repo2git.lst | wc -l)
 
 I=0
-$(cat repo2git.lst | while read dir ver; do
+cat repo2git.lst | while read dir ver; do
+	if [ -z "$dir" -o -z "$ver" ]; then
+		break
+	fi
 	I=$(expr $I + 1)
 	echo
 	echo -e "\033[34m$(expr $I \* 100 / $CNT)\033[0m% => \033[31m$I\e[0m/\033[32m$CNT\e[0m \033[33m$dir\033[0m" >&2
@@ -43,7 +46,7 @@ $(cat repo2git.lst | while read dir ver; do
 	else
 		echo -e "\033[34m0 files\033[0m" >&2
 	fi
-done | wc -l)
+done
 
 echo "completed $CNT projects"
 
@@ -58,7 +61,7 @@ if [ ! -f ".lock" ]; then
 	if [ $(cat repo2git.files|wc -l) -gt 0 ]; then
 		echo
 		cat repo2git.files | xargs git add -f
-		cat repo2git.file | xargs git commit -v -m"add soft link or copy file" >&2
+		cat repo2git.files | xargs git commit -v -m"add soft link or copy file" >&2
 		touch ".lock"
 	else
 		echo none soft link or copy file >&2
