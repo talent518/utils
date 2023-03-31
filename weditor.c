@@ -26,7 +26,7 @@ static snd_pcm_t *gp_handle;  //调用snd_pcm_open打开PCM设备返回的文件
 static snd_pcm_hw_params_t *gp_params;  //设置流的硬件参数
 static snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
 
-static const int sample_rate = 44100, channels = 2, format_size = 16;
+static int sample_rate = 44100, channels = 2, format_size = 16;
 
 static int set_hardware_params() {
 	int rc;
@@ -1475,12 +1475,14 @@ static void *video_fps_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int ret;
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s <weditor ipv4 address>\n", argv[0]);
+		fprintf(stderr, "usage: %s <weditor ipv4 address> [channels]\n", argv[0]);
 		return -1;
 	}
 	
 	servhost = argv[1];
 	servport = (argc > 2 ? atoi(argv[2]) : 17310);
+
+	if(argc > 3) channels = atoi(argv[3]);
 	
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
