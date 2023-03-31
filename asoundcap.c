@@ -21,13 +21,11 @@ snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
 char *gp_buffer;
 u32 g_bufsize;
 
-int set_hardware_params(int sample_rate, int channels, int format_size) {
+int set_hardware_params(char *name, int sample_rate, int channels, int format_size) {
 	int rc;
 	
-	fprintf(stderr, "sample_rate: %d, channels: %d, format_size: %d\n", sample_rate, channels, format_size);
-	
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_CAPTURE, 0);
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_CAPTURE, 0);
 	if (rc < 0) {
 		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
@@ -129,8 +127,8 @@ void sig_handle(int sig) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc < 3) {
-		fprintf(stderr, "usage: %s file.pcm sample_rate channels format_size\n", argv[0]);
+	if (argc < 5) {
+		fprintf(stderr, "usage: %s file.pcm sample_rate channels format_size [device]\n", argv[0]);
 		return -1;
 	}
 
@@ -142,7 +140,7 @@ int main(int argc, char *argv[]) {
 	int sample_rate = atoi(argv[2]);
 	int channels = atoi(argv[3]);
 	int format_size = atoi(argv[4]);
-	int ret = set_hardware_params(sample_rate, channels, format_size);
+	int ret = set_hardware_params(argc > 5 ? argv[5] : "default", sample_rate, channels, format_size);
 	if (ret < 0) {
 		fprintf(stderr, "set_hardware_params error\n");
 		return -1;

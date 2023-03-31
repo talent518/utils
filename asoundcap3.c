@@ -22,11 +22,11 @@ snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
 char *gp_buffer;
 unsigned int g_bufsize;
 
-int set_hardware_params(int sample_rate, int channels, int format_size) {
+int set_hardware_params(char *name, int sample_rate, int channels, int format_size) {
 	int rc;
 	
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_CAPTURE, 0);
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_CAPTURE, 0);
 	if (rc < 0) {
 		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
@@ -151,8 +151,10 @@ static void *calc_thread(void *arg) {
 	char buf[128];
 	calc_t *dBs = malloc(channels * sizeof(calc_t));
 
-	fprintf(stderr, "%23s%9s%9s\n", "time", "channel1", "channel2");
-	
+	fprintf(stderr, "%23s", "time");
+	for(i = 0; i < channels; i ++) fprintf(stderr, "%8s%d", "channel", i + 1);
+	fprintf(stderr, "\n");
+
 	sem_wait(&sem);
 	while(is_running) {
 		pos ++;
@@ -182,15 +184,16 @@ static void *calc_thread(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s sample_rate channels format_size\n", argv[0]);
+	if (argc < 5) {
+		fprintf(stderr, "usage: %s device sample_rate channels format_size\n", argv[0]);
 		return -1;
 	}
 
-	int sample_rate = atoi(argv[1]);
-	int channels = atoi(argv[2]);
-	int format_size = atoi(argv[3]);
-	int ret = set_hardware_params(sample_rate, channels, format_size);
+	char *name = argv[1];
+	int sample_rate = atoi(argv[2]);
+	int channels = atoi(argv[3]);
+	int format_size = atoi(argv[4]);
+	int ret = set_hardware_params(name, sample_rate, channels, format_size);
 	if (ret < 0) {
 		fprintf(stderr, "set_hardware_params error\n");
 		return -1;

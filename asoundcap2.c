@@ -20,11 +20,11 @@ snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned l
 char *gp_buffer, *gp_buffer_cap;
 unsigned int g_bufsize, g_bufsize_cap;
 
-int set_hardware_params(int sample_rate, int channels, int format_size) {
+int set_hardware_params(char *name, int sample_rate, int channels, int format_size) {
 	int rc;
 	
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_PLAYBACK, 0);
 	if (rc < 0) {
 		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
@@ -113,11 +113,11 @@ err1:
 	return -1;
 }
 
-int setcap_hardware_params(int sample_rate, int channels, int format_size) {
+int setcap_hardware_params(char *name, int sample_rate, int channels, int format_size) {
 	int rc;
 	
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle_cap, "default", SND_PCM_STREAM_CAPTURE, 0);
+	rc = snd_pcm_open(&gp_handle_cap, name, SND_PCM_STREAM_CAPTURE, 0);
 	if (rc < 0) {
 		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
@@ -272,20 +272,21 @@ static void *play_thread(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s sample_rate channels format_size\n", argv[0]);
+	if (argc < 5) {
+		fprintf(stderr, "usage: %s device sample_rate channels format_size\n", argv[0]);
 		return -1;
 	}
 
-	int sample_rate = atoi(argv[1]);
-	int channels = atoi(argv[2]);
-	int format_size = atoi(argv[3]);
-	int ret = set_hardware_params(sample_rate, channels, format_size);
+	char *name = argv[1];
+	int sample_rate = atoi(argv[2]);
+	int channels = atoi(argv[3]);
+	int format_size = atoi(argv[4]);
+	int ret = set_hardware_params(name, sample_rate, channels, format_size);
 	if (ret < 0) {
 		fprintf(stderr, "set_hardware_params error\n");
 		return -1;
 	}
-	ret = setcap_hardware_params(sample_rate, channels, format_size);
+	ret = setcap_hardware_params(name, sample_rate, channels, format_size);
 	if (ret < 0) {
 		fprintf(stderr, "setcap_hardware_params error\n");
 		return -1;
