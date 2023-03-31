@@ -26,12 +26,13 @@ char *gp_buffer;
 unsigned int g_bufsize;
 int sample_rate = 0, channels = 2;
 const int format_size = 16;
+char *name = "default";
 
 int set_hardware_params() {
 	int rc;
 
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_CAPTURE, 0);
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_CAPTURE, 0);
 	if (rc < 0) {
 		fprintf(stderr, "unable to open pcm device\n");
 		return -1;
@@ -631,8 +632,8 @@ static void gtk_loop(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
 	int ret;
-	if (argc < 2 || argc > 3) {
-		fprintf(stderr, "usage: %s sample_rate [channels]\n", argv[0]);
+	if (argc < 2 || argc > 4) {
+		fprintf(stderr, "usage: %s sample_rate [channels] [device]\n", argv[0]);
 		return -1;
 	}
 
@@ -640,6 +641,7 @@ int main(int argc, char *argv[]) {
 	if(argc > 2) {
 		channels = atoi(argv[2]);
 		if(channels > 2) channels = 2;
+		if(argc > 3) name = argv[3];
 	}
 	ret = set_hardware_params();
 	if (ret < 0) {
