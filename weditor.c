@@ -350,6 +350,10 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 		}
 		if(fd) {
 			ws_setopt(fd, 300, 300, 128 * 1024, 128 * 1024);
+			
+			flags = fcntl(fd, F_GETFL);
+			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+			
 			return fd;
 		} else {
 			return 0;
