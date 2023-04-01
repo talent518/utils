@@ -146,6 +146,9 @@ kexec command:
   * lsblk.c => 列出当前系统中已挂载文件系统等信息
   * thread.c => pthread线程的创建与回收
   * Browser.java => javafx实现的内嵌浏览器
+```sh
+java -classpath "$(echo /usr/share/openjfx/lib/*.jar | replace " " ":"):." Browser
+```
   * asound.c => alsa音频播放(PCM)
   * asoundcap.c => alsa录音(PCM)
   * asoundcap2.c => alsa录音并播放(PCM)
