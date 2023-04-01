@@ -253,12 +253,14 @@ static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer
 static char *servhost;
 static int servport;
 static struct sockaddr_in servaddr;
-static int ws_conn(const char *func, const char *path, int timeout) {
+static int _ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
 	int size = 0, ret, sz = 0;
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	int flags = fcntl(fd, F_GETFL);
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	
+	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
 	
 	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
 		if(EINPROGRESS == errno) {
@@ -295,8 +297,6 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 		return 0;
 	} else {
 	connok:
-		fprintf(stderr, "[%s] connect %s success\n", nowtime(buf, sizeof(buf)), func);
-		
 		size += snprintf(buf + size, sizeof(buf), "GET %s HTTP/1.1\r\n", path);
 		size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 		size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
@@ -342,9 +342,10 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
 			if(!strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n")) goto err;
 			
-			fprintf(stderr, "[%s] websocket %s connected\n", nowtime(buf, sizeof(buf)), func);
+			fprintf(stderr, "[%s] websocket %s connected success\n", nowtime(buf, sizeof(buf)), func);
 		} else {
 		err:
+			fprintf(stderr, "[%s] websocket %s connected failure\n", nowtime(buf, sizeof(buf)), func);
 			close(fd);
 			fd = 0;
 		}
@@ -359,6 +360,16 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 			return 0;
 		}
 	}
+}
+
+static int ws_conn(const char *func, const char *path, int timeout) {
+	int fd = 0, i;
+	
+	while(is_running && !(fd = _ws_conn(func, path, timeout))) {
+		for(i = 0; is_running && i < 20 * 3; i ++) usleep(50000);
+	}
+	
+	return fd;
 }
 
 #define WS_SEND(fd, ctl, is_mask, str, timeout) ws_send(fd, ctl, is_mask, str, sizeof(str) - 1, timeout, __func__)
@@ -644,6 +655,11 @@ err:
 		free(ptr);
 		ptr = NULL;
 	}
+	if(*prev_ptr) {
+		free(*prev_ptr);
+		*prev_n = 0;
+		*prev_ptr = NULL;
+	}
 	
 	return NULL;
 }
@@ -773,6 +789,7 @@ static void *conn_video_thread(void *arg) {
 				ptr = NULL;
 			} else {
 				close(fd);
+				fd = 0;
 			}
 		} else {
 			n = 0;
