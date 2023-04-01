@@ -944,13 +944,11 @@ static void *touch_event_thread(void *arg) {
 					ptr = NULL;
 					if(old && n) goto recv;
 				} else {
-					printf("%s:%d close\n", __func__, __LINE__);
 					close(fd);
 					fd = 0;
 					continue;
 				}
 			} else if(ret < 0) {
-				printf("%s:%d close\n", __func__, __LINE__);
 				close(fd);
 				fd = 0;
 				continue;
@@ -966,7 +964,6 @@ static void *touch_event_thread(void *arg) {
 			
 			ret = 0;
 			if(((ret = select(fd+1, NULL, &set, NULL, &tv)) > 0 && !touch_event_send(fd)) || ret < 0) {
-				printf("%s:%d close\n", __func__, __LINE__);
 				close(fd);
 				fd = 0;
 				continue;
