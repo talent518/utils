@@ -5,7 +5,7 @@ CXX = g++
 AR = ar
 RL = ranlib
 
-CFLAGS := $(CFLAGS) -O3 -I. -D_GNU_SOURCE -Wno-deprecated-declarations -Wno-pointer-sign -Wformat-truncation=0 # -DHAVE_FTP_SSL
+CFLAGS := $(CFLAGS) -O3 -I. -D_GNU_SOURCE -Wno-deprecated-declarations -Wno-pointer-sign -Wformat-truncation=0 -Wno-packed-bitfield-compat # -DHAVE_FTP_SSL
 LFLAGS := $(LFLAGS) -lm -L. -Wl,-rpath,. -Wl,-rpath,$(PWD) # -lssl -lcrypto
 CXXFLAGS :=
 LXXFLAGS :=
@@ -33,6 +33,11 @@ LFLAGS += $(shell pkg-config --libs gtk+-2.0)
 
 all:
 	@echo -n
+
+all: struct-bit-field
+struct-bit-field: struct-bit-field.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
 
 all: cpu-memory-info
 cpu-memory-info: cpu-memory-info.o
