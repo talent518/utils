@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <sys/random.h>
 #include <semaphore.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define CRC16_NO_MAIN
 #include "crc16.c"
@@ -37,6 +39,14 @@ static const uint8_t strmap[64]={
     '8', '9', '+', '/' 
 };
 
+double microtime() {
+    struct timeval tv = {0, 0};
+
+    if(gettimeofday(&tv, NULL)) tv.tv_sec = time(NULL);
+
+    return (double) tv.tv_sec + tv.tv_usec / 1000000.0f;
+}
+
 void sighandler(int sig) {
 	is_running = false;
 }
@@ -46,6 +56,7 @@ void *strbuf_read(void *arg) {
 	uint16_t sz = 0;
 	uint64_t n = 0;
 	bool is_ok = true;
+	double t = microtime(), t2;
 	
 	while(is_running) {
 		sz = smart_str_get(strbuf, buf, szHDR);
@@ -60,7 +71,10 @@ void *strbuf_read(void *arg) {
 			if(sz == buf->size) {
 				buf->data[buf->size] = 0;
 				if(buf->crc == crc16(vCRC, (const uint8_t *) buf->data, buf->size)) {
-					printf("%016lX\r", ++n);
+					n++;
+					
+					t2 = (microtime() - t);
+					printf("%016lX %lg %.1lf\r", n, n / t2, t2);
 				} else {
 					is_ok = false;
 					printf("\nCRC ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
