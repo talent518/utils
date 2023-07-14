@@ -64,6 +64,7 @@ u16 crc16(u16 crc, u8 const *buffer, size_t len)
 	return crc;
 }
 
+#ifndef CRC16_NO_MAIN
 int main(int argc, char *argv[]) {
 	int i;
 
@@ -93,4 +94,5 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
+#endif
 

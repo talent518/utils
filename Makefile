@@ -34,6 +34,11 @@ LFLAGS += $(shell pkg-config --libs gtk+-2.0)
 all:
 	@echo -n
 
+all: ss-test
+ss-test: smart_str.o ss-test.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS) -pthread
+
 all: struct-bit-field
 struct-bit-field: struct-bit-field.o
 	@echo LD $@

@@ -1,5 +1,7 @@
 # utils
 杂项源码
+  * smart_str.c => 循环字符串流
+  * ss-test.c => smart_str的测试
   * struct-bit-field.c => C语言结构位字段的使用
   * cpu-memory-info.c => Unix系统下的CPU和内存信息的实时监控
   * nonRepetitiveSequence.c => 不重复序列的生成
