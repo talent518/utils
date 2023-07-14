@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/random.h>
+#include <semaphore.h>
 
 #define CRC16_NO_MAIN
 #include "crc16.c"
@@ -21,11 +22,10 @@ typedef struct {
 defSmartStr(strbuf,2048);
 
 volatile bool is_running = true;
-volatile bool is_will_exit = false;
 
 #define szHDR 4
 #define SIZE 512
-#define vCRC 0x1234
+#define vCRC 0xffff
 
 static const uint8_t strmap[64]={
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
@@ -44,33 +44,41 @@ void sighandler(int sig) {
 void *strbuf_read(void *arg) {
 	strbuf_t *buf = (strbuf_t*) malloc(szHDR + SIZE + 1);
 	uint16_t sz = 0;
-	uint32_t n = 0;
+	uint64_t n = 0;
+	bool is_ok = true;
 	
 	while(is_running) {
 		sz = smart_str_get(strbuf, buf, szHDR);
 		if(sz == 0) {
-			if(is_will_exit) break;
+			continue;
 		} else if(sz < szHDR || buf->size > SIZE) {
-			is_running = false;
-			printf("\nHEADER ERROR\n");
+			is_ok = false;
+			printf("\nHEADER ERROR\n  size: %u\n  crc: %04X\n  sz: %u\n", buf->size, buf->crc, sz);
+			break;
 		} else {
 			sz = smart_str_get(strbuf, buf->data, buf->size);
 			if(sz == buf->size) {
+				buf->data[buf->size] = 0;
 				if(buf->crc == crc16(vCRC, (const uint8_t *) buf->data, buf->size)) {
-					printf("%u\r", ++n);
+					printf("%016lX\r", ++n);
 				} else {
-					is_running = false;
-					buf->data[buf->size] = 0;
+					is_ok = false;
 					printf("\nCRC ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
+					break;
 				}
 			} else {
-				is_running = false;
-				printf("\nDATA ERROR\n");
+				buf->data[sz] = 0;
+				is_ok = false;
+				printf("\nDATA ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
+				break;
 			}
 		}
 	}
 	
 	free(buf);
+	
+	if(is_ok) printf("\n");
+	else is_running = false;
 	
 	pthread_exit(NULL);
 }
@@ -80,7 +88,6 @@ int main(int argc, char *argv[]) {
 	pthread_attr_t attr;
 	strbuf_t *buf;
 	uint16_t i,size;
-	uint32_t times = (argc < 2 ? 10000 : strtoul(argv[1], NULL, 10));
 	uint8_t sizes[SIZE+2];
 	
 	pthread_attr_init(&attr);
@@ -95,7 +102,7 @@ int main(int argc, char *argv[]) {
 	
 	buf = (strbuf_t*) malloc(szHDR + SIZE);
 	
-	while(is_running && times) {
+	while(is_running) {
 		if(getrandom(sizes, sizeof(sizes), GRND_RANDOM) <= 2) {
 			fprintf(stderr, "\ngetrandom: %s\n", strerror(errno));
 			continue;
@@ -107,16 +114,12 @@ int main(int argc, char *argv[]) {
 		}
 		buf->crc = crc16(vCRC, (const uint8_t *) buf->data, buf->size);
 		
-		while(is_running && !smart_str_put(strbuf, buf, szHDR + buf->size)) usleep(10);
-		
-		times--;
+		while(is_running && !smart_str_put(strbuf, buf, szHDR + buf->size));
 	}
 	
 	free(buf);
 
-	is_will_exit = !times;
 	pthread_join(thread, NULL);
-	if(is_running) printf("\n");
 	
 	return 0;
 }
