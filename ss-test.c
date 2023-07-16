@@ -88,15 +88,14 @@ void *strbuf_read(void *arg) {
 			}
 		}
 	}
-	
-	free(buf);
-	
-	is_running = false;
-	
 	if(n % 10000) {
 		t2 = (microtime() - t);
 		printf("%u %.3lf %.3lf\n", n, n / t2, t2);
 	}
+	
+	free(buf);
+	
+	is_running = false;
 	
 	pthread_exit(NULL);
 }
