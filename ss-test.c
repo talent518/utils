@@ -24,9 +24,10 @@ typedef struct {
 defSmartStr(strbuf,2048);
 
 volatile bool is_running = true;
+static uint16_t SIZE = 10;
+static sem_t sem;
 
 #define szHDR 4
-#define SIZE 512
 #define vCRC 0xffff
 
 static const uint8_t strmap[64]={
@@ -54,17 +55,16 @@ void sighandler(int sig) {
 void *strbuf_read(void *arg) {
 	strbuf_t *buf = (strbuf_t*) malloc(szHDR + SIZE + 1);
 	uint16_t sz = 0;
-	uint64_t n = 0;
-	bool is_ok = true;
+	uint32_t n = 0;
 	double t = microtime(), t2;
 	
 	while(is_running) {
+		sem_wait(&sem);
 		sz = smart_str_get(strbuf, buf, szHDR);
 		if(sz == 0) {
-			continue;
+			break;
 		} else if(sz < szHDR || buf->size > SIZE) {
-			is_ok = false;
-			printf("\nHEADER ERROR\n  size: %u\n  crc: %04X\n  sz: %u\n", buf->size, buf->crc, sz);
+			printf("HEADER ERROR\n  size: %u\n  crc: %04X\n  sz: %u\n", buf->size, buf->crc, sz);
 			break;
 		} else {
 			sz = smart_str_get(strbuf, buf->data, buf->size);
@@ -73,17 +73,17 @@ void *strbuf_read(void *arg) {
 				if(buf->crc == crc16(vCRC, (const uint8_t *) buf->data, buf->size)) {
 					n++;
 					
-					t2 = (microtime() - t);
-					printf("%016lX %lg %.1lf\r", n, n / t2, t2);
+					if(n % 10000 == 0) {
+						t2 = (microtime() - t);
+						printf("%u %.3lf %.3lf\n", n, n / t2, t2);
+					}
 				} else {
-					is_ok = false;
-					printf("\nCRC ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
+					printf("CRC ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
 					break;
 				}
 			} else {
 				buf->data[sz] = 0;
-				is_ok = false;
-				printf("\nDATA ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
+				printf("DATA ERROR\n  size: %u\n  crc: %04X\n  data: %s\n", buf->size, buf->crc, buf->data);
 				break;
 			}
 		}
@@ -91,8 +91,12 @@ void *strbuf_read(void *arg) {
 	
 	free(buf);
 	
-	if(is_ok) printf("\n");
-	else is_running = false;
+	is_running = false;
+	
+	if(n % 10000) {
+		t2 = (microtime() - t);
+		printf("%u %.3lf %.3lf\n", n, n / t2, t2);
+	}
 	
 	pthread_exit(NULL);
 }
@@ -102,7 +106,16 @@ int main(int argc, char *argv[]) {
 	pthread_attr_t attr;
 	strbuf_t *buf;
 	uint16_t i,size;
-	uint8_t sizes[SIZE+2];
+	uint32_t times = (argc < 2 ? 100000 : strtoul(argv[1], NULL, 10));
+	uint8_t *sizes;
+	
+	if(argc > 2) {
+		SIZE = strtoul(argv[2], NULL, 10);
+		if(SIZE < 10) SIZE = 10;
+		else if(SIZE + szHDR > ss_strbuf.size) SIZE = ss_strbuf.size - szHDR;
+	}
+	
+	sem_init(&sem, 0, 0);
 	
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -114,11 +127,12 @@ int main(int argc, char *argv[]) {
 	
 	signal(SIGINT, sighandler);
 	
+	sizes = (uint8_t*) malloc(SIZE + 2);
 	buf = (strbuf_t*) malloc(szHDR + SIZE);
 	
-	while(is_running) {
-		if(getrandom(sizes, sizeof(sizes), GRND_RANDOM) <= 2) {
-			fprintf(stderr, "\ngetrandom: %s\n", strerror(errno));
+	while(is_running && times) {
+		if(getrandom(sizes, SIZE + 2, GRND_RANDOM) <= 2) {
+			fprintf(stderr, "getrandom: %s\n", strerror(errno));
 			continue;
 		}
 		
@@ -129,10 +143,15 @@ int main(int argc, char *argv[]) {
 		buf->crc = crc16(vCRC, (const uint8_t *) buf->data, buf->size);
 		
 		while(is_running && !smart_str_put(strbuf, buf, szHDR + buf->size));
+		
+		sem_post(&sem);
+		times --;
 	}
 	
 	free(buf);
+	free(sizes);
 
+	sem_post(&sem);
 	pthread_join(thread, NULL);
 	
 	return 0;
