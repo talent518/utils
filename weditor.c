@@ -252,6 +252,7 @@ static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer
 
 static char *servhost;
 static int servport;
+static char *servpath = "";
 static struct sockaddr_in servaddr;
 static int _ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
@@ -297,7 +298,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 		return 0;
 	} else {
 	connok:
-		size += snprintf(buf + size, sizeof(buf), "GET %s HTTP/1.1\r\n", path);
+		size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", servpath, path);
 		size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 		size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
 		size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
@@ -325,6 +326,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 	looprecv:
 		ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
 		if(ret > 0) {
+			// fwrite(buf + sz, 1, ret, stdout);
 			sz += ret;
 			
 			char *ptr = strstr(buf, "\r\n\r\n");
@@ -340,7 +342,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 			
 			if(!strstr(buf, "\r\nUpgrade: websocket\r\n")) goto err;
 			if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
-			if(!strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n")) goto err;
+			if(!(strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n") || strstr(buf, "\r\nSec-WebSocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n"))) goto err;
 			
 			fprintf(stderr, "[%s] websocket %s connected success\n", nowtime(buf, sizeof(buf)), func);
 		} else {
@@ -1493,14 +1495,14 @@ static void *video_fps_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int ret;
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s <weditor ipv4 address> [channels]\n", argv[0]);
+		fprintf(stderr, "usage: %s <host> [port] [channels] [basepath]\n", argv[0]);
 		return -1;
 	}
 	
 	servhost = argv[1];
 	servport = (argc > 2 ? atoi(argv[2]) : 17310);
-
 	if(argc > 3) channels = atoi(argv[3]);
+	if(argc > 4) servpath = argv[4];
 	
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
