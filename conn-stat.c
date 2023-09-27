@@ -220,11 +220,11 @@ retry:
     if(is_verb) printf("%10s %8s %11s %s\n", "LOCAL-PORT", "REM-PORT", "STATE", "INODE");
 
     if(is_udp) {
-        do_stat("/proc/net/udp", is_udp, is_verb);
         do_stat("/proc/net/udp6", is_udp, is_verb);
+        do_stat("/proc/net/udp", is_udp, is_verb);
     } else {
-        do_stat("/proc/net/tcp", is_udp, is_verb);
         do_stat("/proc/net/tcp6", is_udp, is_verb);
+        do_stat("/proc/net/tcp", is_udp, is_verb);
     }
 
     if(is_verb) {
