@@ -170,7 +170,7 @@ typedef struct {
 
 //获取第N项开始的指针
 const char* get_items(const char*buffer, unsigned int item) {
-	const char *p =buffer;
+	const char *p = buffer;
 
 	int len = strlen(buffer);
 	int count = 0, i;
@@ -244,7 +244,7 @@ int getprocessinfo(int pid, process_t *proc) {
 
 	fclose(fp);
 
-	const char *q = get_items(buff, 14);
+	const char *q = get_items(strchr(buff, ')'), 13);
 	sscanf(q, "%ld%ld%ld%ld", &proc->utime, &proc->stime, &proc->cutime, &proc->cstime);
 	q = get_items(q, 7);
 	sscanf(q, "%u", &proc->threads);
