@@ -308,10 +308,9 @@ int getcomm(char *pid, char *comm) {
 
 	fclose(fp);
 
-    ptr = buff + len - 1;
-    while(buff <= ptr && (*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) {
-        *ptr-- = '\0';
-    }
+	ptr = buff;
+	while(*ptr && !(*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) ptr ++;
+	*ptr = '\0';
 	
 	return !strcmp(buff, comm);
 }
@@ -512,12 +511,12 @@ int main(int argc, char *argv[]) {
 	signal(SIGALRM, ignore_handler);
 	
 	{
-        struct itimerval itv;
+		struct itimerval itv;
 
-        itv.it_interval.tv_sec = itv.it_value.tv_sec = delay;
-        itv.it_interval.tv_usec = itv.it_value.tv_usec = 0;
-        setitimer(ITIMER_REAL, &itv, NULL);
-    }
+		itv.it_interval.tv_sec = itv.it_value.tv_sec = delay;
+		itv.it_interval.tv_usec = itv.it_value.tv_usec = 0;
+		setitimer(ITIMER_REAL, &itv, NULL);
+	}
 
 	while(1) {
 		if(lines) sleep(delay);
