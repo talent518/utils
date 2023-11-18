@@ -778,6 +778,8 @@ static void *conn_video_thread(void *arg) {
 							g_object_unref(loader);
 							gdk_threads_leave();
 						}
+					} else if(!strcmp(ptr, "==equalFrame==")) {
+						video_frames ++;
 					} else {
 						printf("[%s] video data: %s\n", nowtime(buf, sizeof(buf)), ptr);
 						
