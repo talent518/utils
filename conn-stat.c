@@ -314,14 +314,18 @@ retry:
 
     if(is_running && interval > 0) {
     	if(is_tty) {
+    		const int rows3 = rows;
 			for(;rows < rows2;rows++) {
-				fprintf(stdout, "\033[2K\r\n\033[0m");
+				fprintf(stdout, "\033[2K\r\n");
 			}
-			rows2 = rows;
+			if(rows > rows3) fprintf(stdout, "\033[%dF", rows - rows3);
+			rows = rows2 = rows3;
 		}
         sleep(interval);
         goto retry;
     }
+    
+    if(is_tty) fprintf(stdout, "\033[2K\r");
 
     return 0;
 }
