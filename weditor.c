@@ -1394,10 +1394,87 @@ static volatile uint32_t keys[KEY_SIZE];
 static volatile uint32_t key_idx = 0;
 static volatile uint32_t key_size = 0;
 
+static int http_post(const char *func, const char *path, char *append, const char *result) {
+	int fd, size, sz, ret = 0;
+	char buf[2048], post[128];
+	
+	fd = sock_conn(func, 100);
+
+	if(fd == 0) {
+		memset(buf, 0, sizeof(buf));
+		
+		goto end;
+	}
+	
+	size = 0;
+	size += snprintf(buf + size, sizeof(buf), "POST %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
+	size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
+	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Content-Length: %d\r\n", snprintf(post, sizeof(post), "serial=android:%s", append));
+	size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
+	
+	// fprintf(stderr, "%s\n", buf);
+	
+	sz = 0;
+loopsend:
+	ret = send(fd, buf + sz, size - sz, 0);
+	if(ret > 0) {
+		sz += ret;
+		
+		if(!is_running) {
+			ret = 0;
+			goto err;
+		}
+		
+		if(sz < size) goto loopsend;
+	} else {
+		ret = 0;
+		goto err;
+	}
+	
+	sz = 0;
+	memset(buf, 0, sizeof(buf));
+	
+looprecv:
+	ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
+	if(ret > 0) {
+		// fwrite(buf + sz, 1, ret, stdout);
+		sz += ret;
+		
+		char *ptr = strstr(buf, "\r\n\r\n");
+		if(ptr) {
+			return strstr(buf, result) ? 1 : -1;
+		} else {
+			if(!is_running) {
+				ret = 0;
+				goto err;
+			}
+			
+			if(sz < sizeof(buf)) goto looprecv;
+			else {
+				fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
+				ret = 0;
+				goto err;
+			}
+		}
+	}
+err:
+	//fwrite(buf, 1, sz, stderr);
+	//fprintf(stderr, "\n");
+	//fflush(stderr);
+	close(fd);
+end:
+	return ret;
+}
+
 static void *key_event_thread(void *arg) {
 	uint32_t key;
-	int fd, size, sz, ret;
-	char buf[2048], post[128];
+	int ret;
+	char buf[32];
+	double t = microtime() + 10.0;
 	
 	while(is_running) {
 		usleep(10000);
@@ -1408,66 +1485,22 @@ static void *key_event_thread(void *arg) {
 			key_size --;
 			if(key_idx >= KEY_SIZE) key_idx = 0;
 
-			printf("[%s] KEYCODE: %d %02x ...\n", nowtime(post, sizeof(post)), key, key);
-			fd = sock_conn(__func__, 100);
-
-			if(fd == 0) {
-				memset(buf, 0, sizeof(buf));
-				
-				goto end;
+			printf("[%s] KEYCODE: %d %02x ...\n", nowtime(buf, sizeof(buf)), key, key);
+			
+			snprintf(buf, sizeof(buf), "&key=%d", key);
+			ret = http_post(__func__, "/api/v1/press", buf, "{\"ret\": true}");
+			if(ret) {
+				printf("[%s] KEYCODE: %d %02x %s\n", nowtime(buf, sizeof(buf)), key, key, ret > 0 ? "OK" : "ERR");
 			}
 			
-			size = 0;
-			size += snprintf(buf + size, sizeof(buf), "POST %s/api/v1/press HTTP/1.1\r\n", servpath);
-			size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
-			size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
-			size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
-			size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-			size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded\r\n");
-			size += snprintf(buf + size, sizeof(buf), "Content-Length: %d\r\n", snprintf(post, sizeof(post), "serial=android:&key=%d", key));
-			size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
-			
-			// fprintf(stderr, "%s\n", buf);
-			
-			sz = 0;
-		loopsend:
-			ret = send(fd, buf + sz, size - sz, 0);
-			if(ret > 0) {
-				sz += ret;
-				
-				if(!is_running) goto err;
-				if(sz < size) goto loopsend;
-			} else {
-				goto err;
+			t = microtime() + 10.0;
+		} else if(microtime() > t) {
+			printf("[%s] PING ...\n", nowtime(buf, sizeof(buf)));
+			ret = http_post(__func__, "/api/v1/ping", "", "{\"ret\": \"pong\"}");
+			if(ret) {
+				printf("[%s] PING %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
 			}
-			
-			sz = 0;
-			memset(buf, 0, sizeof(buf));
-			
-		looprecv:
-			ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
-			if(ret > 0) {
-				// fwrite(buf + sz, 1, ret, stdout);
-				sz += ret;
-				
-				char *ptr = strstr(buf, "\r\n\r\n");
-				if(!ptr) {
-					if(!is_running) goto err;
-					
-					if(sz < sizeof(buf)) goto looprecv;
-					else {
-						fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
-						goto err;
-					}
-				}
-			}
-		err:
-			//fwrite(buf, 1, sz, stderr);
-			//fprintf(stderr, "\n");
-			//fflush(stderr);
-			close(fd);
-		end:
-			printf("[%s] KEYCODE: %d %02x %s\n", nowtime(post, sizeof(post)), key, key, strstr(buf, "{\"ret\": true}") ? "OK" : "ERR");
+			t = microtime() + 10.0;
 		}
 	}
 	pthread_exit(NULL);
@@ -1485,6 +1518,40 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_Home:
 		case GDK_KEY_HomePage:
 			key = 3; // HOME
+			break;
+		case GDK_KEY_F1:
+		case GDK_KEY_KP_F1:
+			key = 209; // MUSIC
+			break;
+		case GDK_KEY_F2:
+		case GDK_KEY_KP_F2:
+			key = 25; // VOLUE_DOWN
+			break;
+		case GDK_KEY_F3:
+		case GDK_KEY_KP_F3:
+			key = 24; // VOLUE_UP
+			break;
+		case GDK_KEY_F4:
+		case GDK_KEY_KP_F4:
+			key = 164; // VOLUE_MUTE MUTE: 91
+			break;
+		case GDK_KEY_F5:
+			key = 88; // MEDIA_PREVIOUS
+			break;
+		case GDK_KEY_F6:
+			key = 87; // MEDIA_NEXT
+			break;
+		case GDK_KEY_F7:
+			key = 126; // MEDIA_PLAY
+			break;
+		case GDK_KEY_F8:
+			key = 86; // MEDIA_STOP
+			break;
+		case GDK_KEY_F9:
+			key = 3; // HOME
+			break;
+		case GDK_KEY_F11:
+			key = 26; // POWER
 			break;
 		case GDK_KEY_KP_Add: // NumKey -
 			key = '+';
@@ -1623,7 +1690,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 				key = 29 + (event->keyval - 'a');
 				break;
 			}
-			printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
+			// printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
 			return FALSE;
 	}
 	if(key && key_size < KEY_SIZE) {
