@@ -45,6 +45,8 @@ CFLAGS += $(shell pkg-config --cflags glib-2.0 gdk-pixbuf-2.0)
 LFLAGS += $(shell pkg-config --libs glib-2.0 gdk-pixbuf-2.0)
 CFLAGS += $(shell pkg-config --cflags gtk+-2.0)
 LFLAGS += $(shell pkg-config --libs gtk+-2.0)
+CFLAGS += $(shell pkg-config --cflags libcjson)
+LFLAGS += $(shell pkg-config --libs libcjson)
 
 all:
 	@echo -n

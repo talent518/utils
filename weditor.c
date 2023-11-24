@@ -21,6 +21,8 @@
 #include <unistd.h>
 
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
+#include <cJSON.h>
 
 static snd_pcm_t *gp_handle;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 static snd_pcm_hw_params_t *gp_params;  //设置流的硬件参数
@@ -254,16 +256,17 @@ static char *servhost;
 static int servport;
 static char *servpath = "";
 static struct sockaddr_in servaddr;
-static int _ws_conn(const char *func, const char *path, int timeout) {
-	char buf[2048];
-	int size = 0, ret, sz = 0;
+
+static int sock_conn(const char *func, int timeout) {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	int ret;
 	int flags = fcntl(fd, F_GETFL);
+	
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	
-	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
-	
 	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
+		char buf[32];
+		
 		if(EINPROGRESS == errno) {
 			struct timeval tv;
 			fd_set set;
@@ -298,69 +301,86 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 		return 0;
 	} else {
 	connok:
-		size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", servpath, path);
-		size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
-		size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
-		size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
-		size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Key: uQQ1BAbtsumAi1y7Mu4spQ==\r\n");
-		size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Version: 13\r\n");
-		size += snprintf(buf + size, sizeof(buf), "Upgrade: websocket\r\n");
-		size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-		size += snprintf(buf + size, sizeof(buf), "\r\n");
-		
 		flags = fcntl(fd, F_GETFL);
 		fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+		return fd;
+	}
+}
+
+static int _ws_conn(const char *func, const char *path, int timeout) {
+	char buf[2048];
+	int size = 0, ret, sz = 0;
+	int fd;
+
+	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
+	
+	fd = sock_conn(func, timeout);
+	
+	if(fd == 0) return 0;
+	
+	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
+	size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Key: uQQ1BAbtsumAi1y7Mu4spQ==\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Version: 13\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Upgrade: websocket\r\n");
+	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
+	size += snprintf(buf + size, sizeof(buf), "\r\n");
+	
+loopsend:
+	ret = send(fd, buf + sz, size - sz, 0);
+	if(ret > 0) {
+		sz += ret;
 		
-	loopsend:
-		ret = send(fd, buf + sz, size - sz, 0);
-		if(ret > 0) {
-			sz += ret;
-			if(sz < size) goto loopsend;
-		} else {
-			goto err;
-		}
+		if(!is_running) goto err;
+		if(sz < size) goto loopsend;
+	} else {
+		goto err;
+	}
+	
+	sz = 0;
+	memset(buf, 0, sizeof(buf));
+	
+looprecv:
+	ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
+	if(ret > 0) {
+		// fwrite(buf + sz, 1, ret, stdout);
+		sz += ret;
 		
-		sz = 0;
-		memset(buf, 0, sizeof(buf));
-		
-	looprecv:
-		ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
-		if(ret > 0) {
-			// fwrite(buf + sz, 1, ret, stdout);
-			sz += ret;
+		char *ptr = strstr(buf, "\r\n\r\n");
+		if(!ptr) {
+			if(!is_running) goto err;
 			
-			char *ptr = strstr(buf, "\r\n\r\n");
-			if(!ptr) {
-				if(sz < sizeof(buf)) goto looprecv;
-				else {
-					fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
-					goto err;
-				}
+			if(sz < sizeof(buf)) goto looprecv;
+			else {
+				fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
+				goto err;
 			}
-			
-			if(strncmp(buf, "HTTP/1.1 101 ", sizeof("HTTP/1.1 101 ") - 1)) goto err;
-			
-			if(!strstr(buf, "\r\nUpgrade: websocket\r\n")) goto err;
-			if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
-			if(!(strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n") || strstr(buf, "\r\nSec-WebSocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n"))) goto err;
-			
-			fprintf(stderr, "[%s] websocket %s connected success\n", nowtime(buf, sizeof(buf)), func);
-		} else {
-		err:
-			fprintf(stderr, "[%s] websocket %s connected failure\n", nowtime(buf, sizeof(buf)), func);
-			close(fd);
-			fd = 0;
 		}
-		if(fd) {
-			ws_setopt(fd, 300, 300, 128 * 1024, 128 * 1024);
-			
-			flags = fcntl(fd, F_GETFL);
-			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-			
-			return fd;
-		} else {
-			return 0;
-		}
+		
+		if(strncmp(buf, "HTTP/1.1 101 ", sizeof("HTTP/1.1 101 ") - 1)) goto err;
+		
+		if(!strstr(buf, "\r\nUpgrade: websocket\r\n")) goto err;
+		if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
+		if(!(strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n") || strstr(buf, "\r\nSec-WebSocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n"))) goto err;
+		
+		fprintf(stderr, "[%s] websocket %s connected success\n", nowtime(buf, sizeof(buf)), func);
+	} else {
+	err:
+		fprintf(stderr, "[%s] websocket %s connected failure\n", nowtime(buf, sizeof(buf)), func);
+		close(fd);
+		fd = 0;
+	}
+	if(fd) {
+		ws_setopt(fd, 300, 300, 128 * 1024, 128 * 1024);
+		
+		int flags = fcntl(fd, F_GETFL);
+		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+		
+		return fd;
+	} else {
+		return 0;
 	}
 }
 
@@ -743,6 +763,19 @@ static void *conn_sound_thread(void *arg) {
 
 static GtkWidget *videoFrame = NULL, *sizeFrame = NULL;
 static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0, video_width = 0, video_height = 0;
+static double stats[6] = {0, 0, 0, 0, 0, 0};
+#define STAT_ATX_CPU 0
+#define STAT_ATX_MEM 1
+#define STAT_ATX_DISK 2
+#define STAT_WDR_CPU 3
+#define STAT_WDR_MEM 4
+#define STAT_WDR_DISK 5
+
+static double cjson_get_value_double(cJSON *json, char *key) {
+	cJSON *item = cJSON_GetObjectItem(json, key);
+	if(item) return cJSON_GetNumberValue(item);
+	else return 0.0;
+}
 
 static void *conn_video_thread(void *arg) {
 	int fd = 0, sz = 0, n = 0, is_bin = 0;
@@ -778,6 +811,22 @@ static void *conn_video_thread(void *arg) {
 							g_object_unref(loader);
 							gdk_threads_leave();
 						}
+					} else if(!strncmp(ptr, "@SysInfo", 8) || !strncmp(ptr, "@HostInfo", 9)) {
+						bool atx = (ptr[1] == 'S');
+						cJSON *json = cJSON_Parse(ptr + (atx ? 9 : 10));
+						int n = (atx ? 0 : 3);
+						printf("[%s] %s %lg %04.1lf%% %.3lfGB %04.1lf%% %.3lfGB %.3lfGB %04.1lf%%\n",
+							nowtime(buf, sizeof(buf)),
+							atx ? "ATX" : "WDR",
+							cjson_get_value_double(json, "cpuCount"),
+							stats[STAT_ATX_CPU + n] = cjson_get_value_double(json, "cpuPercent"),
+							cjson_get_value_double(json, "memTotal") / 1024.0 / 1024.0 / 1024.0,
+							stats[STAT_ATX_MEM + n] = cjson_get_value_double(json, "memPercent"),
+							cjson_get_value_double(json, "diskTotal") / 1024.0 / 1024.0 / 1024.0,
+							cjson_get_value_double(json, "diskUsed") / 1024.0 / 1024.0 / 1024.0,
+							stats[STAT_ATX_DISK + n] = cjson_get_value_double(json, "diskPercent")
+						);
+						cJSON_free(json);
 					} else if(!strcmp(ptr, "==equalFrame==")) {
 						video_frames ++;
 					} else {
@@ -1340,6 +1389,259 @@ static void scribble_button_release_event_video(GtkWidget *widget, GdkEventButto
 	}
 }
 
+#define KEY_SIZE 128
+static volatile uint32_t keys[KEY_SIZE];
+static volatile uint32_t key_idx = 0;
+static volatile uint32_t key_size = 0;
+
+static void *key_event_thread(void *arg) {
+	uint32_t key;
+	int fd, size, sz, ret;
+	char buf[2048], post[128];
+	
+	while(is_running) {
+		usleep(10000);
+		
+		if(key_size) {
+			key = keys[key_idx];
+			key_idx ++;
+			key_size --;
+			if(key_idx >= KEY_SIZE) key_idx = 0;
+
+			printf("[%s] KEYCODE: %d %02x ...\n", nowtime(post, sizeof(post)), key, key);
+			fd = sock_conn(__func__, 100);
+
+			if(fd == 0) {
+				memset(buf, 0, sizeof(buf));
+				
+				goto end;
+			}
+			
+			size = 0;
+			size += snprintf(buf + size, sizeof(buf), "POST %s/api/v1/press HTTP/1.1\r\n", servpath);
+			size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
+			size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
+			size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
+			size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
+			size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded\r\n");
+			size += snprintf(buf + size, sizeof(buf), "Content-Length: %d\r\n", snprintf(post, sizeof(post), "serial=android:&key=%d", key));
+			size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
+			
+			// fprintf(stderr, "%s\n", buf);
+			
+			sz = 0;
+		loopsend:
+			ret = send(fd, buf + sz, size - sz, 0);
+			if(ret > 0) {
+				sz += ret;
+				
+				if(!is_running) goto err;
+				if(sz < size) goto loopsend;
+			} else {
+				goto err;
+			}
+			
+			sz = 0;
+			memset(buf, 0, sizeof(buf));
+			
+		looprecv:
+			ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
+			if(ret > 0) {
+				// fwrite(buf + sz, 1, ret, stdout);
+				sz += ret;
+				
+				char *ptr = strstr(buf, "\r\n\r\n");
+				if(!ptr) {
+					if(!is_running) goto err;
+					
+					if(sz < sizeof(buf)) goto looprecv;
+					else {
+						fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
+						goto err;
+					}
+				}
+			}
+		err:
+			//fwrite(buf, 1, sz, stderr);
+			//fprintf(stderr, "\n");
+			//fflush(stderr);
+			close(fd);
+		end:
+			printf("[%s] KEYCODE: %d %02x %s\n", nowtime(post, sizeof(post)), key, key, strstr(buf, "{\"ret\": true}") ? "OK" : "ERR");
+		}
+	}
+	pthread_exit(NULL);
+}
+
+static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
+	uint32_t key = 0;
+	
+	// printf("%u %02x\n", event->hardware_keycode, event->hardware_keycode);
+
+	switch(event->keyval) {
+		case GDK_KEY_Escape:
+			key = 4; // BACK
+			break;
+		case GDK_KEY_Home:
+		case GDK_KEY_HomePage:
+			key = 3; // HOME
+			break;
+		case GDK_KEY_KP_Add: // NumKey -
+			key = '+';
+			break;
+		case GDK_KEY_KP_Subtract: // NumKey +
+			key = '-';
+			break;
+		case GDK_KEY_KP_0:
+			key = '0';
+			break;
+		case GDK_KEY_KP_1:
+			key = '1';
+			break;
+		case GDK_KEY_KP_2:
+			key = '2';
+			break;
+		case GDK_KEY_KP_3:
+			key = '3';
+			break;
+		case GDK_KEY_KP_4:
+			key = '4';
+			break;
+		case GDK_KEY_KP_5:
+			key = '5';
+			break;
+		case GDK_KEY_KP_6:
+			key = '6';
+			break;
+		case GDK_KEY_KP_7:
+			key = '7';
+			break;
+		case GDK_KEY_KP_8:
+			key = '8';
+			break;
+		case GDK_KEY_KP_9:
+			key = '9';
+			break;
+		case GDK_KEY_Delete:
+			key = 112;
+			break;
+		case GDK_KEY_BackSpace:
+			key = 67;
+			break;
+		case GDK_KEY_KP_Enter:
+			key = 66;
+			break;
+		case GDK_KEY_Up:
+		case GDK_KEY_KP_Up:
+			key = 19;
+			break;
+		case GDK_KEY_Down:
+		case GDK_KEY_KP_Down:
+			key = 20;
+			break;
+		case GDK_KEY_Left:
+		case GDK_KEY_KP_Left:
+			key = 21;
+			break;
+		case GDK_KEY_Right:
+		case GDK_KEY_KP_Right:
+			key = 22;
+			break;
+		case '`':
+			key = 68;
+			break;
+		// case '~':
+		// case '!':
+		case '@':
+			key = 77;
+			break;
+		case '#':
+			key = 18;
+			break;
+		//case '$':
+		//case '%':
+		//case '^':
+		//case '&':
+		case '*':
+			key = 155;
+			break;
+		case '(':
+			key = 162;
+			break;
+		case ')':
+			key = 163;
+			break;
+		case '-':
+			key = 156;
+			break;
+		//case '_':
+		case '+':
+			key = 81;
+			break;
+		case '=':
+			key = 161;
+			break;
+		case '[':
+			key = 71;
+			break;
+		//case '{':
+		//case '}':
+		case ']':
+			key = 72;
+			break;
+		case '\\':
+			key = 73;
+			break;
+		//case '|':
+		///case ':':
+		case ';':
+			key = 74;
+			break;
+		case '\'':
+			key = 75;
+			break;
+		// case '"':
+		case '/':
+			key = 76;
+			break;
+		// case '?':
+		case '.':
+			key = 56;
+			break;
+		// case '>':
+		case ',':
+			key = 55;
+			break;
+		// case '<':
+		default:
+#if 1
+			if(event->keyval >= '0' && event->keyval <= '9') {
+				key = 7 + (event->keyval - '0');
+				break;
+			}
+			if(event->keyval >= 'a' && event->keyval <= 'z') {
+				key = 29 + (event->keyval - 'a');
+				break;
+			}
+			printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
+			return FALSE;
+	}
+	if(key && key_size < KEY_SIZE) {
+		keys[(key_idx + key_size) % KEY_SIZE] = key;
+		key_size ++;
+	
+		return TRUE;
+	} else {
+		return FALSE;
+	}
+#else
+			break;
+	}
+	printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
+	return TRUE;
+#endif
+}
+
 static char *get_title() {
 	char *mode = NULL, *title = NULL;
 	
@@ -1361,6 +1663,12 @@ static char *get_title() {
 	if(video_loading) asprintf(&title, "%s - Video loading", title);
 	if(touch_event_loading) asprintf(&title, "%s - Touch loading", title);
 	
+	int i;
+	asprintf(&title, "%s - ATX", title);
+	for(i = 0; i < 3; i ++) asprintf(&title, "%s %.1lf%%", title, stats[i]);
+	asprintf(&title, "%s - WDR", title);
+	for(i = 3; i < 6; i ++) asprintf(&title, "%s %.1lf%%", title, stats[i]);
+	
 	return title;
 }
 
@@ -1380,6 +1688,7 @@ static void gtk_begin() {
 	}
 	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(scribble_delete_event), NULL);
+	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(scribble_key_press_event), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 	
 	sizeFrame = gtk_hbox_new(FALSE, 10);
@@ -1543,7 +1852,7 @@ int main(int argc, char *argv[]) {
 
 	gtk_begin();
 
-	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid;
+	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -1581,6 +1890,12 @@ int main(int argc, char *argv[]) {
 		goto end;
 	}
 	
+	ret = pthread_create(&key_tid, &attr, key_event_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+	
 	sem_post(&play_sem);
 	
 	gdk_threads_enter();
@@ -1608,6 +1923,9 @@ end:
 		perror("pthread_join failure");
 	}
 	if(pthread_join(touch_tid, NULL)) {
+		perror("pthread_join failure");
+	}
+	if(pthread_join(key_tid, NULL)) {
 		perror("pthread_join failure");
 	}
 	
