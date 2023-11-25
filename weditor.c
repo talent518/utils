@@ -166,6 +166,7 @@ typedef struct {
 } calc_t;
 
 static GtkWidget *window = NULL;
+static bool is_fullscreen = false;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
@@ -761,7 +762,7 @@ static void *conn_sound_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
-static GtkWidget *videoFrame = NULL, *sizeFrame = NULL;
+static GtkWidget *videoFrame = NULL, *sizeFrame = NULL, *audioFrame = NULL;
 static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0, video_width = 0, video_height = 0;
 static double stats[6] = {0, 0, 0, 0, 0, 0};
 #define STAT_ATX_CPU 0
@@ -778,8 +779,9 @@ static double cjson_get_value_double(cJSON *json, char *key) {
 }
 
 static void *conn_video_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0, is_bin = 0;
+	int fd = 0, sz = 0, n = 0, is_bin = 0, fwidth = 0, fheight = 0;
 	char *ptr, *old = NULL;
+	GdkPixbuf *dst = NULL;
 	char buf[128];
 	
 	while(is_running) {
@@ -789,28 +791,59 @@ static void *conn_video_thread(void *arg) {
 				if(is_running) {
 					if(is_bin) {
 						GdkPixbufLoader *loader;
-						GdkPixbuf *pixbuf;
 
-						if(videoFrame) {
-							gdk_threads_enter();
-							video_frames ++;
-							loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
-							gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
-							if(gdk_pixbuf_loader_close(loader, NULL)) {
-								pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-								if(pixbuf) {
-									video_width = gdk_pixbuf_get_width(pixbuf);
-									video_height = gdk_pixbuf_get_height(pixbuf);
-									if(sizeFrame) gtk_widget_set_size_request(sizeFrame, 400, video_height);
-									if(videoFrame) {
-										gtk_widget_set_size_request(videoFrame, video_width, video_height);
-										gdk_draw_pixbuf(videoFrame->window, videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)], pixbuf, 0, 0, 0, 0, video_width, video_height, GDK_RGB_DITHER_NORMAL, 0, 0);
+						gdk_threads_enter();
+						video_frames ++;
+						loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
+						gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
+						if(gdk_pixbuf_loader_close(loader, NULL)) {
+							GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+							if(pixbuf) {
+								GdkGC *gc = videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)];
+								video_width = gdk_pixbuf_get_width(pixbuf);
+								video_height = gdk_pixbuf_get_height(pixbuf);
+								
+								if(is_fullscreen) {
+									int width = 0, height = 0;
+									gtk_window_get_size(GTK_WINDOW(window), &width, &height);
+									
+									gtk_widget_set_size_request(sizeFrame, width, height);
+									gtk_widget_set_size_request(videoFrame, width, height);
+									
+									double scale = (double) width / (double) video_width;
+									int w = width, h = (double) video_height * scale;
+									if(h > height) {
+										scale = (double) height / (double) video_height;
+										h = height;
+										w = (double) video_width * scale;
 									}
+									
+									int x = (width - w) / 2, y = (height - h) / 2;
+									printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
+									
+									video_width = w;
+									video_height = h;
+
+									if(!dst || fwidth != width || fheight != height) {
+										fwidth = width;
+										fheight = height;
+										if(dst) g_object_unref(dst);
+										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
+									}
+									
+									gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
+									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								} else {
+									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
+									gtk_widget_set_size_request(audioFrame, 400, video_height);
+									gtk_widget_set_size_request(videoFrame, video_width, video_height);
+									gdk_draw_pixbuf(videoFrame->window, gc, pixbuf, 0, 0, 0, 0, video_width, video_height, GDK_RGB_DITHER_NORMAL, 0, 0);
 								}
 							}
-							g_object_unref(loader);
-							gdk_threads_leave();
 						}
+						g_object_unref(loader);
+						gdk_threads_leave();
 					} else if(!strncmp(ptr, "@SysInfo", 8) || !strncmp(ptr, "@HostInfo", 9)) {
 						bool atx = (ptr[1] == 'S');
 						cJSON *json = cJSON_Parse(ptr + (atx ? 9 : 10));
@@ -1516,8 +1549,12 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			key = 4; // BACK
 			break;
 		case GDK_KEY_Home:
-		case GDK_KEY_HomePage:
+		case GDK_KEY_KP_Home:
 			key = 3; // HOME
+			break;
+		case GDK_KEY_End:
+		case GDK_KEY_KP_End:
+			key = 26; // POWER
 			break;
 		case GDK_KEY_F1:
 		case GDK_KEY_KP_F1:
@@ -1547,12 +1584,25 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_F8:
 			key = 86; // MEDIA_STOP
 			break;
-		case GDK_KEY_F9:
-			key = 3; // HOME
-			break;
-		case GDK_KEY_F11:
-			key = 26; // POWER
-			break;
+		case GDK_KEY_F11: {
+			char buf[32];
+			GtkWindow *win = GTK_WINDOW(window);
+			if(gtk_window_get_resizable(win)) {
+				printf("[%s] FullScreent %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
+				if(is_fullscreen) {
+					is_fullscreen = false;
+					gtk_window_unfullscreen(win);
+					gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+					gtk_widget_show(audioFrame);
+				} else {
+					is_fullscreen = true;
+					gtk_window_fullscreen(win);
+					gtk_container_set_border_width(GTK_CONTAINER(window), 0);
+					gtk_widget_hide(audioFrame);
+				}
+			}
+			return FALSE;
+		}
 		case GDK_KEY_KP_Add: // NumKey -
 			key = '+';
 			break;
@@ -1739,8 +1789,8 @@ static char *get_title() {
 	return title;
 }
 
-static void gtk_begin() {
-	GtkWidget *vbox, *vbox2, *sizeFrame;
+static void gtk_begin(gboolean resizable) {
+	GtkWidget *vbox;
 	GtkWidget *frameVolume, *daVolume;
 	GtkWidget *frameWave, *daWave;
 	GtkWidget *frameFFT, *daFFT;
@@ -1753,7 +1803,8 @@ static void gtk_begin() {
 		gtk_window_set_title(GTK_WINDOW(window), title);
 		free(title);
 	}
-	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
+	gtk_window_set_resizable(GTK_WINDOW(window), resizable);
+	gtk_window_set_modal(GTK_WINDOW(window), TRUE);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(scribble_delete_event), NULL);
 	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(scribble_key_press_event), NULL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
@@ -1762,10 +1813,10 @@ static void gtk_begin() {
 	gtk_container_set_border_width(GTK_CONTAINER(sizeFrame), 0);
 	gtk_container_add(GTK_CONTAINER(window), sizeFrame);
 
-	vbox2 = gtk_vbox_new(FALSE, 10);
-	gtk_widget_set_size_request(vbox2, 400, 200);
-	gtk_container_set_border_width(GTK_CONTAINER(vbox2), 0);
-	gtk_box_pack_start(GTK_BOX(sizeFrame), vbox2, TRUE, TRUE, 0);
+	audioFrame = gtk_vbox_new(FALSE, 10);
+	gtk_widget_set_size_request(audioFrame, 400, 200);
+	gtk_container_set_border_width(GTK_CONTAINER(audioFrame), 0);
+	gtk_box_pack_start(GTK_BOX(sizeFrame), audioFrame, TRUE, TRUE, 0);
 	
 	videoFrame = gtk_drawing_area_new();
 	gtk_widget_set_size_request(videoFrame, 800, 200);
@@ -1783,7 +1834,7 @@ static void gtk_begin() {
 
 	vbox = gtk_vbox_new(FALSE, 10);
 	gtk_container_set_border_width(GTK_CONTAINER(vbox), 0);
-	gtk_box_pack_start(GTK_BOX(vbox2), vbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(audioFrame), vbox, TRUE, TRUE, 0);
 
 	frameVolume = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameVolume), GTK_SHADOW_IN);
@@ -1817,7 +1868,7 @@ static void gtk_begin() {
 
 	frameFFT = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameFFT), GTK_SHADOW_IN);
-	gtk_box_pack_end(GTK_BOX(vbox2), frameFFT, TRUE, TRUE, 0);
+	gtk_box_pack_end(GTK_BOX(audioFrame), frameFFT, TRUE, TRUE, 0);
 
 	daFFT = gtk_drawing_area_new();
 	gtk_widget_set_size_request(daFFT, 400, 40);
@@ -1871,6 +1922,7 @@ static void *video_fps_thread(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
+	int resizable = 0;
 	int ret;
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s <host> [port] [channels] [basepath]\n", argv[0]);
@@ -1881,6 +1933,7 @@ int main(int argc, char *argv[]) {
 	servport = (argc > 2 ? atoi(argv[2]) : 17310);
 	if(argc > 3) channels = atoi(argv[3]);
 	if(argc > 4) servpath = argv[4];
+	if(argc > 5) resizable = atoi(argv[5]);
 	
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
@@ -1917,7 +1970,7 @@ int main(int argc, char *argv[]) {
 
 	gtk_init(&argc, &argv);
 
-	gtk_begin();
+	gtk_begin(resizable);
 
 	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
 	pthread_attr_t attr;
