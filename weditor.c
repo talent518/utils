@@ -1599,15 +1599,15 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			break;
 		case GDK_KEY_F2:
 		case GDK_KEY_KP_F2:
-			key = 25; // VOLUE_DOWN
+			key = 25; // VOLUME_DOWN
 			break;
 		case GDK_KEY_F3:
 		case GDK_KEY_KP_F3:
-			key = 24; // VOLUE_UP
+			key = 24; // VOLUME_UP
 			break;
 		case GDK_KEY_F4:
 		case GDK_KEY_KP_F4:
-			key = 164; // VOLUE_MUTE MUTE: 91
+			key = 164; // VOLUME_MUTE MUTE: 91
 			break;
 		case GDK_KEY_F5:
 			key = 88; // MEDIA_PREVIOUS
@@ -1991,6 +1991,19 @@ int main(int argc, char *argv[]) {
                     "  -c <channels> Audio channels(default: %d)\n"
                     "  -p <basepath> Show verbose(default: %s)\n"
                     "  -h,-?       This help\n"
+                    "Press Key:\n"
+                    "  F1     KEYCODE_MUSIC\n"
+                    "  F2     KEYCODE_VOLUME_UP\n"
+                    "  F3     KEYCODE_VOLUME_DOWN\n"
+                    "  F4     KEYCODE_VOLUME_MUTE\n"
+                    "  F5     KEYCODE_MEDIA_PREVIOUS\n"
+                    "  F6     KEYCODE_MEDIA_NEXT\n"
+                    "  F7     KEYCODE_MEDIA_PLAY\n"
+                    "  F8     KEYCODE_MEDIA_STOP\n"
+                    "  F11    FullScreen\n"
+                    "  Home   KEYCODE_HOME\n"
+                    "  End    KEYCODE_POWER\n"
+                    "  Esc    KEYCODE_BACK\n"
                     , argv[0], servhost, servport, channels, servpath
                 );
                 return 0;
