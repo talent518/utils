@@ -24,6 +24,8 @@
 #include <gdk/gdkkeysyms.h>
 #include <cJSON.h>
 
+#define VIDEO_IMAGE
+
 static snd_pcm_t *gp_handle;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 static snd_pcm_hw_params_t *gp_params;  //设置流的硬件参数
 static snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
@@ -763,6 +765,9 @@ static void *conn_sound_thread(void *arg) {
 }
 
 static GtkWidget *videoFrame = NULL, *sizeFrame = NULL, *audioFrame = NULL;
+#ifdef VIDEO_IMAGE
+static GtkWidget *videoImage = NULL;
+#endif
 static int video_fps = 0, video_frames = 0, video_loading = 0, video_rotation = 0, video_width = 0, video_height = 0;
 static double stats[6] = {0, 0, 0, 0, 0, 0};
 #define STAT_ATX_CPU 0
@@ -809,7 +814,7 @@ static void *conn_video_thread(void *arg) {
 									
 									gtk_widget_set_size_request(sizeFrame, width, height);
 									gtk_widget_set_size_request(videoFrame, width, height);
-									
+
 									double scale = (double) width / (double) video_width;
 									int w = width, h = (double) video_height * scale;
 									if(h > height) {
@@ -819,7 +824,7 @@ static void *conn_video_thread(void *arg) {
 									}
 									
 									int x = (width - w) / 2, y = (height - h) / 2;
-									printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
+									// printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
 									
 									video_width = w;
 									video_height = h;
@@ -832,13 +837,21 @@ static void *conn_video_thread(void *arg) {
 									}
 									
 									gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
+								#ifdef VIDEO_IMAGE
+									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
+								#else
 									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								#endif
 								} else {
-									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
-									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
 									gtk_widget_set_size_request(audioFrame, 400, video_height);
 									gtk_widget_set_size_request(videoFrame, video_width, video_height);
+									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
+									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+								#ifdef VIDEO_IMAGE
+									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), pixbuf);
+								#else
 									gdk_draw_pixbuf(videoFrame->window, gc, pixbuf, 0, 0, 0, 0, video_width, video_height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								#endif
 								}
 							}
 						}
@@ -1831,16 +1844,22 @@ static void gtk_begin(gboolean resizable) {
 	gtk_container_set_border_width(GTK_CONTAINER(audioFrame), 0);
 	gtk_box_pack_start(GTK_BOX(sizeFrame), audioFrame, TRUE, TRUE, 0);
 	
+#ifdef VIDEO_IMAGE
+	videoImage = gtk_image_new();
+	videoFrame = gtk_event_box_new();
+	gtk_container_add(GTK_CONTAINER(videoFrame), videoImage);
+#else
 	videoFrame = gtk_drawing_area_new();
+#endif
 	gtk_widget_set_size_request(videoFrame, 800, 200);
 	gtk_box_pack_end(GTK_BOX(sizeFrame), videoFrame, TRUE, TRUE, 0);
 
 	{
 		GtkObject *obj = (GtkObject*) G_OBJECT(videoFrame);
 		
-		g_signal_connect(obj, "button_press_event", G_CALLBACK(scribble_button_press_event_video), NULL);
-		g_signal_connect(obj, "motion_notify_event", G_CALLBACK(scribble_motion_notify_event_video), NULL);
-		g_signal_connect(obj, "button_release_event", G_CALLBACK(scribble_button_release_event_video), NULL);
+		g_signal_connect(obj, "button-press-event", G_CALLBACK(scribble_button_press_event_video), NULL);
+		g_signal_connect(obj, "motion-notify-event", G_CALLBACK(scribble_motion_notify_event_video), NULL);
+		g_signal_connect(obj, "button-release-event", G_CALLBACK(scribble_button_release_event_video), NULL);
 		
 		gtk_widget_add_events(videoFrame, GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK);
 	}
