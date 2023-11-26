@@ -912,6 +912,19 @@ static void touch_event_push(int event, int x, int y) {
 	
 	if(touch_event_loading) return;
 
+	if(is_fullscreen) {
+		w = videoFrame->allocation.width;
+		h = videoFrame->allocation.height;
+		
+		x2 = (w - video_width) / 2;
+		y2 = (h - video_height) / 2;
+		if(x < x2 || x > x2 + video_width) return;
+		if(y < y2 || y > y2 + video_height) return;
+		
+		x -= x2;
+		y -= y2;
+	}
+
 	switch(video_rotation) {
         case 0:
         default:
