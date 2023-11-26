@@ -255,8 +255,8 @@ static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer
 	setsockopt(s, SOL_SOCKET, SO_LINGER, &m_sLinger, sizeof(linger));
 }
 
-static char *servhost;
-static int servport;
+static char *servhost = "127.0.0.1";
+static int servport = 17310;
 static char *servpath = "";
 static struct sockaddr_in servaddr;
 
@@ -1565,6 +1565,17 @@ static void *key_event_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
+static guint fullscreen_timer;
+static gboolean fullscreen_func(gpointer data) {
+	GtkWindow *win = GTK_WINDOW(window);
+
+	gtk_timeout_remove(fullscreen_timer);
+
+	gtk_window_fullscreen(win);
+	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
+	gtk_widget_hide(audioFrame);
+}
+
 static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
 	uint32_t key = 0;
 	
@@ -1613,19 +1624,17 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_F11: {
 			char buf[32];
 			GtkWindow *win = GTK_WINDOW(window);
-			if(gtk_window_get_resizable(win)) {
-				printf("[%s] FullScreent %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
-				if(is_fullscreen) {
-					is_fullscreen = false;
-					gtk_window_unfullscreen(win);
-					gtk_container_set_border_width(GTK_CONTAINER(window), 10);
-					gtk_widget_show(audioFrame);
-				} else {
-					is_fullscreen = true;
-					gtk_window_fullscreen(win);
-					gtk_container_set_border_width(GTK_CONTAINER(window), 0);
-					gtk_widget_hide(audioFrame);
-				}
+			printf("[%s] FullScreent %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
+			if(is_fullscreen) {
+				is_fullscreen = false;
+				gtk_window_unfullscreen(win);
+				gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+				gtk_widget_show(audioFrame);
+				gtk_window_set_resizable(win, FALSE);
+			} else {
+				is_fullscreen = true;
+				gtk_window_set_resizable(win, TRUE);
+				fullscreen_timer = gtk_timeout_add(10, fullscreen_func, NULL);
 			}
 			return FALSE;
 		}
@@ -1815,7 +1824,7 @@ static char *get_title() {
 	return title;
 }
 
-static void gtk_begin(gboolean resizable) {
+static void gtk_begin() {
 	GtkWidget *vbox;
 	GtkWidget *frameVolume, *daVolume;
 	GtkWidget *frameWave, *daWave;
@@ -1829,10 +1838,12 @@ static void gtk_begin(gboolean resizable) {
 		gtk_window_set_title(GTK_WINDOW(window), title);
 		free(title);
 	}
-	gtk_window_set_resizable(GTK_WINDOW(window), resizable);
-	gtk_window_set_modal(GTK_WINDOW(window), TRUE);
+	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
+	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(scribble_delete_event), NULL);
 	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(scribble_key_press_event), NULL);
+	
+	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 	
 	sizeFrame = gtk_hbox_new(FALSE, 10);
@@ -1954,18 +1965,37 @@ static void *video_fps_thread(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-	int resizable = 0;
-	int ret;
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s <host> [port] [channels] [basepath]\n", argv[0]);
-		return -1;
-	}
+	int ret, c;
 	
-	servhost = argv[1];
-	servport = (argc > 2 ? atoi(argv[2]) : 17310);
-	if(argc > 3) channels = atoi(argv[3]);
-	if(argc > 4) servpath = argv[4];
-	if(argc > 5) resizable = atoi(argv[5]);
+	while((c = getopt(argc, argv, "H:P:c:p:h?")) != -1) {
+        switch(c) {
+        	case 'H':
+        		servhost = optarg;
+        		break;
+            case 'P':
+                servport = atoi(optarg);
+                break;
+            case 'c':
+                channels = atoi(optarg);
+                break;
+            case 'p':
+                servpath = optarg;
+                break;
+            case '?':
+            case 'h':
+            default:
+                fprintf(stderr,
+                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-p <basepath>] [-h|-?]\n"
+                    "  -H <host>     Server host(default: %s)\n"
+                    "  -P <port>     Server port(default: %d)\n"
+                    "  -c <channels> Audio channels(default: %d)\n"
+                    "  -p <basepath> Show verbose(default: %s)\n"
+                    "  -h,-?       This help\n"
+                    , argv[0], servhost, servport, channels, servpath
+                );
+                return 0;
+        }
+    }
 	
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
@@ -2002,7 +2032,7 @@ int main(int argc, char *argv[]) {
 
 	gtk_init(&argc, &argv);
 
-	gtk_begin(resizable);
+	gtk_begin();
 
 	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
 	pthread_attr_t attr;
