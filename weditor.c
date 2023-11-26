@@ -836,6 +836,7 @@ static void *conn_video_thread(void *arg) {
 										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
 									}
 									
+									gdk_pixbuf_fill(dst, 0x000000);
 									gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
 								#ifdef VIDEO_IMAGE
 									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
