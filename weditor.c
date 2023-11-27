@@ -168,7 +168,7 @@ typedef struct {
 } calc_t;
 
 static GtkWidget *window = NULL;
-static bool is_fullscreen = false;
+static volatile bool is_fullscreen = false;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
@@ -784,9 +784,11 @@ static double cjson_get_value_double(cJSON *json, char *key) {
 }
 
 static void *conn_video_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0, is_bin = 0, fwidth = 0, fheight = 0;
-	char *ptr, *old = NULL;
-	GdkPixbuf *dst = NULL;
+	int fd = 0, sz = 0, oldsz = 0, n = 0, is_bin = 0, fwidth = 0, fheight = 0;
+	char *ptr, *old = NULL, *oldptr = NULL;
+	GdkPixbuf *pixbuf, *dst = NULL;
+	GdkPixbufLoader *loader;
+	bool isfull = false;
 	char buf[128];
 	
 	while(is_running) {
@@ -795,14 +797,14 @@ static void *conn_video_thread(void *arg) {
 			if(ptr) {
 				if(is_running) {
 					if(is_bin) {
-						GdkPixbufLoader *loader;
-
+					redraw:
+						isfull = is_fullscreen;
 						gdk_threads_enter();
 						video_frames ++;
 						loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
 						gdk_pixbuf_loader_write(loader, ptr, sz, NULL);
 						if(gdk_pixbuf_loader_close(loader, NULL)) {
-							GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+							pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 							if(pixbuf) {
 								GdkGC *gc = videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)];
 								video_width = gdk_pixbuf_get_width(pixbuf);
@@ -858,6 +860,12 @@ static void *conn_video_thread(void *arg) {
 						}
 						g_object_unref(loader);
 						gdk_threads_leave();
+
+						if(oldptr) free(oldptr);
+						oldptr = ptr;
+						oldsz = sz;
+						ptr = NULL;
+						sz = 0;
 					} else if(!strncmp(ptr, "@SysInfo", 8) || !strncmp(ptr, "@HostInfo", 9)) {
 						bool atx = (ptr[1] == 'S');
 						cJSON *json = cJSON_Parse(ptr + (atx ? 9 : 10));
@@ -876,6 +884,16 @@ static void *conn_video_thread(void *arg) {
 						cJSON_free(json);
 					} else if(!strcmp(ptr, "==equalFrame==")) {
 						video_frames ++;
+
+						if(oldptr && isfull != is_fullscreen) {
+							printf("[%s] redraw\n", nowtime(buf, sizeof(buf)));
+							free(ptr);
+							ptr = oldptr;
+							sz = oldsz;
+							oldptr = NULL;
+							oldsz = 0;
+							goto redraw;
+						}
 					} else {
 						printf("[%s] video data: %s\n", nowtime(buf, sizeof(buf)), ptr);
 						
@@ -885,8 +903,10 @@ static void *conn_video_thread(void *arg) {
 					}
 				}
 				
-				free(ptr);
-				ptr = NULL;
+				if(ptr) {
+					free(ptr);
+					ptr = NULL;
+				}
 			} else {
 				close(fd);
 				fd = 0;
@@ -906,6 +926,8 @@ static void *conn_video_thread(void *arg) {
 	
 	if(fd) close(fd);
 	if(old) free(old);
+	if(ptr) free(ptr);
+	if(oldptr) free(oldptr);
 	pthread_exit(NULL);
 }
 
