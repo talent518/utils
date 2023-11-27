@@ -1705,6 +1705,10 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_KP_Tab:
 			key = 61;
 			break;
+		case GDK_KEY_space:
+		case GDK_KEY_KP_Space:
+			key = 62;
+			break;
 		case '`':
 			key = 68;
 			break;
