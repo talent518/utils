@@ -1674,9 +1674,11 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			return FALSE;
 		}
 		case GDK_KEY_KP_Add: // NumKey -
+			type = false;
 			code = '+';
 			break;
 		case GDK_KEY_KP_Subtract: // NumKey +
+			type = false;
 			code = '-';
 			break;
 		case GDK_KEY_KP_0:
@@ -1725,36 +1727,6 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_space:
 		case GDK_KEY_KP_Space:
 			code = 62;
-			break;
-		case GDK_KEY_Control_L:
-			code = 113;
-			break;
-		case GDK_KEY_Control_R:
-			code = 114;
-			break;
-		case GDK_KEY_Caps_Lock:
-			code = 115;
-			break;
-		case GDK_KEY_Shift_Lock:
-			code = 116;
-			break;
-		case GDK_KEY_Meta_L:
-			code = 117;
-			break;
-		case GDK_KEY_Meta_R:
-			code = 118;
-			break;
-		case GDK_KEY_Alt_L:
-			code = 57;
-			break;
-		case GDK_KEY_Alt_R:
-			code = 58;
-			break;
-		case GDK_KEY_Shift_L:
-			code = 59;
-			break;
-		case GDK_KEY_Shift_R:
-			code = 60;
 			break;
 		case '`':
 		case '~':
