@@ -1,3 +1,6 @@
+// weditor: python 模块 https://github.com/talent518/weditor.git
+// uiautomator2: python 模块 http://gitee.com/talent518/uiautomator2.git
+
 #define ALSA_PCM_NEW_HW_PARAMS_API
 
 #include <sys/types.h>
