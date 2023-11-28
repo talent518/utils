@@ -1471,8 +1471,12 @@ static void scribble_button_release_event_video(GtkWidget *widget, GdkEventButto
 	}
 }
 
+typedef struct {
+	volatile bool type;
+	volatile uint16_t code;
+} keycode_t;
 #define KEY_SIZE 128
-static volatile uint32_t keys[KEY_SIZE];
+static keycode_t keys[KEY_SIZE];
 static volatile uint32_t key_idx = 0;
 static volatile uint32_t key_size = 0;
 
@@ -1553,7 +1557,7 @@ end:
 }
 
 static void *key_event_thread(void *arg) {
-	uint32_t key;
+	keycode_t *key;
 	int ret;
 	char buf[32];
 	double t = microtime() + 10.0;
@@ -1562,17 +1566,24 @@ static void *key_event_thread(void *arg) {
 		usleep(10000);
 		
 		if(key_size) {
-			key = keys[key_idx];
+			key = &keys[key_idx];
 			key_idx ++;
 			key_size --;
 			if(key_idx >= KEY_SIZE) key_idx = 0;
 
-			printf("[%s] KEYCODE: %d %02x ...\n", nowtime(buf, sizeof(buf)), key, key);
+			if(key->type) printf("[%s] KEYCODE: %d %02x ...\n", nowtime(buf, sizeof(buf)), key->code, key->code);
+			else printf("[%s] TEXT: %c ...\n", nowtime(buf, sizeof(buf)), key->code);
 			
-			snprintf(buf, sizeof(buf), "&key=%d", key);
-			ret = http_post(__func__, "/api/v1/press", buf, "{\"ret\": true}");
+			if(key->type) {
+				snprintf(buf, sizeof(buf), "&key=%d", key->code);
+				ret = http_post(__func__, "/api/v1/press", buf, "{\"ret\": true}");
+			} else {
+				snprintf(buf, sizeof(buf), "&text=%%%02x", key->code);
+				ret = http_post(__func__, "/api/v1/text", buf, "{\"ret\": true}");
+			}
 			if(ret) {
-				printf("[%s] KEYCODE: %d %02x %s\n", nowtime(buf, sizeof(buf)), key, key, ret > 0 ? "OK" : "ERR");
+				if(key->type) printf("[%s] KEYCODE: %d %02x %s\n", nowtime(buf, sizeof(buf)), key->code, key->code, ret > 0 ? "OK" : "ERR");
+				else printf("[%s] TEXT: %c %s\n", nowtime(buf, sizeof(buf)), key->code, ret > 0 ? "OK" : "ERR");
 			}
 			
 			t = microtime() + 10.0;
@@ -1600,49 +1611,50 @@ static gboolean fullscreen_func(gpointer data) {
 }
 
 static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
-	uint32_t key = 0;
+	bool type = true;
+	uint16_t code = 0;
 	
 	// printf("%u %02x\n", event->hardware_keycode, event->hardware_keycode);
 
 	switch(event->keyval) {
 		case GDK_KEY_Escape:
-			key = 4; // BACK
+			code = 4; // BACK
 			break;
 		case GDK_KEY_Home:
 		case GDK_KEY_KP_Home:
-			key = 3; // HOME
+			code = 3; // HOME
 			break;
 		case GDK_KEY_End:
 		case GDK_KEY_KP_End:
-			key = 26; // POWER
+			code = 26; // POWER
 			break;
 		case GDK_KEY_F1:
 		case GDK_KEY_KP_F1:
-			key = 209; // MUSIC
+			code = 209; // MUSIC
 			break;
 		case GDK_KEY_F2:
 		case GDK_KEY_KP_F2:
-			key = 25; // VOLUME_DOWN
+			code = 25; // VOLUME_DOWN
 			break;
 		case GDK_KEY_F3:
 		case GDK_KEY_KP_F3:
-			key = 24; // VOLUME_UP
+			code = 24; // VOLUME_UP
 			break;
 		case GDK_KEY_F4:
 		case GDK_KEY_KP_F4:
-			key = 164; // VOLUME_MUTE MUTE: 91
+			code = 164; // VOLUME_MUTE MUTE: 91
 			break;
 		case GDK_KEY_F5:
-			key = 88; // MEDIA_PREVIOUS
+			code = 88; // MEDIA_PREVIOUS
 			break;
 		case GDK_KEY_F6:
-			key = 87; // MEDIA_NEXT
+			code = 87; // MEDIA_NEXT
 			break;
 		case GDK_KEY_F7:
-			key = 126; // MEDIA_PLAY
+			code = 126; // MEDIA_PLAY
 			break;
 		case GDK_KEY_F8:
-			key = 86; // MEDIA_STOP
+			code = 86; // MEDIA_STOP
 			break;
 		case GDK_KEY_F11: {
 			char buf[32];
@@ -1662,168 +1674,142 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			return FALSE;
 		}
 		case GDK_KEY_KP_Add: // NumKey -
-			key = '+';
+			code = '+';
 			break;
 		case GDK_KEY_KP_Subtract: // NumKey +
-			key = '-';
+			code = '-';
 			break;
 		case GDK_KEY_KP_0:
-			key = '0';
-			break;
 		case GDK_KEY_KP_1:
-			key = '1';
-			break;
 		case GDK_KEY_KP_2:
-			key = '2';
-			break;
 		case GDK_KEY_KP_3:
-			key = '3';
-			break;
 		case GDK_KEY_KP_4:
-			key = '4';
-			break;
 		case GDK_KEY_KP_5:
-			key = '5';
-			break;
 		case GDK_KEY_KP_6:
-			key = '6';
-			break;
 		case GDK_KEY_KP_7:
-			key = '7';
-			break;
 		case GDK_KEY_KP_8:
-			key = '8';
-			break;
 		case GDK_KEY_KP_9:
-			key = '9';
+			type = false;
+			code = '0' + (event->keyval - GDK_KEY_KP_0);
 			break;
 		case GDK_KEY_Delete:
-			key = 112;
+			code = 112;
 			break;
 		case GDK_KEY_BackSpace:
-			key = 67;
+			code = 67;
 			break;
 		case GDK_KEY_Return:
 		case GDK_KEY_KP_Enter:
-			key = 66;
+			code = 66;
 			break;
 		case GDK_KEY_Up:
 		case GDK_KEY_KP_Up:
-			key = 19;
+			code = 19;
 			break;
 		case GDK_KEY_Down:
 		case GDK_KEY_KP_Down:
-			key = 20;
+			code = 20;
 			break;
 		case GDK_KEY_Left:
 		case GDK_KEY_KP_Left:
-			key = 21;
+			code = 21;
 			break;
 		case GDK_KEY_Right:
 		case GDK_KEY_KP_Right:
-			key = 22;
+			code = 22;
 			break;
 		case GDK_KEY_Tab:
 		case GDK_KEY_KP_Tab:
-			key = 61;
+			code = 61;
 			break;
 		case GDK_KEY_space:
 		case GDK_KEY_KP_Space:
-			key = 62;
+			code = 62;
+			break;
+		case GDK_KEY_Control_L:
+			code = 113;
+			break;
+		case GDK_KEY_Control_R:
+			code = 114;
+			break;
+		case GDK_KEY_Caps_Lock:
+			code = 115;
+			break;
+		case GDK_KEY_Shift_Lock:
+			code = 116;
+			break;
+		case GDK_KEY_Meta_L:
+			code = 117;
+			break;
+		case GDK_KEY_Meta_R:
+			code = 118;
+			break;
+		case GDK_KEY_Alt_L:
+			code = 57;
+			break;
+		case GDK_KEY_Alt_R:
+			code = 58;
+			break;
+		case GDK_KEY_Shift_L:
+			code = 59;
+			break;
+		case GDK_KEY_Shift_R:
+			code = 60;
 			break;
 		case '`':
-			key = 68;
-			break;
-		// case '~':
-		// case '!':
+		case '~':
+		case '!':
 		case '@':
-			key = 77;
-			break;
 		case '#':
-			key = 18;
-			break;
-		//case '$':
-		//case '%':
-		//case '^':
-		//case '&':
+		case '$':
+		case '%':
+		case '^':
+		case '&':
 		case '*':
-			key = 155;
-			break;
 		case '(':
-			key = 162;
-			break;
 		case ')':
-			key = 163;
-			break;
 		case '-':
-			key = 156;
-			break;
-		//case '_':
+		case '_':
 		case '+':
-			key = 81;
-			break;
 		case '=':
-			key = 161;
-			break;
 		case '[':
-			key = 71;
-			break;
-		//case '{':
-		//case '}':
+		case '{':
+		case '}':
 		case ']':
-			key = 72;
-			break;
 		case '\\':
-			key = 73;
-			break;
-		//case '|':
-		///case ':':
+		case '|':
+		case ':':
 		case ';':
-			key = 74;
-			break;
 		case '\'':
-			key = 75;
-			break;
-		// case '"':
+		case '"':
 		case '/':
-			key = 76;
-			break;
-		// case '?':
+		case '?':
 		case '.':
-			key = 56;
-			break;
-		// case '>':
+		case '>':
 		case ',':
-			key = 55;
+		case '<':
+			type = false;
+			code = event->keyval;
 			break;
-		// case '<':
 		default:
-#if 1
-			if(event->keyval >= '0' && event->keyval <= '9') {
-				key = 7 + (event->keyval - '0');
+			if((event->keyval >= '0' && event->keyval <= '9') || (event->keyval >= 'a' && event->keyval <= 'z') || (event->keyval >= 'A' && event->keyval <= 'Z')) {
+				type = false;
+				code = event->keyval;
 				break;
 			}
-			if(event->keyval >= 'a' && event->keyval <= 'z') {
-				key = 29 + (event->keyval - 'a');
-				break;
-			}
-			// printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
+			printf("KEYCODE %u %02x %u %02x\n", code, code, event->keyval, event->keyval);
 			return FALSE;
 	}
-	if(key && key_size < KEY_SIZE) {
-		keys[(key_idx + key_size) % KEY_SIZE] = key;
+	if(code && key_size < KEY_SIZE) {
+		keycode_t *k = &keys[(key_idx + key_size) % KEY_SIZE];
+		k->type = type;
+		k->code = code;
 		key_size ++;
 	
 		return TRUE;
 	} else {
 		return FALSE;
 	}
-#else
-			break;
-	}
-	printf("KEYCODE %u %02x %u %02x\n", key, key, event->keyval, event->keyval);
-	return TRUE;
-#endif
 }
 
 static char *get_title() {
