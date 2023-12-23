@@ -313,10 +313,14 @@ static int sock_conn(const char *func, int timeout) {
 	}
 }
 
+static bool is_connect = false;
+
 static int _ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
 	int size = 0, ret, sz = 0;
 	int fd;
+	
+	if(!is_connect) return 0;
 
 	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
 	
@@ -394,7 +398,8 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 	int fd = 0, i;
 	
 	while(is_running && !(fd = _ws_conn(func, path, timeout))) {
-		for(i = 0; is_running && i < 20 * 3; i ++) usleep(50000);
+		is_connect = false;
+		for(i = 0; is_running && !is_connect && i < 20 * 3; i ++) usleep(50000);
 	}
 	
 	return fd;
@@ -1483,9 +1488,9 @@ static keycode_t keys[KEY_SIZE];
 static volatile uint32_t key_idx = 0;
 static volatile uint32_t key_size = 0;
 
-static int http_post(const char *func, const char *path, char *append, const char *result) {
+static int http_post(const char *func, const char *path, char *post, const char *result) {
 	int fd, size, sz, ret = 0;
-	char buf[2048], post[128];
+	char buf[2048];
 	struct timeval tv;
 	fd_set set;
 	
@@ -1503,8 +1508,8 @@ static int http_post(const char *func, const char *path, char *append, const cha
 	size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
 	size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
 	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Length: %d\r\n", snprintf(post, sizeof(post), "serial=android:%s", append));
+	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Content-Length: %ld\r\n", strlen(post));
 	size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
 	
 	// fprintf(stderr, "%s\n", buf);
@@ -1582,7 +1587,8 @@ static void *key_event_thread(void *arg) {
 	keycode_t *key;
 	int ret;
 	char buf[32];
-	double t = microtime() + 10.0;
+	double t = microtime() + 10.0, t2 = 0.0;
+	bool is_conn = false;
 	
 	while(is_running) {
 		usleep(10000);
@@ -1597,10 +1603,10 @@ static void *key_event_thread(void *arg) {
 			else printf("[%s] TEXT: %c ...\n", nowtime(buf, sizeof(buf)), key->code);
 			
 			if(key->type) {
-				snprintf(buf, sizeof(buf), "&key=%d", key->code);
+				snprintf(buf, sizeof(buf), "serial=android:&key=%d", key->code);
 				ret = http_post(__func__, "/api/v1/press", buf, "{\"ret\": true}");
 			} else {
-				snprintf(buf, sizeof(buf), "&text=%%%02x", key->code);
+				snprintf(buf, sizeof(buf), "serial=android:&text=%%%02x", key->code);
 				ret = http_post(__func__, "/api/v1/text", buf, "{\"ret\": true}");
 			}
 			if(ret) {
@@ -1611,12 +1617,18 @@ static void *key_event_thread(void *arg) {
 			if(is_ping) t = microtime() + 10.0;
 		} else if(is_ping && microtime() > t) {
 			printf("[%s] PING ...\n", nowtime(buf, sizeof(buf)));
-			ret = http_post(__func__, "/api/v1/ping", "", "{\"ret\": \"pong\"}");
+			ret = http_post(__func__, "/api/v1/ping", "serial=android:", "{\"ret\": \"pong\"}");
 			if(ret) {
 				printf("[%s] PING %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
 			}
 			t = microtime() + 10.0;
-		}
+		} else if(microtime() > t2) {
+			ret = http_post(__func__, "/api/v1/connect", "platform=Android&deviceUrl=", "\"success\": true");
+			printf("[%s] Connect device %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
+			is_connect = is_conn = ret > 0;
+			if(ret > 0) t2 = microtime() + 30.0;
+			else t2 = microtime() + 1.0;
+		} else if(is_conn && !is_connect) t2 = 0;
 	}
 	pthread_exit(NULL);
 }
