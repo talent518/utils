@@ -1486,6 +1486,8 @@ static volatile uint32_t key_size = 0;
 static int http_post(const char *func, const char *path, char *append, const char *result) {
 	int fd, size, sz, ret = 0;
 	char buf[2048], post[128];
+	struct timeval tv;
+	fd_set set;
 	
 	fd = sock_conn(func, 100);
 
@@ -1527,7 +1529,22 @@ loopsend:
 	sz = 0;
 	memset(buf, 0, sizeof(buf));
 	
+	{
+		int flags = fcntl(fd, F_GETFL);
+		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	}
+	
 looprecv:
+	do {
+		tv.tv_sec = 0;
+		tv.tv_usec = WS_SELECT_USEC;
+		
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		
+		ret = select(fd+1, &set, NULL, NULL, &tv);
+	} while(ret == 0 && is_running);
+	
 	ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
 	if(ret > 0) {
 		// fwrite(buf + sz, 1, ret, stdout);
@@ -1559,6 +1576,8 @@ end:
 	return ret;
 }
 
+static bool is_ping = false;
+
 static void *key_event_thread(void *arg) {
 	keycode_t *key;
 	int ret;
@@ -1589,8 +1608,8 @@ static void *key_event_thread(void *arg) {
 				else printf("[%s] TEXT: %c %s\n", nowtime(buf, sizeof(buf)), key->code, ret > 0 ? "OK" : "ERR");
 			}
 			
-			t = microtime() + 10.0;
-		} else if(microtime() > t) {
+			if(is_ping) t = microtime() + 10.0;
+		} else if(is_ping && microtime() > t) {
 			printf("[%s] PING ...\n", nowtime(buf, sizeof(buf)));
 			ret = http_post(__func__, "/api/v1/ping", "", "{\"ret\": \"pong\"}");
 			if(ret) {
@@ -1960,7 +1979,7 @@ static void *video_fps_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int ret, c;
 	
-	while((c = getopt(argc, argv, "H:P:c:p:h?")) != -1) {
+	while((c = getopt(argc, argv, "H:P:c:p:ih?")) != -1) {
         switch(c) {
         	case 'H':
         		servhost = optarg;
@@ -1974,16 +1993,20 @@ int main(int argc, char *argv[]) {
             case 'p':
                 servpath = optarg;
                 break;
+            case 'i':
+                is_ping = true;
+                break;
             case '?':
             case 'h':
             default:
                 fprintf(stderr,
-                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-p <basepath>] [-h|-?]\n"
+                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-p <basepath>] [-i] [-h|-?]\n"
                     "  -H <host>     Server host(default: %s)\n"
                     "  -P <port>     Server port(default: %d)\n"
                     "  -c <channels> Audio channels(default: %d)\n"
                     "  -p <basepath> Show verbose(default: %s)\n"
-                    "  -h,-?       This help\n"
+                    "  -i            Ping(default: false)\n"
+                    "  -h,-?         This help\n"
                     "Press Key:\n"
                     "  F1     KEYCODE_MUSIC\n"
                     "  F2     KEYCODE_VOLUME_UP\n"
@@ -2088,6 +2111,7 @@ int main(int argc, char *argv[]) {
 	
 	gdk_threads_enter();
 	gtk_main();
+	gtk_end();
 	gdk_threads_leave();
 
 end:
@@ -2116,10 +2140,7 @@ end:
 	if(pthread_join(key_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	
 	pthread_attr_destroy(&attr);
-	
-	gtk_end();
 
 	sem_destroy(&play_sem);
 	pthread_mutex_destroy(&touch_lock);
