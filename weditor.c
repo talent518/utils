@@ -920,7 +920,8 @@ static void *conn_video_thread(void *arg) {
 				close(fd);
 				fd = 0;
 				
-				if(microtime() - t < 1.0) for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
+				is_connect = false;
+				for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		} else {
 			n = 0;
@@ -1126,7 +1127,8 @@ static void *touch_event_thread(void *arg) {
 				close(fd);
 				fd = 0;
 				
-				if(microtime() - t < 1.0) for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
+				is_connect = false;
+				for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		}
 	}
