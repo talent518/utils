@@ -854,11 +854,49 @@ static void *conn_video_thread(void *arg) {
 								#else
 									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
 								#endif
+								} else if(video_width > 800 || video_height > 800) {
+									int width, height;
+									if(video_width > video_height) {
+										width = 800;
+										height = 800 * video_height / video_width;
+									} else {
+										width = 800 * video_width / video_height;
+										height = 800;
+									}
+									
+									double scale = (double) width / (double) video_width;
+									
+									video_width = width;
+									video_height = height;
+									
+									if(!dst || fwidth != width || fheight != height) {
+										fwidth = width;
+										fheight = height;
+										if(dst) g_object_unref(dst);
+										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
+									}
+									
+									gdk_pixbuf_fill(dst, 0x000000);
+									gdk_pixbuf_scale(pixbuf, dst, 0, 0, width, height, 0, 0, scale, scale, GDK_INTERP_BILINEAR);
+
+									gtk_widget_set_size_request(audioFrame, 400, video_height);
+									gtk_widget_set_size_request(videoFrame, video_width, video_height);
+									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
+									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+									
+								#ifdef VIDEO_IMAGE
+									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
+								#else
+									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								#endif
 								} else {
 									gtk_widget_set_size_request(audioFrame, 400, video_height);
 									gtk_widget_set_size_request(videoFrame, video_width, video_height);
 									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
 									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+									
 								#ifdef VIDEO_IMAGE
 									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), pixbuf);
 								#else
