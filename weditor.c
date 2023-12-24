@@ -313,7 +313,7 @@ static int sock_conn(const char *func, int timeout) {
 	}
 }
 
-static bool is_connect = false;
+static volatile bool is_connect = false;
 
 static int _ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
@@ -798,6 +798,7 @@ static void *conn_video_thread(void *arg) {
 	GdkPixbufLoader *loader;
 	bool isfull = false;
 	char buf[128];
+	double t;
 	
 	while(is_running) {
 		if(fd) {
@@ -918,6 +919,8 @@ static void *conn_video_thread(void *arg) {
 			} else {
 				close(fd);
 				fd = 0;
+				
+				if(microtime() - t < 1.0) for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		} else {
 			n = 0;
@@ -928,6 +931,7 @@ static void *conn_video_thread(void *arg) {
 			
 			video_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", WS_CONN_TIMEOUT);
+			t = microtime();
 			video_loading = 0;
 		}
 	}
@@ -1062,6 +1066,7 @@ static void *touch_event_thread(void *arg) {
 	fd_set set;
 	touch_event_t evt;
 	char buf[128];
+	double t = 0;
 	
 	while(is_running) {
 		if(fd) {
@@ -1087,14 +1092,10 @@ static void *touch_event_thread(void *arg) {
 					ptr = NULL;
 					if(old && n) goto recv;
 				} else {
-					close(fd);
-					fd = 0;
-					continue;
+					goto end;
 				}
 			} else if(ret < 0) {
-				close(fd);
-				fd = 0;
-				continue;
+				goto end;
 			}
 			
 			// ======== send touch event ========
@@ -1107,9 +1108,7 @@ static void *touch_event_thread(void *arg) {
 			
 			ret = 0;
 			if(((ret = select(fd+1, NULL, &set, NULL, &tv)) > 0 && !touch_event_send(fd)) || ret < 0) {
-				close(fd);
-				fd = 0;
-				continue;
+				goto end;
 			}
 		} else {
 			n = 0;
@@ -1120,10 +1119,14 @@ static void *touch_event_thread(void *arg) {
 			
 			touch_event_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minitouch?deviceId=android:", WS_CONN_TIMEOUT);
+			t = microtime();
 			touch_event_loading = 0;
 			if(fd && !WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"r\"}", WS_SEND_TIMEOUT)) {
+			end:
 				close(fd);
 				fd = 0;
+				
+				if(microtime() - t < 1.0) for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		}
 	}
