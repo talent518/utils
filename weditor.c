@@ -260,7 +260,8 @@ static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer
 
 static char *servhost = "127.0.0.1";
 static int servport = 17310;
-static char *servpath = "";
+static char *api_proxy_path = "";
+static char *ws_proxy_path = "";
 static struct sockaddr_in servaddr;
 
 static int sock_conn(const char *func, int timeout) {
@@ -328,7 +329,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 	
 	if(fd == 0) return 0;
 	
-	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", ws_proxy_path, path);
 	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 	size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
 	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
@@ -1546,7 +1547,7 @@ static int http_post(const char *func, const char *path, char *post, const char 
 	}
 	
 	size = 0;
-	size += snprintf(buf + size, sizeof(buf), "POST %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
 	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 	size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
 	size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
@@ -2034,7 +2035,7 @@ static void *video_fps_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int ret, c;
 	
-	while((c = getopt(argc, argv, "H:P:c:p:ih?")) != -1) {
+	while((c = getopt(argc, argv, "H:P:c:a:w:ih?")) != -1) {
         switch(c) {
         	case 'H':
         		servhost = optarg;
@@ -2045,8 +2046,11 @@ int main(int argc, char *argv[]) {
             case 'c':
                 channels = atoi(optarg);
                 break;
-            case 'p':
-                servpath = optarg;
+            case 'a':
+                api_proxy_path = optarg;
+                break;
+            case 'w':
+                ws_proxy_path = optarg;
                 break;
             case 'i':
                 is_ping = true;
@@ -2055,13 +2059,14 @@ int main(int argc, char *argv[]) {
             case 'h':
             default:
                 fprintf(stderr,
-                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-p <basepath>] [-i] [-h|-?]\n"
-                    "  -H <host>     Server host(default: %s)\n"
-                    "  -P <port>     Server port(default: %d)\n"
-                    "  -c <channels> Audio channels(default: %d)\n"
-                    "  -p <basepath> Show verbose(default: %s)\n"
-                    "  -i            Ping(default: false)\n"
-                    "  -h,-?         This help\n"
+                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
+                    "  -H <host>      Server host(default: %s)\n"
+                    "  -P <port>      Server port(default: %d)\n"
+                    "  -c <channels>  Audio channels(default: %d)\n"
+                    "  -a <proxypath> Api proxy path(default: %s)\n"
+                    "  -w <proxypath> WebSocket proxy path(default: %s)\n"
+                    "  -i             Ping(default: false)\n"
+                    "  -h,-?          This help\n"
                     "Press Key:\n"
                     "  F1     KEYCODE_MUSIC\n"
                     "  F2     KEYCODE_VOLUME_UP\n"
@@ -2075,7 +2080,7 @@ int main(int argc, char *argv[]) {
                     "  Home   KEYCODE_HOME\n"
                     "  End    KEYCODE_POWER\n"
                     "  Esc    KEYCODE_BACK\n"
-                    , argv[0], servhost, servport, channels, servpath
+                    , argv[0], servhost, servport, channels, api_proxy_path, ws_proxy_path
                 );
                 return 0;
         }
