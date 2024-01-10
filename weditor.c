@@ -260,7 +260,8 @@ static void ws_setopt(int s, int send_timeout, int recv_timeout, int send_buffer
 
 static char *servhost = "127.0.0.1";
 static int servport = 17310;
-static char *servpath = "";
+static char *api_proxy_path = "";
+static char *ws_proxy_path = "";
 static struct sockaddr_in servaddr;
 
 static int sock_conn(const char *func, int timeout) {
@@ -313,10 +314,14 @@ static int sock_conn(const char *func, int timeout) {
 	}
 }
 
+static volatile bool is_connect = false;
+
 static int _ws_conn(const char *func, const char *path, int timeout) {
 	char buf[2048];
 	int size = 0, ret, sz = 0;
 	int fd;
+	
+	if(!is_connect) return 0;
 
 	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
 	
@@ -324,7 +329,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 	
 	if(fd == 0) return 0;
 	
-	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", ws_proxy_path, path);
 	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 	size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
 	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
@@ -394,7 +399,8 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 	int fd = 0, i;
 	
 	while(is_running && !(fd = _ws_conn(func, path, timeout))) {
-		for(i = 0; is_running && i < 20 * 3; i ++) usleep(50000);
+		is_connect = false;
+		for(i = 0; is_running && !is_connect && i < 20 * 3; i ++) usleep(50000);
 	}
 	
 	return fd;
@@ -793,6 +799,7 @@ static void *conn_video_thread(void *arg) {
 	GdkPixbufLoader *loader;
 	bool isfull = false;
 	char buf[128];
+	double t;
 	
 	while(is_running) {
 		if(fd) {
@@ -848,11 +855,49 @@ static void *conn_video_thread(void *arg) {
 								#else
 									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
 								#endif
+								} else if(video_width > 800 || video_height > 800) {
+									int width, height;
+									if(video_width > video_height) {
+										width = 800;
+										height = 800 * video_height / video_width;
+									} else {
+										width = 800 * video_width / video_height;
+										height = 800;
+									}
+									
+									double scale = (double) width / (double) video_width;
+									
+									video_width = width;
+									video_height = height;
+									
+									if(!dst || fwidth != width || fheight != height) {
+										fwidth = width;
+										fheight = height;
+										if(dst) g_object_unref(dst);
+										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
+									}
+									
+									gdk_pixbuf_fill(dst, 0x000000);
+									gdk_pixbuf_scale(pixbuf, dst, 0, 0, width, height, 0, 0, scale, scale, GDK_INTERP_BILINEAR);
+
+									gtk_widget_set_size_request(audioFrame, 400, video_height);
+									gtk_widget_set_size_request(videoFrame, video_width, video_height);
+									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
+									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+									
+								#ifdef VIDEO_IMAGE
+									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
+								#else
+									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								#endif
 								} else {
 									gtk_widget_set_size_request(audioFrame, 400, video_height);
 									gtk_widget_set_size_request(videoFrame, video_width, video_height);
 									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
 									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
+									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+									
 								#ifdef VIDEO_IMAGE
 									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), pixbuf);
 								#else
@@ -913,6 +958,9 @@ static void *conn_video_thread(void *arg) {
 			} else {
 				close(fd);
 				fd = 0;
+				
+				is_connect = false;
+				for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		} else {
 			n = 0;
@@ -923,6 +971,7 @@ static void *conn_video_thread(void *arg) {
 			
 			video_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", WS_CONN_TIMEOUT);
+			t = microtime();
 			video_loading = 0;
 		}
 	}
@@ -1057,6 +1106,7 @@ static void *touch_event_thread(void *arg) {
 	fd_set set;
 	touch_event_t evt;
 	char buf[128];
+	double t = 0;
 	
 	while(is_running) {
 		if(fd) {
@@ -1082,14 +1132,10 @@ static void *touch_event_thread(void *arg) {
 					ptr = NULL;
 					if(old && n) goto recv;
 				} else {
-					close(fd);
-					fd = 0;
-					continue;
+					goto end;
 				}
 			} else if(ret < 0) {
-				close(fd);
-				fd = 0;
-				continue;
+				goto end;
 			}
 			
 			// ======== send touch event ========
@@ -1102,9 +1148,7 @@ static void *touch_event_thread(void *arg) {
 			
 			ret = 0;
 			if(((ret = select(fd+1, NULL, &set, NULL, &tv)) > 0 && !touch_event_send(fd)) || ret < 0) {
-				close(fd);
-				fd = 0;
-				continue;
+				goto end;
 			}
 		} else {
 			n = 0;
@@ -1115,10 +1159,15 @@ static void *touch_event_thread(void *arg) {
 			
 			touch_event_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minitouch?deviceId=android:", WS_CONN_TIMEOUT);
+			t = microtime();
 			touch_event_loading = 0;
 			if(fd && !WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"r\"}", WS_SEND_TIMEOUT)) {
+			end:
 				close(fd);
 				fd = 0;
+				
+				is_connect = false;
+				for(int i = 0; is_running && i < 20*5; i++) usleep(50000);
 			}
 		}
 	}
@@ -1483,9 +1532,11 @@ static keycode_t keys[KEY_SIZE];
 static volatile uint32_t key_idx = 0;
 static volatile uint32_t key_size = 0;
 
-static int http_post(const char *func, const char *path, char *append, const char *result) {
+static int http_post(const char *func, const char *path, char *post, const char *result) {
 	int fd, size, sz, ret = 0;
-	char buf[2048], post[128];
+	char buf[2048];
+	struct timeval tv;
+	fd_set set;
 	
 	fd = sock_conn(func, 100);
 
@@ -1496,13 +1547,13 @@ static int http_post(const char *func, const char *path, char *append, const cha
 	}
 	
 	size = 0;
-	size += snprintf(buf + size, sizeof(buf), "POST %s%s HTTP/1.1\r\n", servpath, path);
+	size += snprintf(buf + size, sizeof(buf), "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
 	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
 	size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
 	size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
 	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Length: %d\r\n", snprintf(post, sizeof(post), "serial=android:%s", append));
+	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
+	size += snprintf(buf + size, sizeof(buf), "Content-Length: %ld\r\n", strlen(post));
 	size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
 	
 	// fprintf(stderr, "%s\n", buf);
@@ -1527,7 +1578,22 @@ loopsend:
 	sz = 0;
 	memset(buf, 0, sizeof(buf));
 	
+	{
+		int flags = fcntl(fd, F_GETFL);
+		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	}
+	
 looprecv:
+	do {
+		tv.tv_sec = 0;
+		tv.tv_usec = WS_SELECT_USEC;
+		
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		
+		ret = select(fd+1, &set, NULL, NULL, &tv);
+	} while(ret == 0 && is_running);
+	
 	ret = recv(fd, buf + sz, sizeof(buf) - sz, 0);
 	if(ret > 0) {
 		// fwrite(buf + sz, 1, ret, stdout);
@@ -1559,11 +1625,14 @@ end:
 	return ret;
 }
 
+static bool is_ping = false;
+
 static void *key_event_thread(void *arg) {
 	keycode_t *key;
 	int ret;
 	char buf[32];
-	double t = microtime() + 10.0;
+	double t = microtime() + 10.0, t2 = 0.0;
+	bool is_conn = false;
 	
 	while(is_running) {
 		usleep(10000);
@@ -1578,10 +1647,10 @@ static void *key_event_thread(void *arg) {
 			else printf("[%s] TEXT: %c ...\n", nowtime(buf, sizeof(buf)), key->code);
 			
 			if(key->type) {
-				snprintf(buf, sizeof(buf), "&key=%d", key->code);
+				snprintf(buf, sizeof(buf), "serial=android:&key=%d", key->code);
 				ret = http_post(__func__, "/api/v1/press", buf, "{\"ret\": true}");
 			} else {
-				snprintf(buf, sizeof(buf), "&text=%%%02x", key->code);
+				snprintf(buf, sizeof(buf), "serial=android:&text=%%%02x", key->code);
 				ret = http_post(__func__, "/api/v1/text", buf, "{\"ret\": true}");
 			}
 			if(ret) {
@@ -1589,15 +1658,21 @@ static void *key_event_thread(void *arg) {
 				else printf("[%s] TEXT: %c %s\n", nowtime(buf, sizeof(buf)), key->code, ret > 0 ? "OK" : "ERR");
 			}
 			
-			t = microtime() + 10.0;
-		} else if(microtime() > t) {
+			if(is_ping) t = microtime() + 10.0;
+		} else if(is_ping && microtime() > t) {
 			printf("[%s] PING ...\n", nowtime(buf, sizeof(buf)));
-			ret = http_post(__func__, "/api/v1/ping", "", "{\"ret\": \"pong\"}");
+			ret = http_post(__func__, "/api/v1/ping", "serial=android:", "{\"ret\": \"pong\"}");
 			if(ret) {
 				printf("[%s] PING %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
 			}
 			t = microtime() + 10.0;
-		}
+		} else if(microtime() > t2) {
+			ret = http_post(__func__, "/api/v1/connect", "platform=Android&deviceUrl=", "\"success\": true");
+			printf("[%s] Connect device %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
+			is_connect = is_conn = ret > 0;
+			if(ret > 0) t2 = microtime() + 30.0;
+			else t2 = microtime() + 1.0;
+		} else if(is_conn && !is_connect) t2 = 0;
 	}
 	pthread_exit(NULL);
 }
@@ -1960,7 +2035,7 @@ static void *video_fps_thread(void *arg) {
 int main(int argc, char *argv[]) {
 	int ret, c;
 	
-	while((c = getopt(argc, argv, "H:P:c:p:h?")) != -1) {
+	while((c = getopt(argc, argv, "H:P:c:a:w:ih?")) != -1) {
         switch(c) {
         	case 'H':
         		servhost = optarg;
@@ -1971,19 +2046,27 @@ int main(int argc, char *argv[]) {
             case 'c':
                 channels = atoi(optarg);
                 break;
-            case 'p':
-                servpath = optarg;
+            case 'a':
+                api_proxy_path = optarg;
+                break;
+            case 'w':
+                ws_proxy_path = optarg;
+                break;
+            case 'i':
+                is_ping = true;
                 break;
             case '?':
             case 'h':
             default:
                 fprintf(stderr,
-                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-p <basepath>] [-h|-?]\n"
-                    "  -H <host>     Server host(default: %s)\n"
-                    "  -P <port>     Server port(default: %d)\n"
-                    "  -c <channels> Audio channels(default: %d)\n"
-                    "  -p <basepath> Show verbose(default: %s)\n"
-                    "  -h,-?       This help\n"
+                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
+                    "  -H <host>      Server host(default: %s)\n"
+                    "  -P <port>      Server port(default: %d)\n"
+                    "  -c <channels>  Audio channels(default: %d)\n"
+                    "  -a <proxypath> Api proxy path(default: %s)\n"
+                    "  -w <proxypath> WebSocket proxy path(default: %s)\n"
+                    "  -i             Ping(default: false)\n"
+                    "  -h,-?          This help\n"
                     "Press Key:\n"
                     "  F1     KEYCODE_MUSIC\n"
                     "  F2     KEYCODE_VOLUME_UP\n"
@@ -1997,7 +2080,7 @@ int main(int argc, char *argv[]) {
                     "  Home   KEYCODE_HOME\n"
                     "  End    KEYCODE_POWER\n"
                     "  Esc    KEYCODE_BACK\n"
-                    , argv[0], servhost, servport, channels, servpath
+                    , argv[0], servhost, servport, channels, api_proxy_path, ws_proxy_path
                 );
                 return 0;
         }
@@ -2088,6 +2171,7 @@ int main(int argc, char *argv[]) {
 	
 	gdk_threads_enter();
 	gtk_main();
+	gtk_end();
 	gdk_threads_leave();
 
 end:
@@ -2116,10 +2200,7 @@ end:
 	if(pthread_join(key_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	
 	pthread_attr_destroy(&attr);
-	
-	gtk_end();
 
 	sem_destroy(&play_sem);
 	pthread_mutex_destroy(&touch_lock);
