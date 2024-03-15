@@ -56,11 +56,13 @@ void *strbuf_read(void *arg) {
 	strbuf_t *buf = (strbuf_t*) malloc(szHDR + SIZE + 1);
 	uint16_t sz = 0;
 	uint32_t n = 0;
+	uint64_t bytes = 0;
 	double t = microtime(), t2;
 	
 	while(is_running) {
 		sem_wait(&sem);
 		sz = smart_str_get(strbuf, buf, szHDR);
+		bytes += sz;
 		if(sz == 0) {
 			break;
 		} else if(sz < szHDR || buf->size > SIZE) {
@@ -68,6 +70,7 @@ void *strbuf_read(void *arg) {
 			break;
 		} else {
 			sz = smart_str_get(strbuf, buf->data, buf->size);
+			bytes += sz;
 			if(sz == buf->size) {
 				buf->data[buf->size] = 0;
 				if(buf->crc == crc16(vCRC, (const uint8_t *) buf->data, buf->size)) {
@@ -92,6 +95,7 @@ void *strbuf_read(void *arg) {
 		t2 = (microtime() - t);
 		printf("%u %.3lf %.3lf\n", n, n / t2, t2);
 	}
+	printf("recv bytes: %lu\n", bytes);
 	
 	free(buf);
 	
@@ -106,6 +110,7 @@ int main(int argc, char *argv[]) {
 	strbuf_t *buf;
 	uint16_t i,size;
 	uint32_t times = (argc < 2 ? 100000 : strtoul(argv[1], NULL, 10));
+	uint64_t bytes = 0;
 	uint8_t *sizes;
 	
 	if(argc > 2) {
@@ -141,7 +146,13 @@ int main(int argc, char *argv[]) {
 		}
 		buf->crc = crc16(vCRC, (const uint8_t *) buf->data, buf->size);
 		
-		while(is_running && !smart_str_put(strbuf, buf, szHDR + buf->size));
+		while(is_running) {
+			if(smart_str_put(strbuf, buf, szHDR + buf->size)) {
+				bytes += szHDR + buf->size;
+				break;
+			}
+			usleep(1);
+		}
 		
 		sem_post(&sem);
 		times --;
@@ -152,6 +163,7 @@ int main(int argc, char *argv[]) {
 
 	sem_post(&sem);
 	pthread_join(thread, NULL);
+	printf("send bytes: %lu\n", bytes);
 	
 	return 0;
 }
