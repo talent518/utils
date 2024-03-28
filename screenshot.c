@@ -131,11 +131,17 @@ int main(int argc, char *argv[]) {
 
 			snprintf(filename, sizeof(filename), "screen-%02d-%02d.jpg", i, i2);
 			
-			fprintf(stderr, "    Display: %d, Name: %6s %7s, x: %4d, y: %4d, width: %4d, height: %4d, filename: %s\n", i2, output_info ? output_info->name : "Virt", res->crtcs[i2] == crtc ? "Primary" : "", crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height, filename);
+			fprintf(stderr, "    Display: %d, Name: %6s %7s, x: %4d, y: %4d, width: %4d, height: %4d", i2, output_info ? output_info->name : "Virt", res->crtcs[i2] == crtc ? "Primary" : "", crtc_info->x, crtc_info->y, crtc_info->width, crtc_info->height);
+			
+			if(crtc_info->width && crtc_info->height) {
+				fprintf(stderr, ", filename: %s\n", filename);
+				img = XGetImage(dpy, win, crtc_info->x, crtc_info->y, crtc_info->width > 0 ? crtc_info->width : 1, crtc_info->height > 0 ? crtc_info->height : 1, ~0, ZPixmap);
+				JpegWriteFileFromImage(filename, img);
+				XDestroyImage(img);
+			} else {
+				fprintf(stderr, "\n");
+			}
 
-			img = XGetImage(dpy, win, crtc_info->x, crtc_info->y, crtc_info->width > 0 ? crtc_info->width : 1, crtc_info->height > 0 ? crtc_info->height : 1, ~0, ZPixmap);
-			JpegWriteFileFromImage(filename, img);
-			XDestroyImage(img);
 			XRRFreeCrtcInfo(crtc_info);
 		}
 		

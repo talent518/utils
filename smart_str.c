@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "smart_str.h"
 
 bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint16_t len) {
