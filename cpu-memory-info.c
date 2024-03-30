@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <time.h>
 
+#define NCOMM 128
 #define NPROC 1000
 #define BUFLEN 1024
 
@@ -289,7 +290,7 @@ int getprocessinfo(int pid, process_t *proc) {
 	return 1;
 }
 
-int getcomm(char *pid, char *comm) {
+int getcomm(char *pid, char *comm, int size) {
 	char buff[BUFLEN] = "";
 	char fname[64] = "";
 	FILE *fp;
@@ -303,39 +304,66 @@ int getcomm(char *pid, char *comm) {
 		return 0;
 	}
 
-	len = fread(buff, 1, sizeof(buff) - 1, fp);
+	len = fread(comm, 1, size - 1, fp);
 	if(len <= 0) return 0;
 
 	fclose(fp);
+	
+	comm[len] = '\0';
 
-	ptr = buff;
+	ptr = comm;
 	while(*ptr && !(*ptr == '\r' || *ptr == '\n' || *ptr == ' ')) ptr ++;
 	*ptr = '\0';
 	
-	return !strcmp(buff, comm);
+	return 1;
 }
 
 char procArgStr[NPROC][BUFLEN];
 
-int procarg(char *comm, int nproc, int *pid, process_t *proc) {
-	char fname[64] = "";
+int procarg(int comm_size, char *comms[], int nproc, int *pid, process_t *proc) {
+	char fname[64] = "", comm[BUFLEN];
 	int n, len, i;
-	
-	if(comm) {
+
+	// 清除为0的pid[x]
+	i = 0;
+	for(n=0; n<nproc; n++) {
+		if(pid[n]) {
+			if(n != i) {
+				pid[i] = pid[n];
+				pid[n] = 0;
+			}
+			
+			i++;
+		}
+	}
+	nproc = i;
+
+	if(comm_size) {
 		DIR *dp;
 		struct dirent *dt;
 	
-		nproc = 0;
 		dp = opendir("/proc");
-		while((dt = readdir(dp)) != NULL) {
+		while(nproc < NPROC && (dt = readdir(dp)) != NULL) {
 			if(dt->d_name[0] >= '0' && dt->d_name[0] <= '9') {
-				if(getcomm(dt->d_name, comm)) {
-					pid[nproc++] = atoi(dt->d_name);
-					if(nproc >= NPROC) break;
+				if(getcomm(dt->d_name, comm, BUFLEN)) {
+					for(i = 0; i < comm_size && nproc < NPROC; i ++) {
+						if(!strcmp(comm, comms[i])) pid[nproc++] = atoi(dt->d_name);
+					}
 				}
 			}
 		}
 		closedir(dp);
+	}
+	
+	// 去重
+	for(n=0; n<nproc; n++) {
+		if(pid[n]) {
+			for(i = n+1; i < nproc; i++) {
+				if(pid[n] == pid[i]) {
+					pid[i] = 0;
+				}
+			}
+		}
 	}
 	
 	for(n=0; n<nproc; n++) {
@@ -424,79 +452,74 @@ int main(int argc, char *argv[]) {
 	double total;
 	long int realUsed;
 	char hasCpu = 1, hasMem = 1, isTask = 0, isQuiet = 0;
-	int nproc = 0, n;
-	char *comm = NULL;
+	int nproc = 0, n, comm_size = 0;
+	char *comms[NCOMM];
 
-	int nn;
+	int nn, opt;
 	struct winsize wsize;
 	time_t t;
 	struct tm tm;
 	int istty = isatty(1);
-
-	for(i=1; i<argc; i++) {
-		switch(argv[i][0]) {
-			case '-':
-				switch(argv[i][1]) {
-					case 'c':
-						hasMem = 0;
-						hasCpu = 1;
-						comm = NULL;
-						nproc = 0;
-						break;
-					case 'm':
-						hasMem = 1;
-						hasCpu = 0;
-						comm = NULL;
-						nproc = 0;
-						break;
-					case 'P':
-						if(i+1 < argc && nproc == 0) {
-							hasCpu = 0;
-							hasMem = 0;
-							comm = argv[i+1];
-							n = strlen(comm);
-							if(n > 15) comm[15] = '\0';
-							i++;
-							break;
-						}
-						goto usage;
-					case 'p':
-						if(i+1 < argc && comm == NULL) {
-							hasCpu = 0;
-							hasMem = 0;
-							if(nproc<NPROC) {
-								pid[nproc++] = atoi(argv[i+1]);
-							}
-							i++;
-							break;
-						}
-						goto usage;
-					case 'L':
-						isTask = 1;
-						break;
-					case 'q':
-						isQuiet = 1;
-						break;
-					default:
-						usage:
-						printf("Usage: %s [ -c | -m | -P <comm> [-L | -q] | -p <pid> [-L | -q] | -h | -? ] [ delay]\n"
-								"  -c        Cpu info\n"
-								"  -m        Memory info\n"
-								"  -P <comm> Process comm\n"
-								"  -p <pid>  Process info(Multiple)\n"
-								"  -L        List thread of comm\n"
-								"  -q        Quiet\n"
-								"  -h,-?     This help\n", argv[0]);
-						return 0;
+	
+	while((opt = getopt(argc, argv, "cmP:p:Lqd:h?")) != -1) {
+		switch(opt) {
+			case 'c':
+				if(!nproc && !comm_size) {
+					hasMem = 0;
+					hasCpu = 1;
+				}
+				break;
+			case 'm':
+				if(!nproc && !comm_size) {
+					hasMem = 1;
+					hasCpu = 0;
+				}
+				break;
+			case 'P':
+				if(comm_size < NCOMM) {
+					n = strlen(optarg);
+					if(n > 15) optarg[15] = '\0';
+					comms[comm_size++] = optarg;
+				}
+				
+				break;
+			case 'p':
+				hasCpu = 0;
+				hasMem = 0;
+				
+				if(nproc < NPROC) {
+					pid[nproc++] = atoi(optarg);
+				}
+				break;
+			case 'L':
+				isTask = 1;
+				break;
+			case 'q':
+				isQuiet = 1;
+				break;
+			case 'd':
+				delay = atoi(optarg);
+				if(delay <= 0) {
+					delay = 1;
 				}
 				break;
 			default:
-				delay = atoi(argv[i]);
-				if(delay <= 0) {
-					goto usage;
-				}
-				break;
+				usage:
+				printf("Usage: %s [-c] [-m] [-P <comm>] [-p <pid>] [-L] [-q]  [-d <delay>] [-h] [-?]\n"
+						"  -c        Cpu info\n"
+						"  -m        Memory info\n"
+						"  -P <comm> Process comm\n"
+						"  -p <pid>  Process info(Multiple)\n"
+						"  -L        List thread of comm\n"
+						"  -q        Quiet\n"
+						"  -h,-?     This help\n", argv[0]);
+				return 0;
 		}
+	}
+	
+	if(comm_size || nproc) {
+		hasCpu = 0;
+		hasMem = 0;
 	}
 
 	if(hasCpu) {
@@ -535,7 +558,7 @@ int main(int argc, char *argv[]) {
 				lines = 6;
 			}
 			
-			nproc = procarg(comm, nproc, pid, proc);
+			nproc = procarg(comm_size, comms, nproc, pid, proc);
 
 			if(nproc > 0) {
 				nn = nproc;
@@ -562,7 +585,7 @@ int main(int argc, char *argv[]) {
 						nn --;
 					}
 				}
-				if(nn<=0 && comm == NULL) {
+				if(nn<=0 && comm_size == 0) {
 					return 0;
 				}
 				sleep(delay);
@@ -575,7 +598,7 @@ int main(int argc, char *argv[]) {
 			}
 			
 			if(lines == 0) {
-				if(!comm) break;
+				if(comm_size == 0) break;
 
 				sleep(delay);
 				continue;
@@ -675,7 +698,7 @@ int main(int argc, char *argv[]) {
 
 			proc[n] = proc2[n];
 		}
-		if(nproc > 0 && nn <= 0 && comm == NULL) {
+		if(nproc > 0 && nn <= 0 && comm_size == 0) {
 			return 0;
 		} else if(nn > 1) {
 			lines ++;
