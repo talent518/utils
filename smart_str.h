@@ -5,9 +5,9 @@
 #include <stdint.h>
 
 typedef struct {
-	uint16_t rpos;
-	uint16_t tpos;
-	uint16_t size;
+	uint32_t rpos;
+	uint32_t tpos;
+	uint32_t size;
 	uint8_t *buf;
 } smart_str_t;
 
@@ -20,8 +20,8 @@ typedef struct {
 #define smart_str_put(var, buf, len) _smart_str_put(&ss_##var, (const uint8_t *) (buf), len)
 #define smart_str_get(var, buf, len) _smart_str_get(&ss_##var, (uint8_t*) (buf), len)
 
-bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint16_t len);
-uint16_t _smart_str_get(smart_str_t *ss, uint8_t *buf, uint16_t len);
+bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint32_t len);
+uint32_t _smart_str_get(smart_str_t *ss, uint8_t *buf, uint32_t len);
 
 #endif
 

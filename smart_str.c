@@ -2,8 +2,8 @@
 
 #include "smart_str.h"
 
-bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint16_t len) {
-	uint16_t i, remain, sz;
+bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint32_t len) {
+	uint32_t i, remain, sz;
 
 	if(!len)
 		return false;
@@ -33,8 +33,8 @@ bool _smart_str_put(smart_str_t *ss, const uint8_t *buf, uint16_t len) {
 	return true;
 }
 
-uint16_t _smart_str_get(smart_str_t *ss, uint8_t *buf, uint16_t len) {
-	uint16_t i, written, sz;
+uint32_t _smart_str_get(smart_str_t *ss, uint8_t *buf, uint32_t len) {
+	uint32_t i, written, sz;
 	if(!len)
 		return 0;
 
