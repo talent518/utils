@@ -168,6 +168,7 @@ java -classpath "$(echo /usr/share/openjfx/lib/*.jar | replace " " ":"):." Brows
   * apport.sh => 显示最后一次进程崩溃的调用𣏾(需要使用 ulimit -c unlimited 开启内核转储)
   * chkpwd.c => 检查linux用户帐户密码
   * pm2-dump.js => 格式化pm2配置文件(~/.pm2/dump.pm2)
+  * cpufreq.c => 监控CPU频率
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")

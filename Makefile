@@ -506,6 +506,11 @@ YangHuiTriangle3: YangHuiTriangle3.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: cpufreq
+cpufreq: cpufreq.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
