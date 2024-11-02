@@ -169,6 +169,7 @@ java -classpath "$(echo /usr/share/openjfx/lib/*.jar | replace " " ":"):." Brows
   * chkpwd.c => 检查linux用户帐户密码
   * pm2-dump.js => 格式化pm2配置文件(~/.pm2/dump.pm2)
   * cpufreq.c => 监控CPU频率
+  * ffmpeg-setup.sh => 用于在ubuntu系统下编译安装[ffmpeg](https://gitee.com/mirrors/ffmpeg)
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
