@@ -672,7 +672,7 @@ static gboolean timeout_func_stat(gpointer data)
 	unsigned int fps = vframes;
 	
 	vframes = 0;
-	sprintf(title, "V4L2-Camera: %u fps", fps);
+	sprintf(title, "V4L2-Camera - fps: %u - width: %u - height: %u", fps, width, height);
 	
 	gtk_window_set_title(GTK_WINDOW(window), title);
 	return TRUE;
