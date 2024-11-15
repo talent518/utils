@@ -618,11 +618,10 @@ static void sig_handler(int sig)
 	if(isatty(2)) fprintf(stderr, "\r\033[2K");
 }
 
-static int gtk_argc = 0;
-static char **gtk_argv = NULL;
 static sem_t sem;
 static GtkWidget *window = NULL;
 static GtkWidget *drawarea = NULL;
+static PangoFontDescription *font_desc = NULL;
 static GdkFont *font = NULL;
 
 static volatile unsigned int vframes = 0;
@@ -684,9 +683,7 @@ static void *thread_gtk(void *arg)
 {
 	prctl(PR_SET_NAME, (unsigned long) "v4l2-gtk");
 	
-	gtk_init(&gtk_argc, &gtk_argv);
-	
-	font = gdk_font_load("-*-helvetica-medium-r-*-*-32-*-*-*-*-*-*-*");
+	gdk_threads_enter();
 	
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	
@@ -715,11 +712,11 @@ static void *thread_gtk(void *arg)
 	
 	sem_post(&sem);
 	
-	guint timer = gtk_timeout_add(1000, timeout_func_stat, NULL);
-	
-	gtk_main();
-	
-	gtk_timeout_remove(timer);
+	{
+		guint timer = gtk_timeout_add(1000, timeout_func_stat, NULL);
+		gtk_main();
+		gtk_timeout_remove(timer);
+	}
 	
 	gdk_threads_leave();
 	
@@ -735,7 +732,6 @@ static void draw_pixmap(void)
 
 static void draw_nowtime(void)
 {
-	GdkGC *gc;
 	char buf[128];
 	
 	struct timeval tv = {0, 0};
@@ -748,11 +744,17 @@ static void draw_nowtime(void)
 		tm.tm_hour, tm.tm_min, tm.tm_sec,
 		tv.tv_usec / 1000
 	);
-
+	
+#if 0
+	PangoLayout *layout = gtk_widget_create_pango_layout(drawPixmap, buf);
+	pango_layout_set_font_description(layout, font_desc);
+	gdk_draw_layout(drawPixmap, drawarea->style->black_gc, 48, 48, layout);
+	gdk_draw_layout(drawPixmap, drawarea->style->white_gc, 50, 50, layout);
+#else
 	gdk_draw_string(drawPixmap, font, drawarea->style->black_gc, 48, 48, buf);
 	gdk_draw_string(drawPixmap, font, drawarea->style->white_gc, 50, 50, buf);
+#endif
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -950,17 +952,24 @@ int main(int argc, char *argv[])
 	signal(SIGUSR1, sig_handler);
 	signal(SIGUSR2, sig_handler);
 	
-	gtk_argc = argc;
-	gtk_argv = argv;
+	gdk_threads_init();
+	
+	gtk_init(&argc, &argv);
+	
+	font_desc = pango_font_description_from_string("Sans Bold 32");
+	// pango_font_description_set_weight(font_desc, PANGO_WEIGHT_BOLD);
+	// pango_font_description_set_size(font_desc, 32 * PANGO_SCALE);
+	// printf("font_desc: %d\n", pango_font_description_get_size(font_desc));
+	font = gdk_font_from_description(font_desc);
+
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	sem_init(&sem, 0, 0);
 	pthread_create(&tid, &attr, thread_gtk, NULL);
 	sem_wait(&sem);
 	
-	drawPixmap = gdk_pixmap_new(drawarea->window, width, height, -1);
-
 	gdk_threads_enter();
+	drawPixmap = gdk_pixmap_new(drawarea->window, width, height, -1);
 	if(is_running)
 	{
 		memset(rgbbuf, 0x00, width * height * 3);
