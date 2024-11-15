@@ -522,6 +522,11 @@ cpufreq: cpufreq.o
 	@$(ECHO) LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: v4l2-camera
+v4l2-camera: v4l2-camera.o
+	@$(ECHO) LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@$(ECHO) CC $^
 	@$(CC) $(CFLAGS) -c $^ -o $@

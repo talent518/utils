@@ -511,6 +511,11 @@ cpufreq: cpufreq.o
 	@echo LD $@
 	@$(CC) -o $@ $^ $(LFLAGS)
 
+all: v4l2-camera
+v4l2-camera: v4l2-camera.o
+	@echo LD $@
+	@$(CC) -o $@ $^ $(LFLAGS)
+
 %.o: %.c
 	@echo CC $^
 	@$(CC) $(CFLAGS) -c $^ -o $@
@@ -533,3 +538,4 @@ test: url greatestCommonDivisor re mkfont
 clean:
 	@echo $@
 	@rm -vf *.o *.O *.s *.S *.e *.E $(shell cat Makefile | awk '{if($$1=="all:") print $$2;}')
+

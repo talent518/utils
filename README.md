@@ -170,6 +170,7 @@ java -classpath "$(echo /usr/share/openjfx/lib/*.jar | replace " " ":"):." Brows
   * pm2-dump.js => 格式化pm2配置文件(~/.pm2/dump.pm2)
   * cpufreq.c => 监控CPU频率
   * ffmpeg-setup.sh => 用于在ubuntu系统下编译安装[ffmpeg](https://gitee.com/mirrors/ffmpeg)
+  * v4l2-camera.c => 摄像头采集并gtk渲染
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
