@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <sys/prctl.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -622,6 +623,7 @@ static char **gtk_argv = NULL;
 static sem_t sem;
 static GtkWidget *window = NULL;
 static GtkWidget *drawarea = NULL;
+static GdkFont *font = NULL;
 
 static volatile unsigned int vframes = 0;
 
@@ -680,7 +682,11 @@ static gboolean timeout_func_stat(gpointer data)
 
 static void *thread_gtk(void *arg)
 {
+	prctl(PR_SET_NAME, (unsigned long) "v4l2-gtk");
+	
 	gtk_init(&gtk_argc, &gtk_argv);
+	
+	font = gdk_font_load("-*-helvetica-medium-r-*-*-32-*-*-*-*-*-*-*");
 	
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	
@@ -719,6 +725,34 @@ static void *thread_gtk(void *arg)
 	
 	pthread_exit(NULL);
 }
+
+static GdkPixmap *drawPixmap = NULL;
+
+static void draw_pixmap(void)
+{
+	gdk_draw_drawable(drawarea->window, drawarea->style->black_gc, drawPixmap, 0, 0, 0, 0, width, height);
+}
+
+static void draw_nowtime(void)
+{
+	GdkGC *gc;
+	char buf[128];
+	
+	struct timeval tv = {0, 0};
+	struct tm tm;
+
+	gettimeofday(&tv, NULL);
+	localtime_r(&tv.tv_sec, &tm);
+
+	sprintf(buf, "%02d:%02d:%02d.%03ld",
+		tm.tm_hour, tm.tm_min, tm.tm_sec,
+		tv.tv_usec / 1000
+	);
+
+	gdk_draw_string(drawPixmap, font, drawarea->style->black_gc, 48, 48, buf);
+	gdk_draw_string(drawPixmap, font, drawarea->style->white_gc, 50, 50, buf);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -923,12 +957,17 @@ int main(int argc, char *argv[])
 	sem_init(&sem, 0, 0);
 	pthread_create(&tid, &attr, thread_gtk, NULL);
 	sem_wait(&sem);
+	
+	drawPixmap = gdk_pixmap_new(drawarea->window, width, height, -1);
 
 	gdk_threads_enter();
 	if(is_running)
 	{
 		memset(rgbbuf, 0x00, width * height * 3);
-		gdk_draw_rgb_image(drawarea->window, drawarea->style->fg_gc[GTK_STATE_NORMAL], 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+		
+		gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+		draw_nowtime();
+		draw_pixmap();
 	}
 	gdk_threads_leave();
 	
@@ -981,7 +1020,9 @@ int main(int argc, char *argv[])
 			gdk_threads_enter();
 			if(is_running)
 			{
-				gdk_draw_rgb_image(drawarea->window, drawarea->style->fg_gc[GTK_STATE_NORMAL], 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+				gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+				draw_nowtime();
+				draw_pixmap();
 			}
 			gdk_threads_leave();
 			break;
@@ -997,7 +1038,9 @@ int main(int argc, char *argv[])
 				if(gdk_pixbuf_loader_close(loader, NULL)) {
 					pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 					if(pixbuf) {
-						gdk_draw_pixbuf(drawarea->window, drawarea->style->fg_gc[GTK_STATE_NORMAL], pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+						gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+						draw_nowtime();
+						draw_pixmap();
 					}
 				}
 				g_object_unref(loader);
