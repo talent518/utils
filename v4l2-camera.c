@@ -621,7 +621,6 @@ static void sig_handler(int sig)
 static sem_t sem;
 static GtkWidget *window = NULL;
 static GtkWidget *drawarea = NULL;
-static PangoFontDescription *font_desc = NULL;
 static GdkFont *font = NULL;
 
 static volatile unsigned int vframes = 0;
@@ -745,15 +744,8 @@ static void draw_nowtime(void)
 		tv.tv_usec / 1000
 	);
 	
-#if 0
-	PangoLayout *layout = gtk_widget_create_pango_layout(drawPixmap, buf);
-	pango_layout_set_font_description(layout, font_desc);
-	gdk_draw_layout(drawPixmap, drawarea->style->black_gc, 48, 48, layout);
-	gdk_draw_layout(drawPixmap, drawarea->style->white_gc, 50, 50, layout);
-#else
 	gdk_draw_string(drawPixmap, font, drawarea->style->black_gc, 48, 48, buf);
 	gdk_draw_string(drawPixmap, font, drawarea->style->white_gc, 50, 50, buf);
-#endif
 }
 
 int main(int argc, char *argv[])
@@ -956,11 +948,15 @@ int main(int argc, char *argv[])
 	
 	gtk_init(&argc, &argv);
 	
-	font_desc = pango_font_description_from_string("Sans Bold 32");
+#ifndef USE_FONT_LOAD
+	PangoFontDescription *font_desc = pango_font_description_from_string("Sans Bold 32");
 	// pango_font_description_set_weight(font_desc, PANGO_WEIGHT_BOLD);
 	// pango_font_description_set_size(font_desc, 32 * PANGO_SCALE);
 	// printf("font_desc: %d\n", pango_font_description_get_size(font_desc));
 	font = gdk_font_from_description(font_desc);
+#else
+	font = gdk_font_load("-*-helvetica-medium-r-*-*-32-*-*-*-*-*-*-*");
+#endif
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
