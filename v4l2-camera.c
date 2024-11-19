@@ -762,7 +762,33 @@ int main(int argc, char *argv[])
 	unsigned int pixfmt = 0;
 	pthread_t tid;
 	pthread_attr_t attr;
-	int fd, i, type;
+	int fps = 15;
+	int opt, fd, i, type;
+	
+	while((opt = getopt(argc, argv, "d:f:h?")) != -1)
+	{
+		switch(opt)
+		{
+		case 'd':
+			device = optarg;
+			break;
+		case 'f':
+			fps = atoi(optarg);
+			break;
+		case 'h':
+		case '?':
+		default:
+			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-h|-?]\n", argv[0]);
+			fprintf(stderr, "    -h,-?                This help\n");
+			fprintf(stderr, "    -d <device-path>     Device path(default: %s)\n", device);
+			fprintf(stderr, "    -f <fps>             framerate(default: %u)\n", fps);
+			fprintf(stderr, "    \n");
+			fprintf(stderr, "    \n");
+			fprintf(stderr, "    \n");
+			fprintf(stderr, "    \n");
+			return 1;
+		}
+	}
 
 	fd = open(device, O_RDWR);
 	if(fd < 0)
@@ -846,11 +872,11 @@ int main(int argc, char *argv[])
 		else
 			printf("\tFrames per second: %.3f (%d/%d)\n", (1.0 * tf->denominator) / tf->numerator, tf->denominator, tf->numerator);
 		
-		printf("\tRead buffers     : %d\n", parm.parm.capture.readbuffers);	
+		printf("\tRead buffers     : %d\n", parm.parm.capture.readbuffers);
 		
 		if(parm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME)
 		{
-			tf->denominator = 15;
+			tf->denominator = fps;
 			tf->numerator = 1;
 			if(ioctl(fd, VIDIOC_S_PARM, &parm) < 0)
 			{
