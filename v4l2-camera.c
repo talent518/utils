@@ -765,7 +765,7 @@ int main(int argc, char *argv[])
 	int fps = 15;
 	int opt, fd, i, type;
 	
-	while((opt = getopt(argc, argv, "d:f:h?")) != -1)
+	while((opt = getopt(argc, argv, "d:f:p:h?")) != -1)
 	{
 		switch(opt)
 		{
@@ -775,17 +775,28 @@ int main(int argc, char *argv[])
 		case 'f':
 			fps = atoi(optarg);
 			break;
+		case 'p':
+		{
+			bool be_pixfmt = strlen(optarg) == 7 && !memcmp(optarg + 4, "-BE", 3);
+			
+			if(be_pixfmt || strlen(optarg) == 4)
+			{
+				pixfmt = v4l2_fourcc(optarg[0], optarg[1], optarg[2], optarg[3]);
+				if(be_pixfmt)
+				{
+					pixfmt |= (1U << 31);
+				}
+			}
+			break;
+		}
 		case 'h':
 		case '?':
 		default:
-			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-h|-?]\n", argv[0]);
+			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-p <pixelformat>] [-h|-?]\n", argv[0]);
 			fprintf(stderr, "    -h,-?                This help\n");
 			fprintf(stderr, "    -d <device-path>     Device path(default: %s)\n", device);
 			fprintf(stderr, "    -f <fps>             framerate(default: %u)\n", fps);
-			fprintf(stderr, "    \n");
-			fprintf(stderr, "    \n");
-			fprintf(stderr, "    \n");
-			fprintf(stderr, "    \n");
+			fprintf(stderr, "    -p <pixelformat>     pixelformat\n");
 			return 1;
 		}
 	}
@@ -831,24 +842,30 @@ int main(int argc, char *argv[])
 	{
 		printfmt(fd, &vfmt);
 		
-		pixfmt = (is_multiplanar ? vfmt.fmt.pix_mp.pixelformat : vfmt.fmt.pix.pixelformat);
-		
-	#if 0
-		// YUYV 格式刷新率不可设置为30Hz
-		if(is_multiplanar)
+		if(pixfmt)
 		{
-			vfmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_YUYV;
+			if(is_multiplanar)
+			{
+				vfmt.fmt.pix_mp.pixelformat = pixfmt;
+			}
+			else
+			{
+				vfmt.fmt.pix.pixelformat = pixfmt;
+			}
+			if(ioctl(fd, VIDIOC_S_FMT, &vfmt) < 0)
+			{
+				perror("VIDIOC_S_FMT");
+				goto err;
+			}
+			
+			pixfmt = (is_multiplanar ? vfmt.fmt.pix_mp.pixelformat : vfmt.fmt.pix.pixelformat);
+			
+			printf("Set Pixcel Format to '%s'%s\n", fcc2s(pixfmt), printfmtname(fd, vfmt.type, pixfmt));
 		}
 		else
 		{
-			vfmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+			pixfmt = (is_multiplanar ? vfmt.fmt.pix_mp.pixelformat : vfmt.fmt.pix.pixelformat);
 		}
-		if(ioctl(fd, VIDIOC_S_FMT, &vfmt) < 0)
-		{
-			perror("VIDIOC_S_FMT");
-			goto err;
-		}
-	#endif
 	}
 
 	memset(&parm, 0, sizeof(parm));
