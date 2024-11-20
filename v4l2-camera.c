@@ -778,14 +778,15 @@ int main(int argc, char *argv[])
 	struct v4l2_plane *vplanes = NULL;
 	video_buffer_t *bufs = NULL;
 	unsigned char *rgbbuf = NULL;
+	int fps = 15;
+	int setw = 0, seth = 0;
 	unsigned int pixfmt = 0;
 	pthread_t tid;
 	pthread_attr_t attr;
-	int fps = 15;
 	bool istime = false;
 	int opt, fd, i, type;
 	
-	while((opt = getopt(argc, argv, "d:f:p:th?")) != -1)
+	while((opt = getopt(argc, argv, "d:f:w:h:p:t?")) != -1)
 	{
 		switch(opt)
 		{
@@ -794,6 +795,14 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			fps = atoi(optarg);
+			break;
+		case 'w':
+			setw = atoi(optarg);
+			if(setw < 0) setw = 0;
+			break;
+		case 'h':
+			seth = atoi(optarg);
+			if(seth < 0) seth = 0;
 			break;
 		case 'p':
 		{
@@ -812,15 +821,16 @@ int main(int argc, char *argv[])
 		case 't':
 			istime = true;
 			break;
-		case 'h':
 		case '?':
 		default:
-			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-p <pixelformat>] [-t] [-h|-?]\n", argv[0]);
-			fprintf(stderr, "    -h,-?                This help\n");
+			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-w <width>] [-h <height>] [-p <pixelformat>] [-t] [-?]\n", argv[0]);
+			fprintf(stderr, "    -?                   This help\n");
 			fprintf(stderr, "    -d <device-path>     Device path(default: %s)\n", device);
-			fprintf(stderr, "    -f <fps>             framerate(default: %u)\n", fps);
-			fprintf(stderr, "    -p <pixelformat>     pixelformat\n");
-			fprintf(stderr, "    -t                   show time\n");
+			fprintf(stderr, "    -f <fps>             Set Frame-rate(default: %u)\n", fps);
+			fprintf(stderr, "    -w <width>           Set width\n");
+			fprintf(stderr, "    -h <height>          Set height\n");
+			fprintf(stderr, "    -p <pixelformat>     Set pixel-format\n");
+			fprintf(stderr, "    -t                   Show time\n");
 			return 1;
 		}
 	}
@@ -866,25 +876,42 @@ int main(int argc, char *argv[])
 	{
 		printfmt(fd, &vfmt);
 		
-		if(pixfmt)
+		if(setw || seth || pixfmt)
 		{
 			if(is_multiplanar)
 			{
-				vfmt.fmt.pix_mp.pixelformat = pixfmt;
+				if(setw) vfmt.fmt.pix_mp.width = setw;
+				if(seth) vfmt.fmt.pix_mp.height = seth;
+				if(pixfmt) vfmt.fmt.pix_mp.pixelformat = pixfmt;
 			}
 			else
 			{
-				vfmt.fmt.pix.pixelformat = pixfmt;
+				if(setw) vfmt.fmt.pix.width = setw;
+				if(seth) vfmt.fmt.pix.height = seth;
+				if(pixfmt) vfmt.fmt.pix.pixelformat = pixfmt;
 			}
+			
 			if(ioctl(fd, VIDIOC_S_FMT, &vfmt) < 0)
 			{
 				perror("VIDIOC_S_FMT");
 				goto err;
 			}
 			
-			pixfmt = (is_multiplanar ? vfmt.fmt.pix_mp.pixelformat : vfmt.fmt.pix.pixelformat);
-			
-			printf("Set Pixcel Format to '%s'%s\n", fcc2s(pixfmt), printfmtname(fd, vfmt.type, pixfmt));
+			if(setw)
+			{
+				width = (is_multiplanar ? vfmt.fmt.pix_mp.width : vfmt.fmt.pix.width);
+				printf("Set Width to %d\n", width);
+			}
+			if(seth)
+			{
+				height = (is_multiplanar ? vfmt.fmt.pix_mp.height : vfmt.fmt.pix.height);
+				printf("Set Height to %d\n", height);
+			}
+			if(pixfmt)
+			{
+				pixfmt = (is_multiplanar ? vfmt.fmt.pix_mp.pixelformat : vfmt.fmt.pix.pixelformat);
+				printf("Set Pixcel Format to '%s'%s\n", fcc2s(pixfmt), printfmtname(fd, vfmt.type, pixfmt));
+			}
 		}
 		else
 		{
