@@ -1082,7 +1082,7 @@ int main(int argc, char *argv[])
 			perror("select");
 			break;
 		}
-		else if(r == 0) continue;
+		else if(r == 0) break;
 		
 		// 读取摄像头图像数据
 		memset(&vbuf, 0, sizeof(vbuf));
