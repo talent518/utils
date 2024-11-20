@@ -1199,26 +1199,27 @@ int main(int argc, char *argv[])
 				GdkPixbuf *pixbuf;
 				
 				gdk_threads_enter();
-				
-				loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
-				gdk_pixbuf_loader_write(loader, bufs[vbuf.index].buf, bufs[vbuf.index].len, NULL);
-				if(gdk_pixbuf_loader_close(loader, NULL)) {
-					pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-					if(pixbuf) {
-						if(istime)
-						{
-							gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
-							draw_nowtime();
-							draw_pixmap();
-						}
-						else
-						{
-							gdk_draw_pixbuf(drawarea->window, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+				if(is_running)
+				{
+					loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
+					gdk_pixbuf_loader_write(loader, bufs[vbuf.index].buf, bufs[vbuf.index].len, NULL);
+					if(gdk_pixbuf_loader_close(loader, NULL)) {
+						pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+						if(pixbuf) {
+							if(istime)
+							{
+								gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+								draw_nowtime();
+								draw_pixmap();
+							}
+							else
+							{
+								gdk_draw_pixbuf(drawarea->window, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+							}
 						}
 					}
+					g_object_unref(loader);
 				}
-				g_object_unref(loader);
-				
 				gdk_threads_leave();
 			}
 			break;
