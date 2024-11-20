@@ -171,6 +171,7 @@ java -classpath "$(echo /usr/share/openjfx/lib/*.jar | replace " " ":"):." Brows
   * cpufreq.c => 监控CPU频率
   * ffmpeg-setup.sh => 用于在ubuntu系统下编译安装[ffmpeg](https://gitee.com/mirrors/ffmpeg)
   * v4l2-camera.c => 摄像头采集并gtk渲染
+  * pstack.sh pattern => 使用gdb查看进程堆栈
 
 ## 图片
 ![圆周率公式](PI.jpg "圆周率公式")
