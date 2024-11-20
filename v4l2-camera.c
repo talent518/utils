@@ -18,6 +18,8 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 
+#define VBUF_NUM 4
+
 inline double microtime()
 {
 	struct timeval tp = {0};
@@ -435,16 +437,14 @@ static void printfmt(int fd, const struct v4l2_format *vfmt)
 		height = vfmt->fmt.pix.height;
 		
 		printf("\tWidth/Height      : %u/%u\n", vfmt->fmt.pix.width, vfmt->fmt.pix.height);
-		printf("\tPixel Format      : '%s'%s\n", fcc2s(vfmt->fmt.pix.pixelformat),
-		       printfmtname(fd, vfmt->type, vfmt->fmt.pix.pixelformat));
+		printf("\tPixel Format      : '%s'%s\n", fcc2s(vfmt->fmt.pix.pixelformat), printfmtname(fd, vfmt->type, vfmt->fmt.pix.pixelformat));
 		printf("\tField             : %s\n", field2s(vfmt->fmt.pix.field));
 		printf("\tBytes per Line    : %u\n", vfmt->fmt.pix.bytesperline);
 		printf("\tSize Image        : %u\n", vfmt->fmt.pix.sizeimage);
 		printf("\tColorspace        : %s\n", colorspace2s(colsp));
 		printf("\tTransfer Function : %s", xfer_func2s(vfmt->fmt.pix.xfer_func));
 		if (vfmt->fmt.pix.xfer_func == V4L2_XFER_FUNC_DEFAULT)
-			printf(" (maps to %s)",
-			       xfer_func2s(V4L2_MAP_XFER_FUNC_DEFAULT(colsp)));
+			printf(" (maps to %s)", xfer_func2s(V4L2_MAP_XFER_FUNC_DEFAULT(colsp)));
 		printf("\n");
 		printf("\tYCbCr/HSV Encoding: %s", ycbcr_enc2s(ycbcr_enc));
 		if (ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT) {
@@ -454,9 +454,7 @@ static void printfmt(int fd, const struct v4l2_format *vfmt)
 		printf("\n");
 		printf("\tQuantization      : %s", quantization2s(vfmt->fmt.pix.quantization));
 		if (vfmt->fmt.pix.quantization == V4L2_QUANTIZATION_DEFAULT)
-			printf(" (maps to %s)",
-			       quantization2s(V4L2_MAP_QUANTIZATION_DEFAULT(is_rgb_or_hsv(vfmt->fmt.pix.pixelformat),
-									    colsp, ycbcr_enc)));
+			printf(" (maps to %s)", quantization2s(V4L2_MAP_QUANTIZATION_DEFAULT(is_rgb_or_hsv(vfmt->fmt.pix.pixelformat), colsp, ycbcr_enc)));
 		printf("\n");
 		if (vfmt->fmt.pix.priv == V4L2_PIX_FMT_PRIV_MAGIC)
 			printf("\tFlags             : %s\n", pixflags2s(vfmt->fmt.pix.flags));
@@ -467,8 +465,7 @@ static void printfmt(int fd, const struct v4l2_format *vfmt)
 		height = vfmt->fmt.pix_mp.height;
 		
 		printf("\tWidth/Height      : %u/%u\n", vfmt->fmt.pix_mp.width, vfmt->fmt.pix_mp.height);
-		printf("\tPixel Format      : '%s'%s\n", fcc2s(vfmt->fmt.pix_mp.pixelformat),
-		       printfmtname(fd, vfmt->type, vfmt->fmt.pix_mp.pixelformat));
+		printf("\tPixel Format      : '%s'%s\n", fcc2s(vfmt->fmt.pix_mp.pixelformat), printfmtname(fd, vfmt->type, vfmt->fmt.pix_mp.pixelformat));
 		printf("\tField             : %s\n", field2s(vfmt->fmt.pix_mp.field));
 		printf("\tNumber of planes  : %u\n", vfmt->fmt.pix_mp.num_planes);
 		printf("\tFlags             : %s\n", pixflags2s(vfmt->fmt.pix_mp.flags));
@@ -536,22 +533,18 @@ static void printfmt(int fd, const struct v4l2_format *vfmt)
 		printf("\tService Set    : %s\n",
 				service2s(vfmt->fmt.sliced.service_set));
 		for (int i = 0; i < 24; i++) {
-			printf("\tService Line %2d: %8s / %-8s\n", i,
-			       service2s(vfmt->fmt.sliced.service_lines[0][i]),
-			       service2s(vfmt->fmt.sliced.service_lines[1][i]));
+			printf("\tService Line %2d: %8s / %-8s\n", i, service2s(vfmt->fmt.sliced.service_lines[0][i]), service2s(vfmt->fmt.sliced.service_lines[1][i]));
 		}
 		printf("\tI/O Size       : %u\n", vfmt->fmt.sliced.io_size);
 		break;
 	case V4L2_BUF_TYPE_SDR_CAPTURE:
 	case V4L2_BUF_TYPE_SDR_OUTPUT:
-		printf("\tSample Format   : '%s'%s\n", fcc2s(vfmt->fmt.sdr.pixelformat),
-		       printfmtname(fd, vfmt->type, vfmt->fmt.sdr.pixelformat));
+		printf("\tSample Format   : '%s'%s\n", fcc2s(vfmt->fmt.sdr.pixelformat), printfmtname(fd, vfmt->type, vfmt->fmt.sdr.pixelformat));
 		printf("\tBuffer Size     : %u\n", vfmt->fmt.sdr.buffersize);
 		break;
 	case V4L2_BUF_TYPE_META_CAPTURE:
 	case V4L2_BUF_TYPE_META_OUTPUT:
-		printf("\tSample Format   : '%s'%s\n", fcc2s(vfmt->fmt.meta.dataformat),
-		       printfmtname(fd, vfmt->type, vfmt->fmt.meta.dataformat));
+		printf("\tSample Format   : '%s'%s\n", fcc2s(vfmt->fmt.meta.dataformat), printfmtname(fd, vfmt->type, vfmt->fmt.meta.dataformat));
 		printf("\tBuffer Size     : %u\n", vfmt->fmt.meta.buffersize);
 		break;
 	}
@@ -573,13 +566,30 @@ static char *bufcap2s(__u32 caps)
 	return flags2s(caps, bufcap_def);
 }
 
+// BGR3 convert to RGB888
+static void bgr3_to_rgb(unsigned char *bgr3_buffer, unsigned char *rgb_buffer, int iWidth, int iHeight)
+{
+	int x;
+	unsigned char *ptr = rgb_buffer;
+	unsigned char *bgr3 = bgr3_buffer;
+	
+	for (x = 0; x < iWidth*iHeight; x++)
+	{
+		*(ptr + 2) = *(bgr3 + 0);
+		*(ptr + 1) = *(bgr3 + 1);
+		*(ptr + 0) = *(bgr3 + 2);
+		ptr += 3;
+		bgr3 += 3;
+	}
+}
+
 // YUYV convert to RGB888
-static void yuv_to_rgb(unsigned char *yuv_buffer, unsigned char *rgb_buffer, int iWidth, int iHeight)
+static void yuyv_to_rgb(unsigned char *yuyv_buffer, unsigned char *rgb_buffer, int iWidth, int iHeight)
 {
 	int x;
 	int z=0;
 	unsigned char *ptr = rgb_buffer;
-	unsigned char *yuyv = yuv_buffer;
+	unsigned char *yuyv = yuyv_buffer;
 	
 	for (x = 0; x < iWidth*iHeight; x++)
 	{
@@ -757,6 +767,7 @@ int main(int argc, char *argv[])
 	struct v4l2_create_buffers cbuf;
 	struct v4l2_requestbuffers rbuf;
 	struct v4l2_buffer vbuf;
+	struct v4l2_plane *vplanes = NULL;
 	video_buffer_t *bufs = NULL;
 	unsigned char *rgbbuf = NULL;
 	unsigned int pixfmt = 0;
@@ -871,9 +882,9 @@ int main(int argc, char *argv[])
 	memset(&parm, 0, sizeof(parm));
 	parm.type = vfmt.type;
 	if(ioctl(fd, VIDIOC_G_PARM, &parm) < 0)
-    {
+	{
 		perror("VIDIOC_G_PARM");
-		goto err;
+		// goto err;
 	}
 	else
 	{
@@ -913,11 +924,12 @@ int main(int argc, char *argv[])
 		perror("VIDIOC_CREATE_BUFS");
 		goto err;
 	}
-	printf("Create Buffers: %s\n", bufcap2s(cbuf.capabilities));
+	else
+		printf("Create Buffers: %s\n", bufcap2s(cbuf.capabilities));
 
 	// 申请的缓冲区个数
 	memset(&rbuf, 0, sizeof(rbuf));
-	rbuf.count = 4; // 申请的缓冲区个数
+	rbuf.count = VBUF_NUM; // 申请的缓冲区个数
 	rbuf.type = vfmt.type;
 	rbuf.memory = V4L2_MEMORY_MMAP;
 	if(ioctl(fd, VIDIOC_REQBUFS, &rbuf) < 0)
@@ -925,18 +937,28 @@ int main(int argc, char *argv[])
 		perror("VIDIOC_REQBUFS");
 		goto err;
 	}
-	printf("Request Buffers: %s\n", bufcap2s(rbuf.capabilities));
+	else
+		printf("Request Buffers: %s\n", bufcap2s(rbuf.capabilities));
 
 	bufs = (video_buffer_t *) malloc(sizeof(video_buffer_t) * rbuf.count);
 	memset(bufs, 0, sizeof(video_buffer_t) * rbuf.count);
 
+	vplanes = malloc(sizeof(struct v4l2_plane) * vfmt.fmt.pix_mp.num_planes);
+	memset(vplanes, 0, sizeof(struct v4l2_plane) * vfmt.fmt.pix_mp.num_planes);
+
 	// 将缓冲区映射到进程空间
-	memset(&vbuf, 0, sizeof(vbuf));
-	vbuf.type = rbuf.type;
-	vbuf.memory = V4L2_MEMORY_MMAP;
 	for(i = 0; i < rbuf.count; i ++)
 	{
+		memset(&vbuf, 0, sizeof(vbuf));
+		vbuf.type = rbuf.type;
+		vbuf.memory = V4L2_MEMORY_MMAP;
 		vbuf.index = i;
+
+		if(is_multiplanar)
+		{
+			vbuf.length = vfmt.fmt.pix_mp.num_planes;
+			vbuf.m.planes = vplanes;
+		}
 
 		// 申请缓冲区失败
 		if(ioctl(fd, VIDIOC_QUERYBUF, &vbuf) < 0)
@@ -945,8 +967,16 @@ int main(int argc, char *argv[])
 			goto req;
 		}
 
-		bufs[i].len = vbuf.length;
-		bufs[i].buf = mmap(NULL, vbuf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, vbuf.m.offset);
+		if(is_multiplanar)
+		{
+			bufs[i].len = vplanes->length;
+			bufs[i].buf = mmap(NULL, vplanes->length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, vplanes->m.mem_offset);
+		}
+		else
+		{
+			bufs[i].len = vbuf.length;
+			bufs[i].buf = mmap(NULL, vbuf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, vbuf.m.offset);
+		}
 		if(bufs[i].buf == MAP_FAILED)
 		{
 			perror("mmap");
@@ -964,6 +994,12 @@ int main(int argc, char *argv[])
 	for(i = 0; i < rbuf.count; i ++)
 	{
 		vbuf.index = i;
+
+		if(is_multiplanar)
+		{
+			vbuf.length = vfmt.fmt.pix_mp.num_planes;
+			vbuf.m.planes = vplanes;
+		}
 
 		// 申请缓冲区失败
 		if(ioctl(fd, VIDIOC_QBUF, &vbuf) < 0)
@@ -1052,9 +1088,14 @@ int main(int argc, char *argv[])
 		memset(&vbuf, 0, sizeof(vbuf));
 		vbuf.type = rbuf.type;
 		vbuf.memory = V4L2_MEMORY_MMAP;
+		if(is_multiplanar)
+		{
+			vbuf.length = vfmt.fmt.pix_mp.num_planes;
+			vbuf.m.planes = vplanes;
+		}
 		if(ioctl(fd, VIDIOC_DQBUF, &vbuf) < 0)
 		{
-			perror("VIDIOC_STREAMON");
+			perror("VIDIOC_DQBUF");
 			break;
 		}
 		
@@ -1062,8 +1103,20 @@ int main(int argc, char *argv[])
 		
 		switch(pixfmt)
 		{
+		case V4L2_PIX_FMT_BGR24:
+			bgr3_to_rgb(bufs[vbuf.index].buf, rgbbuf, width, height);
+			
+			gdk_threads_enter();
+			if(is_running)
+			{
+				gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+				draw_nowtime();
+				draw_pixmap();
+			}
+			gdk_threads_leave();
+			break;
 		case V4L2_PIX_FMT_YUYV:
-			yuv_to_rgb(bufs[vbuf.index].buf, rgbbuf, width, height);
+			yuyv_to_rgb(bufs[vbuf.index].buf, rgbbuf, width, height);
 			
 			gdk_threads_enter();
 			if(is_running)
@@ -1105,7 +1158,7 @@ int main(int argc, char *argv[])
 		// 将缓冲区添加回采集队列
 		if(ioctl(fd, VIDIOC_QBUF, &vbuf) < 0)
 		{
-			perror("VIDIOC_STREAMON");
+			perror("VIDIOC_QBUF");
 			break;
 		}
 	}
@@ -1143,4 +1196,3 @@ err:
 	close(fd);
 	return 0;
 }
-
