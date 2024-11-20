@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include <sys/prctl.h>
 #include <sys/time.h>
@@ -20,7 +21,7 @@
 
 #define VBUF_NUM 4
 
-inline double microtime()
+static inline double microtime()
 {
 	struct timeval tp = {0};
 
@@ -29,6 +30,22 @@ inline double microtime()
 	}
 
 	return (double)(tp.tv_sec + tp.tv_usec / 1000000.00);
+}
+
+static inline char *nowtime_r(char *buf, int size)
+{
+	struct timeval tv = {0, 0};
+	struct tm tm;
+
+	gettimeofday(&tv, NULL);
+	localtime_r(&tv.tv_sec, &tm);
+
+	snprintf(buf, size, "%02d:%02d:%02d.%03ld",
+		tm.tm_hour, tm.tm_min, tm.tm_sec,
+		tv.tv_usec / 1000
+	);
+
+	return buf;
 }
 
 typedef struct {
@@ -680,7 +697,7 @@ static gboolean timeout_func_stat(gpointer data)
 {
 	char title[128];
 	unsigned int fps = vframes;
-	
+
 	vframes = 0;
 	sprintf(title, "V4L2-Camera - fps: %u - width: %u - height: %u", fps, width, height);
 	
@@ -741,19 +758,9 @@ static void draw_pixmap(void)
 
 static void draw_nowtime(void)
 {
-	char buf[128];
+	char buf[32];
 	
-	struct timeval tv = {0, 0};
-	struct tm tm;
-
-	gettimeofday(&tv, NULL);
-	localtime_r(&tv.tv_sec, &tm);
-
-	sprintf(buf, "%02d:%02d:%02d.%03ld",
-		tm.tm_hour, tm.tm_min, tm.tm_sec,
-		tv.tv_usec / 1000
-	);
-	
+	nowtime_r(buf, sizeof(buf));
 	gdk_draw_string(drawPixmap, font, drawarea->style->black_gc, 48, 48, buf);
 	gdk_draw_string(drawPixmap, font, drawarea->style->white_gc, 50, 50, buf);
 }
@@ -1060,6 +1067,11 @@ int main(int argc, char *argv[])
 	{
 		perror("VIDIOC_STREAMON");
 		is_running = false;
+	}
+
+	{
+		int flags = fcntl(fd, F_GETFL);
+		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	}
 	
 	while(is_running)
