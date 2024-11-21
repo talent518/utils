@@ -19,8 +19,6 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 
-#define VBUF_NUM 4
-
 static inline double microtime()
 {
 	struct timeval tp = {0};
@@ -651,6 +649,8 @@ static GtkWidget *drawarea = NULL;
 static GdkFont *font = NULL;
 
 static volatile unsigned int vframes = 0;
+static bool is_fullscreen = false;
+static bool is_resizable = true;
 
 static int on_delete_event(GtkWidget *widget,GdkEvent *event,gpointer data)
 {
@@ -667,7 +667,6 @@ static int on_expose_event(GtkWidget *widget,GdkEvent *event,gpointer data)
 }
 
 static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
-	static bool is_fullscreen = false;
 	uint16_t code = 0;
 	
 	// printf("%u %02x\n", event->hardware_keycode, event->hardware_keycode);
@@ -715,10 +714,26 @@ static void *thread_gtk(void *arg)
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	
 	gtk_window_set_title(GTK_WINDOW(window), "V4L2-Camera");
-	gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
-	gtk_widget_set_size_request(window, 800, 600);
-	// gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
-	// gtk_window_fullscreen(GTK_WINDOW(window));
+	if(is_fullscreen)
+	{
+		if(is_resizable)
+		{
+			gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
+			gtk_widget_set_size_request(window, 800, 600);
+		}
+
+		// gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
+		gtk_window_fullscreen(GTK_WINDOW(window));
+	}
+	else if(is_resizable)
+	{
+		gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
+		gtk_widget_set_size_request(window, 800, 600);
+	}
+	else
+	{
+		gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
+	}
 	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(on_key_press_event), NULL);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(on_delete_event),NULL);
 
@@ -729,6 +744,7 @@ static void *thread_gtk(void *arg)
 
 	// 创建绘图区域
 	drawarea = gtk_drawing_area_new();
+	if(!is_fullscreen && !is_resizable) gtk_widget_set_size_request(drawarea, width, height);
 	gtk_widget_pop_visual();
 	gtk_widget_pop_colormap();
 	
@@ -781,12 +797,13 @@ int main(int argc, char *argv[])
 	int fps = 15;
 	int setw = 0, seth = 0;
 	unsigned int pixfmt = 0;
+	int vbuf_num = 4;
 	pthread_t tid;
 	pthread_attr_t attr;
 	bool istime = false;
 	int opt, fd, i, type;
 	
-	while((opt = getopt(argc, argv, "d:f:w:h:p:t?")) != -1)
+	while((opt = getopt(argc, argv, "d:f:w:h:p:v:tFR?")) != -1)
 	{
 		switch(opt)
 		{
@@ -818,19 +835,31 @@ int main(int argc, char *argv[])
 			}
 			break;
 		}
+		case 'v':
+			vbuf_num = atoi(optarg);
+			break;
 		case 't':
 			istime = true;
 			break;
+		case 'F':
+			is_fullscreen = true;
+			break;
+		case 'R':
+			is_resizable = false;
+			break;
 		case '?':
 		default:
-			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-w <width>] [-h <height>] [-p <pixelformat>] [-t] [-?]\n", argv[0]);
+			fprintf(stderr, "usage: %s [-d <device-path>] [-f <fps>] [-w <width>] [-h <height>] [-p <pixelformat>] [-v <vbuf-num>] [-t] [-F | -R] [-?]\n", argv[0]);
 			fprintf(stderr, "    -?                   This help\n");
 			fprintf(stderr, "    -d <device-path>     Device path(default: %s)\n", device);
 			fprintf(stderr, "    -f <fps>             Set Frame-rate(default: %u)\n", fps);
 			fprintf(stderr, "    -w <width>           Set width\n");
 			fprintf(stderr, "    -h <height>          Set height\n");
 			fprintf(stderr, "    -p <pixelformat>     Set pixel-format\n");
+			fprintf(stderr, "    -v <vbuf-num>        v4l2 create buffer number\n");
 			fprintf(stderr, "    -t                   Show time\n");
+			fprintf(stderr, "    -F                   fullscreen display\n");
+			fprintf(stderr, "    -R                   disable resize window\n");
 			return 1;
 		}
 	}
@@ -969,7 +998,7 @@ int main(int argc, char *argv[])
 
 	// 申请的缓冲区个数
 	memset(&rbuf, 0, sizeof(rbuf));
-	rbuf.count = VBUF_NUM; // 申请的缓冲区个数
+	rbuf.count = vbuf_num; // 申请的缓冲区个数
 	rbuf.type = vfmt.type;
 	rbuf.memory = V4L2_MEMORY_MMAP;
 	if(ioctl(fd, VIDIOC_REQBUFS, &rbuf) < 0)
