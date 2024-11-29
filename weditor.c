@@ -35,7 +35,7 @@ static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参�
 static snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned long类型
 
 static int play_ch = 2, capt_ch = 2;
-static const char *play_dev = "default", *capt_dev = "default";
+static const char *play_dev = "default", *capt_dev = NULL;
 
 static int set_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
 	int rc;
@@ -996,6 +996,8 @@ static void *net_pcm_send_thread(void *arg) {
 				err:
 					close(fd);
 					fd = 0;
+
+					for(int i = 0; i < 100 && is_running; i++) usleep(10000);
 
 					sem_clear(&pcm_capt_sem);
 					is_clear_cap = true;
@@ -2279,16 +2281,16 @@ void sig_handle(int sig) {
 	// fprintf(stderr, "sig: %d\n", sig);
 	if(is_running) {
 		is_running = false;
-		gdk_threads_enter();
+		// gdk_threads_enter();
 		gtk_main_quit();
-		gdk_threads_leave();
+		// gdk_threads_leave();
 	}
 	fprintf(stderr, "\r");
 }
 
 int main(int argc, char *argv[]) {
 	int ret, c, i;
-	void *pcm_play_buf_ptr, *pcm_capt_buf_ptr, *ptr;
+	void *pcm_play_buf_ptr = NULL, *pcm_capt_buf_ptr = NULL, *ptr;
 	
 	while((c = getopt(argc, argv, "H:P:d:D:c:C:a:w:ih?")) != -1) {
         switch(c) {
@@ -2363,10 +2365,12 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	ret = setcap_hardware_params(capt_dev, 44100, capt_ch, 16);
-	if (ret < 0) {
-		fprintf(stderr, "setcap_hardware_params error\n");
-		return -1;
+	if(capt_dev) {
+		ret = setcap_hardware_params(capt_dev, 44100, capt_ch, 16);
+		if (ret < 0) {
+			fprintf(stderr, "setcap_hardware_params error\n");
+			return -1;
+		}
 	}
 
 	signal(SIGTERM, sig_handle);
@@ -2389,12 +2393,14 @@ int main(int argc, char *argv[]) {
 		ptr += pcm_play_buf_size;
 	}
 	
-	pcm_capt_buf_size = g_frames_cap * capt_ch * 2;
-	pcm_capt_buf_ptr = malloc(pcm_capt_buf_size * PCM_BUF_SIZE);
-	ptr = pcm_capt_buf_ptr;
-	for(i = 0; i < PCM_BUF_SIZE; i ++) {
-		pcm_capt_bufs[i] = (short*) ptr;
-		ptr += pcm_capt_buf_size;
+	if(capt_dev) {
+		pcm_capt_buf_size = g_frames_cap * capt_ch * 2;
+		pcm_capt_buf_ptr = malloc(pcm_capt_buf_size * PCM_BUF_SIZE);
+		ptr = pcm_capt_buf_ptr;
+		for(i = 0; i < PCM_BUF_SIZE; i ++) {
+			pcm_capt_bufs[i] = (short*) ptr;
+			ptr += pcm_capt_buf_size;
+		}
 	}
 
 	gtk_init(&argc, &argv);
@@ -2416,10 +2422,12 @@ int main(int argc, char *argv[]) {
 		goto end;
 	}
 
-	ret = pthread_create(&pcm_capt_tid, &attr, pcm_capt_thread, NULL);
-	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
-		goto end;
+	if(capt_dev) {
+		ret = pthread_create(&pcm_capt_tid, &attr, pcm_capt_thread, NULL);
+		if(ret) {
+			fprintf(stderr, "pthread_create failure: %d", ret);
+			goto end;
+		}
 	}
 
 	ret = pthread_create(&net_pcm_recv_tid, &attr, net_pcm_recv_thread, NULL);
@@ -2428,10 +2436,12 @@ int main(int argc, char *argv[]) {
 		goto end;
 	}
 
-	ret = pthread_create(&net_pcm_send_tid, &attr, net_pcm_send_thread, NULL);
-	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
-		goto end;
+	if(capt_dev) {
+		ret = pthread_create(&net_pcm_send_tid, &attr, net_pcm_send_thread, NULL);
+		if(ret) {
+			fprintf(stderr, "pthread_create failure: %d", ret);
+			goto end;
+		}
 	}
 	
 	ret = pthread_create(&net_video_tid, &attr, net_video_thread, NULL);
@@ -2462,24 +2472,17 @@ int main(int argc, char *argv[]) {
 end:
 	is_running = false;
 	sem_post(&pcm_play_sem);
-	
-	snd_pcm_drain(gp_handle);
-	snd_pcm_reset(gp_handle);
-	snd_pcm_close(gp_handle);
-	
-	snd_pcm_drop(gp_handle_cap);
-	snd_pcm_close(gp_handle_cap);
 
 	if(pthread_join(pcm_play_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(pcm_capt_tid, NULL)) {
+	if(capt_dev && pthread_join(pcm_capt_tid, NULL)) {
 		perror("pthread_join failure");
 	}
 	if(pthread_join(net_pcm_recv_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(net_pcm_send_tid, NULL)) {
+	if(capt_dev && pthread_join(net_pcm_send_tid, NULL)) {
 		perror("pthread_join failure");
 	}
 	if(pthread_join(net_video_tid, NULL)) {
@@ -2491,6 +2494,15 @@ end:
 	if(pthread_join(net_presskey_tid, NULL)) {
 		perror("pthread_join failure");
 	}
+	
+	snd_pcm_drain(gp_handle);
+	snd_pcm_close(gp_handle);
+	
+	if(capt_dev) {
+		snd_pcm_drop(gp_handle_cap);
+		snd_pcm_close(gp_handle_cap);
+	}
+
 	pthread_attr_destroy(&attr);
 
 	sem_destroy(&pcm_play_sem);
@@ -2498,7 +2510,7 @@ end:
 	pthread_mutex_destroy(&touch_lock);
 
 	free(pcm_play_buf_ptr);
-	free(pcm_capt_buf_ptr);
+	if(capt_dev) free(pcm_capt_buf_ptr);
 
 	fprintf(stderr, "Exited\n");
 	return 0;
