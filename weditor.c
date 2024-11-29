@@ -28,20 +28,22 @@
 #include <cJSON.h>
 
 #define VIDEO_IMAGE
+#define BUFSIZE 32
 
-static snd_pcm_t *gp_handle;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
-static snd_pcm_hw_params_t *gp_params;  //设置流的硬件参数
-static snd_pcm_uframes_t g_frames; //snd_pcm_uframes_t其实是unsigned long类型
+static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
+static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
+static snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned long类型
 
-static int sample_rate = 44100, channels = 2, format_size = 16;
+static int play_ch = 2, capt_ch = 2;
+static const char *play_dev = "default", *capt_dev = "default";
 
-static int set_hardware_params() {
+static int set_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
 	int rc;
 
 	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_PLAYBACK, 0);
 	if (rc < 0) {
-		fprintf(stderr, "unable to open pcm device\n");
+		fprintf(stderr, "unable to open playback pcm device\n");
 		return -1;
 	}
 
@@ -129,6 +131,99 @@ err1:
 	return -1;
 }
 
+static int setcap_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
+	int rc;
+	
+	/* Open PCM device for playback */
+	rc = snd_pcm_open(&gp_handle_cap, name, SND_PCM_STREAM_CAPTURE, 0);
+	if (rc < 0) {
+		fprintf(stderr, "unable to open pcm capture device\n");
+		return -1;
+	}
+
+
+	/* Allocate a hardware parameters object */
+	snd_pcm_hw_params_alloca(&gp_params_cap);
+
+	/* Fill it in with default values. */
+	rc = snd_pcm_hw_params_any(gp_handle_cap, gp_params_cap);
+	if (rc < 0) {
+		fprintf(stderr, "unable to Fill it in with default values.\n");
+		goto err1;
+	}
+
+	/* Interleaved mode */
+	rc = snd_pcm_hw_params_set_access(gp_handle_cap, gp_params_cap, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (rc < 0) {
+		fprintf(stderr, "unable to Interleaved mode.\n");
+		goto err1;
+	}
+
+	snd_pcm_format_t format;
+
+	if (8 == format_size) {
+		format = SND_PCM_FORMAT_U8;
+	} else if (16 == format_size) {
+		format = SND_PCM_FORMAT_S16_LE;
+	} else if (24 == format_size) {
+		format = SND_PCM_FORMAT_U24_LE;
+	} else if (32 == format_size) {
+		format = SND_PCM_FORMAT_U32_LE;
+	} else {
+		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
+		format = SND_PCM_FORMAT_UNKNOWN;
+		goto err1;
+	}
+
+	/* set format */
+	rc = snd_pcm_hw_params_set_format(gp_handle_cap, gp_params_cap, format);
+	if (rc < 0) {
+		fprintf(stderr, "unable to set format.\n");
+		goto err1;
+	}
+
+	/* set channels (stero) */
+	rc = snd_pcm_hw_params_set_channels(gp_handle_cap, gp_params_cap, channels);
+	if (rc < 0) {
+		fprintf(stderr, "unable to set channels (stero).\n");
+		goto err1;
+	}
+
+	/* set sampling rate */
+	int rate = sample_rate;
+	rc = snd_pcm_hw_params_set_rate_near(gp_handle_cap, gp_params_cap, &rate, 0);
+	if (rc < 0) {
+		fprintf(stderr, "unable to set sampling rate.\n");
+		goto err1;
+	}
+	if(rate != sample_rate) {
+		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
+		goto err1;
+	}
+
+	g_frames_cap = sample_rate / 20;
+	rc = snd_pcm_hw_params_set_period_size_near(gp_handle_cap, gp_params_cap, &g_frames_cap, 0);
+	if(rc < 0) {
+		fprintf(stderr, "unable to set sampling rate.\n");
+		goto err1;
+	}
+
+	/* Write the parameters to the dirver */
+	rc = snd_pcm_hw_params(gp_handle_cap, gp_params_cap);
+	if (rc < 0) {
+		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
+		goto err1;
+	}
+
+	snd_pcm_hw_params_get_period_size(gp_params_cap, &g_frames_cap, 0);
+
+	return 0;
+
+err1:
+	snd_pcm_close(gp_handle_cap);
+	return -1;
+}
+
 #define MICRO_IN_SEC 1000000.00
 
 static inline double microtime()
@@ -155,12 +250,18 @@ char *nowtime(char *buf, int max) {
 	}
 }
 
+static void sem_clear(sem_t *sem) {
+	int ret = 0;
+	while(!sem_getvalue(sem, &ret) && ret > 0) {
+		sem_wait(sem);
+	}
+}
+
 static char *get_title();
 
-volatile bool is_running = true;
+static volatile bool is_running = true;
 
 static sem_t play_sem;
-#define BUFSIZE 64
 static short *bufs[BUFSIZE];
 static int bufsize;
 static int bufpos = 0;
@@ -205,7 +306,8 @@ static void *play_sound_thread(void *arg) {
 		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
 		if (ret == -EPIPE) {
 			snd_pcm_prepare(gp_handle);
-			goto prepare;
+			if(is_running) goto prepare;
+			else break;
 		} else if(ret == -EINTR) {
 			break;
 		} else if (ret < 0) {
@@ -218,6 +320,74 @@ static void *play_sound_thread(void *arg) {
 
 		while(sem_trywait(&play_sem) && is_running) usleep(10000); // sleep 10ms
 	}
+	pthread_exit(NULL);
+}
+
+static sem_t capt_sem;
+static volatile bool is_clear_cap = false;
+static short *bufs_cap[BUFSIZE];
+static int bufsize_cap;
+
+static void *capt_player_thread(void *arg) {
+	const int MIN_QUE = 4;
+	const int MAX_QUE = 20; // 20 frames per second
+	int ret, frames;
+	int captpos = -1;
+	short *buf;
+
+	frames = g_frames_cap * capt_ch * 2;
+	buf = (frames == bufsize_cap ? NULL : (short *) malloc(frames));
+
+	snd_pcm_pause(gp_handle_cap, 0);
+	snd_pcm_prepare(gp_handle_cap);
+
+	while(is_running) {
+		if(is_clear_cap) {
+			is_clear_cap = false;
+			captpos = 0;
+		} else {
+			captpos ++;
+			if(captpos >= BUFSIZE) captpos = 0;
+		}
+		
+	prepare:
+		if(frames == bufsize_cap) {
+			ret = snd_pcm_readi(gp_handle_cap, bufs_cap[captpos], bufsize_cap);
+		} else {
+			ret = snd_pcm_readi(gp_handle_cap, buf, frames);
+		}
+		if (ret == -EPIPE) {
+			snd_pcm_prepare(gp_handle_cap);
+			if(is_running) goto prepare;
+			else break;
+		} else if(ret == -EINTR) {
+			break;
+		} else if (ret < 0) {
+			fprintf(stderr, "error from readi: %s\n", snd_strerror(ret));
+			break;
+		} else if(ret != frames) {
+			fprintf(stderr, "read ret: %d\n", ret);
+			break;
+		} else if(!is_clear_cap) {
+			if(bufsize_cap != frames) {
+				int i;
+				short *ptr = bufs_cap[captpos];
+
+				for(i = 0; i < g_frames_cap; i ++) {
+					*ptr++ = buf[i];
+					*ptr++ = buf[i];
+				}
+			}
+			sem_post(&capt_sem);
+		}
+	}
+
+	if(buf) free(buf);
+
+	// exit thread: conn_player_thread
+	sem_post(&capt_sem);
+	sem_post(&capt_sem);
+	
 	pthread_exit(NULL);
 }
 
@@ -329,15 +499,15 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 	
 	if(fd == 0) return 0;
 	
-	size += snprintf(buf + size, sizeof(buf), "GET %s%s HTTP/1.1\r\n", ws_proxy_path, path);
-	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
-	size += snprintf(buf + size, sizeof(buf), "Connection: Upgrade\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Key: uQQ1BAbtsumAi1y7Mu4spQ==\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Sec-WebSocket-Version: 13\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Upgrade: websocket\r\n");
-	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-	size += snprintf(buf + size, sizeof(buf), "\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "GET %s%s HTTP/1.1\r\n", ws_proxy_path, path);
+	size += snprintf(buf + size, sizeof(buf) - size, "Host: %s:%d\r\n", servhost, servport);
+	size += snprintf(buf + size, sizeof(buf) - size, "Connection: Upgrade\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Sec-WebSocket-Key: uQQ1BAbtsumAi1y7Mu4spQ==\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Sec-WebSocket-Version: 13\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Upgrade: websocket\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "User-Agent: weditor for c language client\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "\r\n");
 	
 loopsend:
 	ret = send(fd, buf + sz, size - sz, 0);
@@ -763,6 +933,82 @@ static void *conn_sound_thread(void *arg) {
 			
 			sound_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minisound", WS_CONN_TIMEOUT);
+			sound_loading = 0;
+		}
+	}
+	
+	if(fd) close(fd);
+	if(old) free(old);
+
+	pthread_exit(NULL);
+}
+
+static int player_loading = 0;
+
+static void *conn_player_thread(void *arg) {
+	int fd = 0, sz = 0, n = 0, is_bin = 0, i, is_ok = 0, pos = -1;
+	char *ptr, *old = NULL;
+	char timebuf[128];
+	
+	while(is_running) {
+		if(fd) {
+			if(is_ok) {
+				sem_wait(&capt_sem);
+
+				pos ++;
+				if(pos >= BUFSIZE) pos = 0;
+
+				if(!ws_send(fd, WS_CTL_BIN, WS_SEND_MASK, (char*) bufs_cap[pos], bufsize_cap, WS_SEND_TIMEOUT, __func__)) {
+					goto err;
+				}
+			} else {
+				ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
+				if(ptr) {
+					int is_err = 0;
+
+					if(is_bin) {
+						fprintf(stderr, "player recv size is %d\n", sz);
+					} else {
+						printf("[%s] player data: %s\n", nowtime(timebuf, sizeof(timebuf)), ptr);
+
+						sem_clear(&capt_sem);
+
+						if(strncmp(ptr, "OpenSuccess", sz)) {
+							is_err = 1;
+						} else {
+							is_clear_cap = true;
+
+							pos = -1;
+							is_ok = 1;
+						}
+					}
+					
+					free(ptr);
+					ptr = NULL;
+
+					if(is_err) goto err;
+				} else {
+				err:
+					close(fd);
+					fd = 0;
+
+					sem_clear(&capt_sem);
+					is_clear_cap = true;
+				}
+			}
+		} else {
+			n = 0;
+			if(old) {
+				free(old);
+				old = NULL;
+			}
+
+			sem_clear(&capt_sem);
+			is_clear_cap = true;
+			is_ok = 0;
+			
+			sound_loading = 1;
+			fd = ws_conn(__func__, "/ws/v1/miniplayer", WS_CONN_TIMEOUT);
 			sound_loading = 0;
 		}
 	}
@@ -1209,12 +1455,12 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
 
-	dBs = (calc_t*) malloc(channels * sizeof(calc_t));
+	dBs = (calc_t*) malloc(play_ch * sizeof(calc_t));
 
 	data = bufs[bufpos];
-	for(i = 0; i < channels; i++) dBs[i].sum = 0;
-	for(i = 0; i < g_frames * channels; i += channels) {
-		for(c = 0; c < channels; c ++) {
+	for(i = 0; i < play_ch; i++) dBs[i].sum = 0;
+	for(i = 0; i < g_frames * play_ch; i += play_ch) {
+		for(c = 0; c < play_ch; c ++) {
 			m = abs(data[i + c]);
 			dBs[c].sum += m;
 			if(m > maxs[c]) {
@@ -1223,16 +1469,16 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 		}
 	}
 
-	for(i = 0; i < channels; i++) {
+	for(i = 0; i < play_ch; i++) {
 		dBs[i].db = dBs[i].sum * 100.0 / (g_frames * 32767.0);
 		if(dBs[i].db > 100) dBs[i].db = 100;
 	}
 
 	gdk_draw_rectangle(pixmapVolume, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
-	gint h = widget->allocation.height / channels;
+	gint h = widget->allocation.height / play_ch;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
-	for(i = 0; i < channels; i++) {
+	for(i = 0; i < play_ch; i++) {
 		gdk_draw_rectangle(pixmapVolume, gcs[i], TRUE, 0, i * h, widget->allocation.width * dBs[i].db / 100, h);
 		gdk_draw_rectangle(pixmapVolume, widget->style->base_gc[5 - i], TRUE, (widget->allocation.width * maxs[i] / 32767) - 2, i * h, 4, h);
 	}
@@ -1270,17 +1516,17 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
 
-	gint h = widget->allocation.height / channels, h2 = h / 2;
+	gint h = widget->allocation.height / play_ch, h2 = h / 2;
 	double w = (double) widget->allocation.width / (double) g_frames;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
-	for(i = 0; i < channels; i ++) {
+	for(i = 0; i < play_ch; i ++) {
 		if(!points[i]) points[i] = (GdkPoint*) malloc(sizeof(GdkPoint) * g_frames);
 	}
 	data = bufs[bufpos];
 	GdkPoint *p;
-	for(i = 0; i < g_frames * channels; i += channels) {
-		for(c = 0; c < channels; c ++) {
-			p = &points[c][i/channels];
+	for(i = 0; i < g_frames * play_ch; i += play_ch) {
+		for(c = 0; c < play_ch; c ++) {
+			p = &points[c][i/play_ch];
 			p->x = i * w;
 			p->y = c * h + h2 - data[i + c] * h2 / 32767;
 		}
@@ -1288,7 +1534,7 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 
 	gdk_draw_rectangle(pixmapWave, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
-	for(i = 0; i < channels; i ++) {
+	for(i = 0; i < play_ch; i ++) {
 		if(i % 2) gdk_draw_line(pixmapWave, widget->style->black_gc, 0, i * h, widget->allocation.width, h);
 		gdk_draw_lines(pixmapWave, gcs[i], points[i], g_frames);
 	}
@@ -1393,26 +1639,26 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	update_rect.width = widget->allocation.width;
 	update_rect.height = widget->allocation.height;
 
-	for(c = 0; c < channels; c ++) {
+	for(c = 0; c < play_ch; c ++) {
 		if(!fft_val[c]) fft_val[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 		if(!fft_res[c]) fft_res[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 	}
 
 	data = bufs[bufpos];
-	for(i = 0; i < fft_num * channels; i += channels) {
-		for(c = 0; c < channels; c ++) {
-			v = &fft_val[c][i/channels];
+	for(i = 0; i < fft_num * play_ch; i += play_ch) {
+		for(c = 0; c < play_ch; c ++) {
+			v = &fft_val[c][i/play_ch];
 			v->real = (float) data[i + c] / 32767.0f;
 			v->imag = 0;
 		}
 	}
 
-	int h = widget->allocation.height / channels, h2 = h / 2;
+	int h = widget->allocation.height / play_ch, h2 = h / 2;
 	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	int Ns[] = {0, 0};
 	int N = ((fft_num / 2) * 5 / 6), j, n;
 	const int NN = (fft_mode == 0 ? 50 : (fft_mode == 1 ? 200 : 300));
-	for(c = 0; c < channels; c ++) {
+	for(c = 0; c < play_ch; c ++) {
 		fft(fft_val[c], fft_num, fft_res[c]);
 		if(fft_mode && !fft_pts[c]) {
 			fft_pts[c] = (GdkPoint*) malloc(sizeof(GdkPoint) * (N + 2));
@@ -1475,7 +1721,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 
 	gdk_draw_rectangle(pixmapFFT, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
-	for(c = 0; c < channels; c ++) {
+	for(c = 0; c < play_ch; c ++) {
 		if(fft_mode == 0) {
 			float x = 0, stepX = (float) widget->allocation.width / (float) Ns[c];
 			for(i = 0; i < Ns[c]; i ++) {
@@ -1547,14 +1793,14 @@ static int http_post(const char *func, const char *path, char *post, const char 
 	}
 	
 	size = 0;
-	size += snprintf(buf + size, sizeof(buf), "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
-	size += snprintf(buf + size, sizeof(buf), "Host: %s:%d\r\n", servhost, servport);
-	size += snprintf(buf + size, sizeof(buf), "Connection: Close\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Accept: */*\r\n");
-	size += snprintf(buf + size, sizeof(buf), "User-Agent: weditor for c language client\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
-	size += snprintf(buf + size, sizeof(buf), "Content-Length: %ld\r\n", strlen(post));
-	size += snprintf(buf + size, sizeof(buf), "\r\n%s", post);
+	size += snprintf(buf + size, sizeof(buf) - size, "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
+	size += snprintf(buf + size, sizeof(buf) - size, "Host: %s:%d\r\n", servhost, servport);
+	size += snprintf(buf + size, sizeof(buf) - size, "Connection: Close\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Accept: */*\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "User-Agent: weditor for c language client\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
+	size += snprintf(buf + size, sizeof(buf) - size, "Content-Length: %ld\r\n", strlen(post));
+	size += snprintf(buf + size, sizeof(buf) - size, "\r\n%s", post);
 	
 	// fprintf(stderr, "%s\n", buf);
 	
@@ -2033,9 +2279,10 @@ static void *video_fps_thread(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-	int ret, c;
+	int ret, c, i;
+	void *bufs_ptr, *bufs_cap_ptr, *ptr;
 	
-	while((c = getopt(argc, argv, "H:P:c:a:w:ih?")) != -1) {
+	while((c = getopt(argc, argv, "H:P:c:C:a:w:ih?")) != -1) {
         switch(c) {
         	case 'H':
         		servhost = optarg;
@@ -2043,8 +2290,17 @@ int main(int argc, char *argv[]) {
             case 'P':
                 servport = atoi(optarg);
                 break;
+			case 'd':
+				play_dev = optarg;
+				break;
+			case 'D':
+				capt_dev = optarg;
+				break;
             case 'c':
-                channels = atoi(optarg);
+                play_ch = atoi(optarg);
+                break;
+            case 'C':
+                capt_ch = atoi(optarg);
                 break;
             case 'a':
                 api_proxy_path = optarg;
@@ -2059,10 +2315,13 @@ int main(int argc, char *argv[]) {
             case 'h':
             default:
                 fprintf(stderr,
-                    "Usage: %s [-H <host>] [-P <port>] [-c <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
+                    "Usage: %s [-H <host>] [-P <port>] [-d <path>] [-D <path>] [-c <channels>] [-C <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
                     "  -H <host>      Server host(default: %s)\n"
                     "  -P <port>      Server port(default: %d)\n"
-                    "  -c <channels>  Audio channels(default: %d)\n"
+                    "  -d <path>      Audio Play device(default: %s)\n"
+                    "  -D <path>      Audio Capture device(default: %s)\n"
+                    "  -c <channels>  Audio Play channels(default: %d)\n"
+                    "  -C <channels>  Audio Capture channels(default: %d)\n"
                     "  -a <proxypath> Api proxy path(default: %s)\n"
                     "  -w <proxypath> WebSocket proxy path(default: %s)\n"
                     "  -i             Ping(default: false)\n"
@@ -2080,7 +2339,7 @@ int main(int argc, char *argv[]) {
                     "  Home   KEYCODE_HOME\n"
                     "  End    KEYCODE_POWER\n"
                     "  Esc    KEYCODE_BACK\n"
-                    , argv[0], servhost, servport, channels, api_proxy_path, ws_proxy_path
+                    , argv[0], servhost, servport, play_dev, capt_dev, play_ch, capt_ch, api_proxy_path, ws_proxy_path
                 );
                 return 0;
         }
@@ -2090,9 +2349,15 @@ int main(int argc, char *argv[]) {
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
 	servaddr.sin_port = htons(servport);
 
-	ret = set_hardware_params();
+	ret = set_hardware_params(play_dev, 44100, play_ch, 16);
 	if (ret < 0) {
 		fprintf(stderr, "set_hardware_params error\n");
+		return -1;
+	}
+
+	ret = setcap_hardware_params(capt_dev, 44100, capt_ch, 16);
+	if (ret < 0) {
+		fprintf(stderr, "setcap_hardware_params error\n");
 		return -1;
 	}
 
@@ -2105,25 +2370,30 @@ int main(int argc, char *argv[]) {
 	fft_num = powf(2, floorf(log2f(g_frames)));
 
 	sem_init(&play_sem, 0, 0);
+	sem_init(&capt_sem, 0, 0);
 	pthread_mutex_init(&touch_lock, NULL);
 	
-	memset(bufs, 0, sizeof(bufs));
-	bufsize = g_frames * channels * 2;
-	for(int i = 0; i < BUFSIZE; i ++) {
-		bufs[i] = (short*) malloc(bufsize);
-		if(bufs[i]) {
-			memset(bufs[i], 0, bufsize);
-		} else {
-			fprintf(stderr, "malloc failure\n");
-			return -1;
-		}
+	bufsize = g_frames * play_ch * 2;
+	bufs_ptr = malloc(bufsize * BUFSIZE);
+	ptr = bufs_ptr;
+	for(i = 0; i < BUFSIZE; i ++) {
+		bufs[i] = (short*) ptr;
+		ptr += bufsize;
+	}
+	
+	bufsize_cap = g_frames_cap * 2 * 2;
+	bufs_cap_ptr = malloc(bufsize_cap * BUFSIZE);
+	ptr = bufs_cap_ptr;
+	for(i = 0; i < BUFSIZE; i ++) {
+		bufs_cap[i] = (short*) ptr;
+		ptr += bufsize_cap;
 	}
 
 	gtk_init(&argc, &argv);
 
 	gtk_begin();
 
-	pthread_t play_tid = 0, sound_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
+	pthread_t play_tid = 0, capt_tid = 0, sound_tid = 0, player_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -2131,13 +2401,26 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "pthread_attr_setdetachstate failure: %d", ret);
 		return -1;
 	}
+
 	ret = pthread_create(&play_tid, &attr, play_sound_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 
+	ret = pthread_create(&capt_tid, &attr, capt_player_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+
 	ret = pthread_create(&sound_tid, &attr, conn_sound_thread, NULL);
+	if(ret) {
+		fprintf(stderr, "pthread_create failure: %d", ret);
+		goto end;
+	}
+
+	ret = pthread_create(&player_tid, &attr, conn_player_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
@@ -2181,11 +2464,20 @@ end:
 	snd_pcm_drain(gp_handle);
 	snd_pcm_reset(gp_handle);
 	snd_pcm_close(gp_handle);
+	
+	snd_pcm_drop(gp_handle_cap);
+	snd_pcm_close(gp_handle_cap);
 
 	if(pthread_join(play_tid, NULL)) {
 		perror("pthread_join failure");
 	}
+	if(pthread_join(capt_tid, NULL)) {
+		perror("pthread_join failure");
+	}
 	if(pthread_join(sound_tid, NULL)) {
+		perror("pthread_join failure");
+	}
+	if(pthread_join(player_tid, NULL)) {
 		perror("pthread_join failure");
 	}
 	if(pthread_join(video_tid, NULL)) {
@@ -2205,11 +2497,9 @@ end:
 	sem_destroy(&play_sem);
 	pthread_mutex_destroy(&touch_lock);
 
-	for(int i = 0; i < BUFSIZE; i ++) {
-		if(bufs[i]) free(bufs[i]);
-	}
+	free(bufs_ptr);
+	free(bufs_cap_ptr);
 
 	fprintf(stderr, "Exited\n");
 	return 0;
 }
-
