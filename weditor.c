@@ -28,7 +28,7 @@
 #include <cJSON.h>
 
 #define VIDEO_IMAGE
-#define BUFSIZE 32
+#define PCM_BUF_SIZE 32
 
 static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
@@ -261,10 +261,10 @@ static char *get_title();
 
 static volatile bool is_running = true;
 
-static sem_t play_sem;
-static short *bufs[BUFSIZE];
-static int bufsize;
-static int bufpos = 0;
+static sem_t pcm_play_sem;
+static short *pcm_play_bufs[PCM_BUF_SIZE];
+static int pcm_play_buf_size;
+static int pcm_play_buf_pos = 0;
 
 typedef struct {
 	int sum;
@@ -277,33 +277,33 @@ static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
 static int playpos = -1;
-static void *play_sound_thread(void *arg) {
+static void *pcm_play_thread(void *arg) {
 	const int MIN_QUE = 4;
 	const int MAX_QUE = 20; // 20 frames per second
 	int ret;
 	char buf[128];
 	
 	snd_pcm_pause(gp_handle, 0);
-	sem_wait(&play_sem);
+	sem_wait(&pcm_play_sem);
 	while(is_running) {
-		if(!sem_getvalue(&play_sem, &ret) && ret > MAX_QUE) {
+		if(!sem_getvalue(&pcm_play_sem, &ret) && ret > MAX_QUE) {
 			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
 
 			snd_pcm_reset(gp_handle);
 
 			for(; ret > MIN_QUE; ret--) {
 				playpos ++;
-				if(playpos >= BUFSIZE) playpos = 0;
+				if(playpos >= PCM_BUF_SIZE) playpos = 0;
 
-				sem_wait(&play_sem);
+				sem_wait(&pcm_play_sem);
 			}
 		}
 
 		playpos ++;
-		if(playpos >= BUFSIZE) playpos = 0;
+		if(playpos >= PCM_BUF_SIZE) playpos = 0;
 		
 	prepare:
-		ret = snd_pcm_writei(gp_handle, bufs[playpos], g_frames);
+		ret = snd_pcm_writei(gp_handle, pcm_play_bufs[playpos], g_frames);
 		if (ret == -EPIPE) {
 			snd_pcm_prepare(gp_handle);
 			if(is_running) goto prepare;
@@ -318,25 +318,19 @@ static void *play_sound_thread(void *arg) {
 			break;
 		}
 
-		while(sem_trywait(&play_sem) && is_running) usleep(10000); // sleep 10ms
+		while(sem_trywait(&pcm_play_sem) && is_running) usleep(10000); // sleep 10ms
 	}
 	pthread_exit(NULL);
 }
 
-static sem_t capt_sem;
+static sem_t pcm_capt_sem;
 static volatile bool is_clear_cap = false;
-static short *bufs_cap[BUFSIZE];
-static int bufsize_cap;
+static short *pcm_capt_bufs[PCM_BUF_SIZE];
+static int pcm_capt_buf_size;
 
-static void *capt_player_thread(void *arg) {
-	const int MIN_QUE = 4;
-	const int MAX_QUE = 20; // 20 frames per second
-	int ret, frames;
-	int captpos = -1;
-	short *buf;
-
-	frames = g_frames_cap * capt_ch * 2;
-	buf = (frames == bufsize_cap ? NULL : (short *) malloc(frames));
+static void *pcm_capt_thread(void *arg) {
+	int ret;
+	int pos = -1;
 
 	snd_pcm_pause(gp_handle_cap, 0);
 	snd_pcm_prepare(gp_handle_cap);
@@ -344,18 +338,14 @@ static void *capt_player_thread(void *arg) {
 	while(is_running) {
 		if(is_clear_cap) {
 			is_clear_cap = false;
-			captpos = 0;
+			pos = 0;
 		} else {
-			captpos ++;
-			if(captpos >= BUFSIZE) captpos = 0;
+			pos ++;
+			if(pos >= PCM_BUF_SIZE) pos = 0;
 		}
 		
 	prepare:
-		if(frames == bufsize_cap) {
-			ret = snd_pcm_readi(gp_handle_cap, bufs_cap[captpos], bufsize_cap);
-		} else {
-			ret = snd_pcm_readi(gp_handle_cap, buf, frames);
-		}
+		ret = snd_pcm_readi(gp_handle_cap, pcm_capt_bufs[pos], pcm_capt_buf_size);
 		if (ret == -EPIPE) {
 			snd_pcm_prepare(gp_handle_cap);
 			if(is_running) goto prepare;
@@ -365,28 +355,17 @@ static void *capt_player_thread(void *arg) {
 		} else if (ret < 0) {
 			fprintf(stderr, "error from readi: %s\n", snd_strerror(ret));
 			break;
-		} else if(ret != frames) {
+		} else if(ret != pcm_capt_buf_size) {
 			fprintf(stderr, "read ret: %d\n", ret);
 			break;
 		} else if(!is_clear_cap) {
-			if(bufsize_cap != frames) {
-				int i;
-				short *ptr = bufs_cap[captpos];
-
-				for(i = 0; i < g_frames_cap; i ++) {
-					*ptr++ = buf[i];
-					*ptr++ = buf[i];
-				}
-			}
-			sem_post(&capt_sem);
+			sem_post(&pcm_capt_sem);
 		}
 	}
 
-	if(buf) free(buf);
-
-	// exit thread: conn_player_thread
-	sem_post(&capt_sem);
-	sem_post(&capt_sem);
+	// exit thread: net_pcm_send_thread
+	sem_post(&pcm_capt_sem);
+	sem_post(&pcm_capt_sem);
 	
 	pthread_exit(NULL);
 }
@@ -870,7 +849,7 @@ err:
 
 static int sound_loading = 0;
 
-static void *conn_sound_thread(void *arg) {
+static void *net_pcm_recv_thread(void *arg) {
 	const int DELAY = 4;
 	int fd = 0, sz = 0, n = 0, is_bin = 0, delay = 0, i;
 	char *ptr, *old = NULL;
@@ -881,21 +860,21 @@ static void *conn_sound_thread(void *arg) {
 			ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(is_bin) {
-					if(sz != bufsize) {
-						fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, bufsize);
+					if(sz != pcm_play_buf_size) {
+						fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, pcm_play_buf_size);
 					} else {
-						bufpos ++;
-						if(bufpos >= BUFSIZE) bufpos = 0;
+						pcm_play_buf_pos ++;
+						if(pcm_play_buf_pos >= PCM_BUF_SIZE) pcm_play_buf_pos = 0;
 						
-						memcpy(bufs[bufpos], ptr, sz);
+						memcpy(pcm_play_bufs[pcm_play_buf_pos], ptr, sz);
 
 						if(delay > DELAY) {
-							sem_post(&play_sem);
+							sem_post(&pcm_play_sem);
 						} else if(delay < DELAY) {
 							delay ++;
 						} else {
 							for(i = 0; i <= delay; i ++) {
-								sem_post(&play_sem);
+								sem_post(&pcm_play_sem);
 							}
 							delay ++;
 						}
@@ -919,7 +898,7 @@ static void *conn_sound_thread(void *arg) {
 				fd = 0;
 				if(delay < DELAY) {
 					for(i = 0; i < delay; i ++) {
-						sem_post(&play_sem);
+						sem_post(&pcm_play_sem);
 					}
 				}
 				delay = 0;
@@ -945,21 +924,44 @@ static void *conn_sound_thread(void *arg) {
 
 static int player_loading = 0;
 
-static void *conn_player_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0, is_bin = 0, i, is_ok = 0, pos = -1;
+static void *net_pcm_send_thread(void *arg) {
+	int fd = 0, sz = 0, n = 0, is_bin = 0, i, is_ok = 0, pos = -1, size = pcm_capt_buf_size;
 	char *ptr, *old = NULL;
 	char timebuf[128];
+	short *buf = NULL;
+
+	if(capt_ch != 2) {
+		size = g_frames_cap * 2 * 2;
+		buf = (short *) malloc(size);
+	}
 	
+	printf("capture buffuer size: %d, net send buffer size: %d\n", size, pcm_capt_buf_size);
+
 	while(is_running) {
 		if(fd) {
 			if(is_ok) {
-				sem_wait(&capt_sem);
+				sem_wait(&pcm_capt_sem);
+				if(!is_running) break;
 
 				pos ++;
-				if(pos >= BUFSIZE) pos = 0;
+				if(pos >= PCM_BUF_SIZE) pos = 0;
 
-				if(!ws_send(fd, WS_CTL_BIN, WS_SEND_MASK, (char*) bufs_cap[pos], bufsize_cap, WS_SEND_TIMEOUT, __func__)) {
-					goto err;
+				if(pcm_capt_buf_size == size) {
+					if(!ws_send(fd, WS_CTL_BIN, WS_SEND_MASK, (char*) pcm_capt_bufs[pos], pcm_capt_buf_size, WS_SEND_TIMEOUT, __func__)) {
+						goto err;
+					}
+				} else {
+					int i;
+					short *dst = buf, *src = pcm_capt_bufs[pos];
+
+					for(i = 0; i < g_frames_cap; i ++) {
+						*dst++ = src[i];
+						*dst++ = src[i];
+					}
+
+					if(!ws_send(fd, WS_CTL_BIN, WS_SEND_MASK, (char*) buf, size, WS_SEND_TIMEOUT, __func__)) {
+						goto err;
+					}
 				}
 			} else {
 				ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
@@ -971,7 +973,7 @@ static void *conn_player_thread(void *arg) {
 					} else {
 						printf("[%s] player data: %s\n", nowtime(timebuf, sizeof(timebuf)), ptr);
 
-						sem_clear(&capt_sem);
+						sem_clear(&pcm_capt_sem);
 
 						if(strncmp(ptr, "OpenSuccess", sz)) {
 							is_err = 1;
@@ -980,6 +982,9 @@ static void *conn_player_thread(void *arg) {
 
 							pos = -1;
 							is_ok = 1;
+
+							sem_clear(&pcm_capt_sem);
+							for(int i = 0; i < 50 && is_running; i++) usleep(10000);
 						}
 					}
 					
@@ -992,7 +997,7 @@ static void *conn_player_thread(void *arg) {
 					close(fd);
 					fd = 0;
 
-					sem_clear(&capt_sem);
+					sem_clear(&pcm_capt_sem);
 					is_clear_cap = true;
 				}
 			}
@@ -1003,7 +1008,7 @@ static void *conn_player_thread(void *arg) {
 				old = NULL;
 			}
 
-			sem_clear(&capt_sem);
+			sem_clear(&pcm_capt_sem);
 			is_clear_cap = true;
 			is_ok = 0;
 			
@@ -1015,6 +1020,7 @@ static void *conn_player_thread(void *arg) {
 	
 	if(fd) close(fd);
 	if(old) free(old);
+	if(buf) free(buf);
 
 	pthread_exit(NULL);
 }
@@ -1038,7 +1044,7 @@ static double cjson_get_value_double(cJSON *json, char *key) {
 	else return 0.0;
 }
 
-static void *conn_video_thread(void *arg) {
+static void *net_video_thread(void *arg) {
 	int fd = 0, sz = 0, oldsz = 0, n = 0, is_bin = 0, fwidth = 0, fheight = 0;
 	char *ptr, *old = NULL, *oldptr = NULL;
 	GdkPixbuf *pixbuf, *dst = NULL;
@@ -1163,19 +1169,23 @@ static void *conn_video_thread(void *arg) {
 					} else if(!strncmp(ptr, "@SysInfo", 8) || !strncmp(ptr, "@HostInfo", 9)) {
 						bool atx = (ptr[1] == 'S');
 						cJSON *json = cJSON_Parse(ptr + (atx ? 9 : 10));
-						int n = (atx ? 0 : 3);
-						printf("[%s] %s %lg %04.1lf%% %.3lfGB %04.1lf%% %.3lfGB %.3lfGB %04.1lf%%\n",
-							nowtime(buf, sizeof(buf)),
-							atx ? "ATX" : "WDR",
-							cjson_get_value_double(json, "cpuCount"),
-							stats[STAT_ATX_CPU + n] = cjson_get_value_double(json, "cpuPercent"),
-							cjson_get_value_double(json, "memTotal") / 1024.0 / 1024.0 / 1024.0,
-							stats[STAT_ATX_MEM + n] = cjson_get_value_double(json, "memPercent"),
-							cjson_get_value_double(json, "diskTotal") / 1024.0 / 1024.0 / 1024.0,
-							cjson_get_value_double(json, "diskUsed") / 1024.0 / 1024.0 / 1024.0,
-							stats[STAT_ATX_DISK + n] = cjson_get_value_double(json, "diskPercent")
-						);
-						cJSON_free(json);
+						if(json) {
+							int n = (atx ? 0 : 3);
+							printf("[%s] %s %lg %04.1lf%% %.3lfGB %04.1lf%% %.3lfGB %.3lfGB %04.1lf%%\n",
+								nowtime(buf, sizeof(buf)),
+								atx ? "ATX" : "WDR",
+								cjson_get_value_double(json, "cpuCount"),
+								stats[STAT_ATX_CPU + n] = cjson_get_value_double(json, "cpuPercent"),
+								cjson_get_value_double(json, "memTotal") / 1024.0 / 1024.0 / 1024.0,
+								stats[STAT_ATX_MEM + n] = cjson_get_value_double(json, "memPercent"),
+								cjson_get_value_double(json, "diskTotal") / 1024.0 / 1024.0 / 1024.0,
+								cjson_get_value_double(json, "diskUsed") / 1024.0 / 1024.0 / 1024.0,
+								stats[STAT_ATX_DISK + n] = cjson_get_value_double(json, "diskPercent")
+							);
+							cJSON_free(json);
+						} else {
+							printf("[%s] json error: %s\n", nowtime(buf, sizeof(buf)), ptr + (atx ? 9 : 10));
+						}
 					} else if(!strcmp(ptr, "==equalFrame==")) {
 						video_frames ++;
 
@@ -1345,7 +1355,7 @@ static int touch_event_send(int fd) {
 	return 1;
 }
 
-static void *touch_event_thread(void *arg) {
+static void *net_touch_thread(void *arg) {
 	int fd = 0, sz = 0, n = 0, is_bin = 0, pos, ret;
 	char *ptr, *old = NULL;
 	struct timeval tv;
@@ -1457,7 +1467,7 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 
 	dBs = (calc_t*) malloc(play_ch * sizeof(calc_t));
 
-	data = bufs[bufpos];
+	data = pcm_play_bufs[pcm_play_buf_pos];
 	for(i = 0; i < play_ch; i++) dBs[i].sum = 0;
 	for(i = 0; i < g_frames * play_ch; i += play_ch) {
 		for(c = 0; c < play_ch; c ++) {
@@ -1522,7 +1532,7 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	for(i = 0; i < play_ch; i ++) {
 		if(!points[i]) points[i] = (GdkPoint*) malloc(sizeof(GdkPoint) * g_frames);
 	}
-	data = bufs[bufpos];
+	data = pcm_play_bufs[pcm_play_buf_pos];
 	GdkPoint *p;
 	for(i = 0; i < g_frames * play_ch; i += play_ch) {
 		for(c = 0; c < play_ch; c ++) {
@@ -1644,7 +1654,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		if(!fft_res[c]) fft_res[c] = (complex_t*) malloc(sizeof(complex_t) * fft_num);
 	}
 
-	data = bufs[bufpos];
+	data = pcm_play_bufs[pcm_play_buf_pos];
 	for(i = 0; i < fft_num * play_ch; i += play_ch) {
 		for(c = 0; c < play_ch; c ++) {
 			v = &fft_val[c][i/play_ch];
@@ -1873,7 +1883,7 @@ end:
 
 static bool is_ping = false;
 
-static void *key_event_thread(void *arg) {
+static void *net_presskey_thread(void *arg) {
 	keycode_t *key;
 	int ret;
 	char buf[32];
@@ -2138,6 +2148,17 @@ static char *get_title() {
 	return title;
 }
 
+static gboolean timeout_func_stat(gpointer data) {
+	char *title;
+
+	video_fps = video_frames;
+	video_frames = 0;
+	title = get_title();
+	if(window) gtk_window_set_title(GTK_WINDOW(window), title);
+
+	free(title);
+}
+
 static void gtk_begin() {
 	GtkWidget *vbox;
 	GtkWidget *frameVolume, *daVolume;
@@ -2240,6 +2261,8 @@ static void gtk_begin() {
 	gtk_widget_add_events(daFFT, GDK_LEAVE_NOTIFY_MASK | GDK_BUTTON_PRESS_MASK);
 
 	gtk_widget_show_all(window);
+
+	gtk_timeout_add(1000, timeout_func_stat, NULL);
 }
 
 static void gtk_end(void) {
@@ -2263,26 +2286,11 @@ void sig_handle(int sig) {
 	fprintf(stderr, "\r");
 }
 
-static void *video_fps_thread(void *arg) {
-	char *title;
-	while(is_running) {
-		video_fps = video_frames;
-		video_frames = 0;
-		title = get_title();
-		gdk_threads_enter();
-		if(window) gtk_window_set_title(GTK_WINDOW(window), title);
-		gdk_threads_leave();
-		free(title);
-
-		sleep(1);
-	}
-}
-
 int main(int argc, char *argv[]) {
 	int ret, c, i;
-	void *bufs_ptr, *bufs_cap_ptr, *ptr;
+	void *pcm_play_buf_ptr, *pcm_capt_buf_ptr, *ptr;
 	
-	while((c = getopt(argc, argv, "H:P:c:C:a:w:ih?")) != -1) {
+	while((c = getopt(argc, argv, "H:P:d:D:c:C:a:w:ih?")) != -1) {
         switch(c) {
         	case 'H':
         		servhost = optarg;
@@ -2318,8 +2326,8 @@ int main(int argc, char *argv[]) {
                     "Usage: %s [-H <host>] [-P <port>] [-d <path>] [-D <path>] [-c <channels>] [-C <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
                     "  -H <host>      Server host(default: %s)\n"
                     "  -P <port>      Server port(default: %d)\n"
-                    "  -d <path>      Audio Play device(default: %s)\n"
-                    "  -D <path>      Audio Capture device(default: %s)\n"
+                    "  -d <device>    Audio Play device(default: %s)\n"
+                    "  -D <device>    Audio Capture device(default: %s)\n"
                     "  -c <channels>  Audio Play channels(default: %d)\n"
                     "  -C <channels>  Audio Capture channels(default: %d)\n"
                     "  -a <proxypath> Api proxy path(default: %s)\n"
@@ -2369,31 +2377,31 @@ int main(int argc, char *argv[]) {
 
 	fft_num = powf(2, floorf(log2f(g_frames)));
 
-	sem_init(&play_sem, 0, 0);
-	sem_init(&capt_sem, 0, 0);
+	sem_init(&pcm_play_sem, 0, 0);
+	sem_init(&pcm_capt_sem, 0, 0);
 	pthread_mutex_init(&touch_lock, NULL);
 	
-	bufsize = g_frames * play_ch * 2;
-	bufs_ptr = malloc(bufsize * BUFSIZE);
-	ptr = bufs_ptr;
-	for(i = 0; i < BUFSIZE; i ++) {
-		bufs[i] = (short*) ptr;
-		ptr += bufsize;
+	pcm_play_buf_size = g_frames * play_ch * 2;
+	pcm_play_buf_ptr = malloc(pcm_play_buf_size * PCM_BUF_SIZE);
+	ptr = pcm_play_buf_ptr;
+	for(i = 0; i < PCM_BUF_SIZE; i ++) {
+		pcm_play_bufs[i] = (short*) ptr;
+		ptr += pcm_play_buf_size;
 	}
 	
-	bufsize_cap = g_frames_cap * 2 * 2;
-	bufs_cap_ptr = malloc(bufsize_cap * BUFSIZE);
-	ptr = bufs_cap_ptr;
-	for(i = 0; i < BUFSIZE; i ++) {
-		bufs_cap[i] = (short*) ptr;
-		ptr += bufsize_cap;
+	pcm_capt_buf_size = g_frames_cap * capt_ch * 2;
+	pcm_capt_buf_ptr = malloc(pcm_capt_buf_size * PCM_BUF_SIZE);
+	ptr = pcm_capt_buf_ptr;
+	for(i = 0; i < PCM_BUF_SIZE; i ++) {
+		pcm_capt_bufs[i] = (short*) ptr;
+		ptr += pcm_capt_buf_size;
 	}
 
 	gtk_init(&argc, &argv);
 
 	gtk_begin();
 
-	pthread_t play_tid = 0, capt_tid = 0, sound_tid = 0, player_tid = 0, video_tid = 0, fps_tid = 0, touch_tid, key_tid;
+	pthread_t pcm_play_tid = 0, pcm_capt_tid = 0, net_pcm_recv_tid = 0, net_pcm_send_tid = 0, net_video_tid = 0, net_touch_tid, net_presskey_tid;
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -2402,55 +2410,49 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	ret = pthread_create(&play_tid, &attr, play_sound_thread, NULL);
+	ret = pthread_create(&pcm_play_tid, &attr, pcm_play_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 
-	ret = pthread_create(&capt_tid, &attr, capt_player_thread, NULL);
+	ret = pthread_create(&pcm_capt_tid, &attr, pcm_capt_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 
-	ret = pthread_create(&sound_tid, &attr, conn_sound_thread, NULL);
+	ret = pthread_create(&net_pcm_recv_tid, &attr, net_pcm_recv_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 
-	ret = pthread_create(&player_tid, &attr, conn_player_thread, NULL);
+	ret = pthread_create(&net_pcm_send_tid, &attr, net_pcm_send_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 	
-	ret = pthread_create(&video_tid, &attr, conn_video_thread, NULL);
+	ret = pthread_create(&net_video_tid, &attr, net_video_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 	
-	ret = pthread_create(&fps_tid, &attr, video_fps_thread, NULL);
+	ret = pthread_create(&net_touch_tid, &attr, net_touch_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 	
-	ret = pthread_create(&touch_tid, &attr, touch_event_thread, NULL);
+	ret = pthread_create(&net_presskey_tid, &attr, net_presskey_thread, NULL);
 	if(ret) {
 		fprintf(stderr, "pthread_create failure: %d", ret);
 		goto end;
 	}
 	
-	ret = pthread_create(&key_tid, &attr, key_event_thread, NULL);
-	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
-		goto end;
-	}
-	
-	sem_post(&play_sem);
+	sem_post(&pcm_play_sem);
 	
 	gdk_threads_enter();
 	gtk_main();
@@ -2459,7 +2461,7 @@ int main(int argc, char *argv[]) {
 
 end:
 	is_running = false;
-	sem_post(&play_sem);
+	sem_post(&pcm_play_sem);
 	
 	snd_pcm_drain(gp_handle);
 	snd_pcm_reset(gp_handle);
@@ -2468,37 +2470,35 @@ end:
 	snd_pcm_drop(gp_handle_cap);
 	snd_pcm_close(gp_handle_cap);
 
-	if(pthread_join(play_tid, NULL)) {
+	if(pthread_join(pcm_play_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(capt_tid, NULL)) {
+	if(pthread_join(pcm_capt_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(sound_tid, NULL)) {
+	if(pthread_join(net_pcm_recv_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(player_tid, NULL)) {
+	if(pthread_join(net_pcm_send_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(video_tid, NULL)) {
+	if(pthread_join(net_video_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(fps_tid, NULL)) {
+	if(pthread_join(net_touch_tid, NULL)) {
 		perror("pthread_join failure");
 	}
-	if(pthread_join(touch_tid, NULL)) {
-		perror("pthread_join failure");
-	}
-	if(pthread_join(key_tid, NULL)) {
+	if(pthread_join(net_presskey_tid, NULL)) {
 		perror("pthread_join failure");
 	}
 	pthread_attr_destroy(&attr);
 
-	sem_destroy(&play_sem);
+	sem_destroy(&pcm_play_sem);
+	sem_destroy(&pcm_capt_sem);
 	pthread_mutex_destroy(&touch_lock);
 
-	free(bufs_ptr);
-	free(bufs_cap_ptr);
+	free(pcm_play_buf_ptr);
+	free(pcm_capt_buf_ptr);
 
 	fprintf(stderr, "Exited\n");
 	return 0;
