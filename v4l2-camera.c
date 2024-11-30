@@ -646,7 +646,6 @@ static void sig_handler(int sig)
 static sem_t sem;
 static GtkWidget *window = NULL;
 static GtkWidget *drawarea = NULL;
-static GdkFont *font = NULL;
 
 static volatile unsigned int vframes = 0;
 static bool is_fullscreen = false;
@@ -661,13 +660,17 @@ static int on_delete_event(GtkWidget *widget,GdkEvent *event,gpointer data)
 	return TRUE;
 }
 
+static void draw_pixmap(void);
+
 static int on_expose_event(GtkWidget *widget,GdkEvent *event,gpointer data)
 {
+	draw_pixmap();
+
 	return FALSE;
 }
 
 static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
-	uint16_t code = 0;
+	int w, h;
 	
 	// printf("%u %02x\n", event->hardware_keycode, event->hardware_keycode);
 
@@ -684,6 +687,24 @@ static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpoint
 				gtk_window_fullscreen(GTK_WINDOW(window));
 			else
 				gtk_window_unfullscreen(GTK_WINDOW(window));
+			break;
+		case GDK_KEY_w:
+		case GDK_KEY_W:
+			if(is_fullscreen || (!is_fullscreen && !is_resizable)) return FALSE;
+
+			w = width * window->allocation.height / height;
+			h = window->allocation.height;
+			gtk_window_resize(GTK_WINDOW(window), w, h);
+			printf("w: %d, h: %d\n", w, h);
+			break;
+		case GDK_KEY_h:
+		case GDK_KEY_H:
+			if(is_fullscreen || (!is_fullscreen && !is_resizable)) return FALSE;
+			
+			w = window->allocation.width;
+			h = height * window->allocation.width / width;
+			gtk_window_resize(GTK_WINDOW(window), w, h);
+			printf("w: %d, h: %d\n", w, h);
 			break;
 		default:
 			return FALSE;
@@ -719,7 +740,7 @@ static void *thread_gtk(void *arg)
 		if(is_resizable)
 		{
 			gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
-			gtk_widget_set_size_request(window, 800, 600);
+			gtk_window_resize(GTK_WINDOW(window), 800, 600);
 		}
 
 		// gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
@@ -728,7 +749,7 @@ static void *thread_gtk(void *arg)
 	else if(is_resizable)
 	{
 		gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
-		gtk_widget_set_size_request(window, 800, 600);
+		gtk_window_resize(GTK_WINDOW(window), 800, 600);
 	}
 	else
 	{
@@ -770,16 +791,89 @@ static GdkPixmap *drawPixmap = NULL;
 
 static void draw_pixmap(void)
 {
-	gdk_draw_drawable(drawarea->window, drawarea->style->black_gc, drawPixmap, 0, 0, 0, 0, width, height);
+	const int dwidth = drawarea->allocation.width, dheight = drawarea->allocation.height;
+
+	if(dwidth == width || dheight == height)
+	{
+		gdk_draw_drawable(drawarea->window, drawarea->style->black_gc, drawPixmap, 0, 0, 0, 0, width, height);
+	}
+	else
+	{
+		static GdkPixbuf *dst = NULL;
+		static int fwidth = 0, fheight = 0;
+
+		int dw, dh;
+		int x, y;
+
+		GdkPixbuf *pixbuf = NULL;
+
+		dw = dwidth;
+		dh = dwidth * height / width;
+		if(dh > dheight) {
+			dw = dheight * width / height;
+			dh = dheight;
+		}
+		
+		double scale = (double) dw / (double) width;
+
+		if(!dst || fwidth != dwidth || fheight != dheight) {
+			fwidth = dwidth;
+			fheight = dheight;
+			if(dst) g_object_unref(dst);
+			dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, dwidth, dheight);
+		}
+
+		x = (dwidth - dw) / 2;
+		y = (dheight - dh) / 2;
+
+		gdk_pixbuf_fill(dst, 0x000000);
+		pixbuf = gdk_pixbuf_get_from_drawable(NULL, drawPixmap, NULL, 0, 0, 0, 0, width, height);
+		gdk_pixbuf_scale(pixbuf, dst, x, y, dw, dh, x, y, scale, scale, GDK_INTERP_BILINEAR);
+		g_object_unref(pixbuf);
+
+		gdk_draw_pixbuf(drawarea->window, drawarea->style->black_gc, dst, 0, 0, 0, 0, dwidth, dheight, GDK_RGB_DITHER_NORMAL, 0, 0);
+	}
 }
 
 static void draw_nowtime(void)
 {
+	GdkGC *gc_white, *gc_black;
+	PangoLayout *layout;
+	PangoFontDescription *fontdesc;
+	GdkColor color;
+
 	char buf[32];
 	
 	nowtime_r(buf, sizeof(buf));
-	gdk_draw_string(drawPixmap, font, drawarea->style->black_gc, 48, 48, buf);
-	gdk_draw_string(drawPixmap, font, drawarea->style->white_gc, 50, 50, buf);
+
+	gc_white = gdk_gc_new(drawPixmap);
+	color.red = 0xffff;
+	color.green = 0xffff;
+	color.blue = 0xffff;
+	gdk_gc_set_rgb_fg_color(gc_white, &color);
+
+	gc_black = gdk_gc_new(drawPixmap);
+	color.red = 0x0000;
+	color.green = 0x0000;
+	color.blue = 0x0000;
+	gdk_gc_set_rgb_fg_color(gc_black, &color);
+	
+    fontdesc = pango_font_description_from_string("Ubuntu Mono 24");
+
+	layout = gtk_widget_create_pango_layout(drawarea, buf);
+    pango_layout_set_font_description(layout, fontdesc);
+    gdk_draw_layout(drawPixmap, gc_black, 50, 50, layout);
+    g_object_unref(layout);
+
+	layout = gtk_widget_create_pango_layout(drawarea, buf);
+    pango_layout_set_font_description(layout, fontdesc);
+    gdk_draw_layout(drawPixmap, gc_white, 52, 52, layout);
+    g_object_unref(layout);
+
+    pango_font_description_free(fontdesc);
+
+	g_object_unref(gc_black);
+	g_object_unref(gc_white);
 }
 
 int main(int argc, char *argv[])
@@ -1095,16 +1189,6 @@ int main(int argc, char *argv[])
 	gdk_threads_init();
 	
 	gtk_init(&argc, &argv);
-	
-#ifndef USE_FONT_LOAD
-	PangoFontDescription *font_desc = pango_font_description_from_string("Sans Bold 32");
-	// pango_font_description_set_weight(font_desc, PANGO_WEIGHT_BOLD);
-	// pango_font_description_set_size(font_desc, 32 * PANGO_SCALE);
-	// printf("font_desc: %d\n", pango_font_description_get_size(font_desc));
-	font = gdk_font_from_description(font_desc);
-#else
-	font = gdk_font_load("-*-helvetica-medium-r-*-*-32-*-*-*-*-*-*-*");
-#endif
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
