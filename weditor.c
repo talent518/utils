@@ -29,6 +29,7 @@
 
 #define VIDEO_IMAGE
 #define PCM_BUF_SIZE 32
+#define SAMPLE_RATE 48000
 
 static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
@@ -109,7 +110,7 @@ static int set_hardware_params(const char *name, int sample_rate, int channels, 
 		goto err1;
 	}
 
-	g_frames = sample_rate / 20;
+	g_frames = 2048; // sample_rate / 20;
 	rc = snd_pcm_hw_params_set_period_size_near(gp_handle, gp_params, &g_frames, 0);
 	if(rc < 0) {
 		fprintf(stderr, "unable to set sampling rate.\n");
@@ -202,7 +203,7 @@ static int setcap_hardware_params(const char *name, int sample_rate, int channel
 		goto err1;
 	}
 
-	g_frames_cap = sample_rate / 20;
+	g_frames_cap = 2048; // sample_rate / 20;
 	rc = snd_pcm_hw_params_set_period_size_near(gp_handle_cap, gp_params_cap, &g_frames_cap, 0);
 	if(rc < 0) {
 		fprintf(stderr, "unable to set sampling rate.\n");
@@ -397,7 +398,7 @@ static void *pcm_capt_thread(void *arg) {
 		FILE *fp = fopen(capt_file, "r");
 
 		if(fp) {
-			const uint64_t DELAY = 50000; // 50ms
+			const uint64_t DELAY = 1000000 * 2048 / SAMPLE_RATE;
 			uint64_t us = microsecond() + DELAY, t;
 
 			while(is_running) {
@@ -2436,23 +2437,23 @@ int main(int argc, char *argv[]) {
 	servaddr.sin_port = htons(servport);
 
 	if(play_dev) {
-		ret = set_hardware_params(play_dev, 44100, play_ch, 16);
+		ret = set_hardware_params(play_dev, SAMPLE_RATE, play_ch, 16);
 		if (ret < 0) {
 			fprintf(stderr, "set_hardware_params error\n");
 			return -1;
 		}
 	} else {
-		g_frames = 44100 / 20;
+		g_frames = 2048; // 44100 / 20;
 	}
 
 	if(capt_dev) {
-		ret = setcap_hardware_params(capt_dev, 44100, capt_ch, 16);
+		ret = setcap_hardware_params(capt_dev, SAMPLE_RATE, capt_ch, 16);
 		if (ret < 0) {
 			fprintf(stderr, "setcap_hardware_params error\n");
 			return -1;
 		}
 	} else if(capt_file) {
-		g_frames_cap = 44100 / 20;
+		g_frames_cap = 2048; // 44100 / 20;
 	}
 
 	signal(SIGTERM, sig_handle);
