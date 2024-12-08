@@ -296,7 +296,7 @@ typedef struct {
 } calc_t;
 
 static GtkWidget *window = NULL;
-static volatile bool is_fullscreen = false;
+static volatile bool is_fullscreen = false, is_audio_frame_hide = false;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
@@ -2060,20 +2060,25 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_F8:
 			code = 86; // MEDIA_STOP
 			break;
+		case GDK_KEY_F10:
+			is_audio_frame_hide = !is_audio_frame_hide;
+			if(is_audio_frame_hide) {
+				gtk_widget_hide(audioFrame);
+				gtk_container_set_border_width(GTK_CONTAINER(window), 0);
+			} else {
+				gtk_widget_show(audioFrame);
+				gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+			}
+			break;
 		case GDK_KEY_F11: {
 			char buf[32];
-			GtkWindow *win = GTK_WINDOW(window);
-			printf("[%s] FullScreent %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
+			printf("[%s] FullScreen %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
 			if(is_fullscreen) {
 				is_fullscreen = false;
-				gtk_window_unfullscreen(win);
-				gtk_container_set_border_width(GTK_CONTAINER(window), 10);
-				gtk_widget_show(audioFrame);
+				gtk_window_unfullscreen(GTK_WINDOW(window));
 			} else {
 				is_fullscreen = true;
-				gtk_window_fullscreen(win);
-				gtk_container_set_border_width(GTK_CONTAINER(window), 0);
-				gtk_widget_hide(audioFrame);
+				gtk_window_fullscreen(GTK_WINDOW(window));
 			}
 			return FALSE;
 		}
@@ -2417,6 +2422,7 @@ int main(int argc, char *argv[]) {
                     "  F6     KEYCODE_MEDIA_NEXT\n"
                     "  F7     KEYCODE_MEDIA_PLAY\n"
                     "  F8     KEYCODE_MEDIA_STOP\n"
+                    "  F10    Show or Hide for Volume, Wave, FFT\n"
                     "  F11    FullScreen\n"
                     "  Home   KEYCODE_HOME\n"
                     "  End    KEYCODE_POWER\n"
