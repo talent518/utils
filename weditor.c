@@ -421,14 +421,19 @@ static void *pcm_capt_thread(void *arg) {
 					sem_post(&pcm_capt_sem);
 				}
 
-				if(feof(fp)) fseek(fp, 0, SEEK_SET);
+				if(feof(fp)) {
+					fclose(fp);
+
+					fp = fopen(capt_file, "r");
+					if(!fp) break;
+				}
 
 				t = microsecond();
 				if(t < us) usleep(us - t);
 				us += DELAY;
 			}
 
-			fclose(fp);
+			if(fp) fclose(fp);
 
 			// exit thread: net_pcm_send_thread
 			sem_post(&pcm_capt_sem);
