@@ -1603,8 +1603,9 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	GdkPoint *p;
 	for(i = 0; i < g_frames * play_ch; i += play_ch) {
 		for(c = 0; c < play_ch; c ++) {
-			p = &points[c][i/play_ch];
-			p->x = i * w;
+			int x = i/play_ch;
+			p = &points[c][x];
+			p->x = x * w;
 			p->y = c * h + h2 - data[i + c] * h2 / 32767;
 		}
 	}
