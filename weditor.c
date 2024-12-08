@@ -1071,7 +1071,6 @@ static void *net_pcm_send_thread(void *arg) {
 							is_ok = 1;
 
 							sem_clear(&pcm_capt_sem);
-							for(int i = 0; i < 50 && is_running; i++) usleep(10000);
 						}
 					}
 					
