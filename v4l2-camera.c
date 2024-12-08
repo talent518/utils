@@ -793,6 +793,8 @@ static void draw_pixmap(void)
 {
 	const int dwidth = drawarea->allocation.width, dheight = drawarea->allocation.height;
 
+	if(!drawPixmap) return;
+
 	if(dwidth == width || dheight == height)
 	{
 		gdk_draw_drawable(drawarea->window, drawarea->style->black_gc, drawPixmap, 0, 0, 0, 0, width, height);
@@ -1179,8 +1181,6 @@ int main(int argc, char *argv[])
 		goto req;
 	}
 	
-	printf("width: %u, height: %u, Running ...\n", width, height);
-	
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
 	signal(SIGUSR1, sig_handler);
@@ -1197,21 +1197,17 @@ int main(int argc, char *argv[])
 	sem_wait(&sem);
 	
 	gdk_threads_enter();
-	if(istime) drawPixmap = gdk_pixmap_new(drawarea->window, width, height, -1);
+	drawPixmap = gdk_pixmap_new(drawarea->window, width, height, -1);
 	if(is_running)
 	{
 		memset(rgbbuf, 0x00, width * height * 3);
 		
+		gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
 		if(istime)
 		{
-			gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
 			draw_nowtime();
-			draw_pixmap();
 		}
-		else
-		{
-			gdk_draw_rgb_image(drawarea->window, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
-		}
+		draw_pixmap();
 	}
 	gdk_threads_leave();
 	
@@ -1226,6 +1222,8 @@ int main(int argc, char *argv[])
 		int flags = fcntl(fd, F_GETFL);
 		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	}
+	
+	printf("width: %u, height: %u, Running ...\n", width, height);
 	
 	while(is_running)
 	{
@@ -1274,16 +1272,14 @@ int main(int argc, char *argv[])
 			gdk_threads_enter();
 			if(is_running)
 			{
+				gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+
 				if(istime)
 				{
-					gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
 					draw_nowtime();
-					draw_pixmap();
 				}
-				else
-				{
-					gdk_draw_rgb_image(drawarea->window, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
-				}
+
+				draw_pixmap();
 			}
 			gdk_threads_leave();
 			break;
@@ -1293,16 +1289,14 @@ int main(int argc, char *argv[])
 			gdk_threads_enter();
 			if(is_running)
 			{
+				gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
+
 				if(istime)
 				{
-					gdk_draw_rgb_image(drawPixmap, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
 					draw_nowtime();
-					draw_pixmap();
 				}
-				else
-				{
-					gdk_draw_rgb_image(drawarea->window, drawarea->style->black_gc, 0, 0, width, height, GDK_RGB_DITHER_NONE, rgbbuf, width * 3);
-				}
+
+				draw_pixmap();
 			}
 			gdk_threads_leave();
 			break;
@@ -1319,16 +1313,14 @@ int main(int argc, char *argv[])
 					if(gdk_pixbuf_loader_close(loader, NULL)) {
 						pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 						if(pixbuf) {
+							gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+
 							if(istime)
 							{
-								gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
 								draw_nowtime();
-								draw_pixmap();
 							}
-							else
-							{
-								gdk_draw_pixbuf(drawarea->window, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
-							}
+
+							draw_pixmap();
 						}
 					}
 					g_object_unref(loader);
