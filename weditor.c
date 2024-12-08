@@ -1148,7 +1148,6 @@ static void *net_video_thread(void *arg) {
 	char *ptr, *old = NULL, *oldptr = NULL;
 	GdkPixbuf *pixbuf, *dst = NULL;
 	GdkPixbufLoader *loader;
-	bool isfull = false;
 	char buf[128];
 	double t;
 	
@@ -1157,9 +1156,10 @@ static void *net_video_thread(void *arg) {
 			ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(is_running) {
+					int width = videoFrame->allocation.width, height = videoFrame->allocation.height;
+					
 					if(is_bin) {
 					redraw:
-						isfull = is_fullscreen;
 						gdk_threads_enter();
 						video_frames ++;
 						loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
@@ -1170,8 +1170,6 @@ static void *net_video_thread(void *arg) {
 								GdkGC *gc = videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)];
 								video_width = gdk_pixbuf_get_width(pixbuf);
 								video_height = gdk_pixbuf_get_height(pixbuf);
-								
-								int width = videoFrame->allocation.width, height = videoFrame->allocation.height;
 
 								double scale = (double) width / (double) video_width;
 								int w = width, h = (double) video_height * scale;
@@ -1234,7 +1232,7 @@ static void *net_video_thread(void *arg) {
 					} else if(!strcmp(ptr, "==equalFrame==")) {
 						video_frames ++;
 
-						if(oldptr && isfull != is_fullscreen) {
+						if(oldptr && (fwidth != width || fheight != height)) {
 							printf("[%s] redraw\n", nowtime(buf, sizeof(buf)));
 							free(ptr);
 							ptr = oldptr;
@@ -1301,18 +1299,16 @@ static void touch_event_push(int event, int x, int y) {
 	
 	if(touch_event_loading) return;
 
-	if(is_fullscreen) {
-		w = videoFrame->allocation.width;
-		h = videoFrame->allocation.height;
-		
-		x2 = (w - video_width) / 2;
-		y2 = (h - video_height) / 2;
-		if(x < x2 || x > x2 + video_width) return;
-		if(y < y2 || y > y2 + video_height) return;
-		
-		x -= x2;
-		y -= y2;
-	}
+	w = videoFrame->allocation.width;
+	h = videoFrame->allocation.height;
+	
+	x2 = (w - video_width) / 2;
+	y2 = (h - video_height) / 2;
+	if(x < x2 || x > x2 + video_width) return;
+	if(y < y2 || y > y2 + video_height) return;
+	
+	x -= x2;
+	y -= y2;
 
 	switch(video_rotation) {
         case 0:
