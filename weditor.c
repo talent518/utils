@@ -297,12 +297,15 @@ static void *pcm_play_thread(void *arg) {
 	char buf[128];
 	FILE *fp = NULL;
 
+	sem_wait(&pcm_play_sem);
+
 	if(play_file) fp = fopen(play_file, "w");
 	
 	if(play_dev) {
 		snd_pcm_pause(gp_handle, 0);
+		snd_pcm_prepare(gp_handle);
 	}
-	sem_wait(&pcm_play_sem);
+
 	while(is_running) {
 		if(!sem_getvalue(&pcm_play_sem, &ret) && ret > MAX_QUE) {
 			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
@@ -324,6 +327,7 @@ static void *pcm_play_thread(void *arg) {
 		prepare:
 			ret = snd_pcm_writei(gp_handle, pcm_play_bufs[playpos], g_frames);
 			if (ret == -EPIPE) {
+				fprintf(stderr, "writei pipe error: %d\n", ret);
 				snd_pcm_prepare(gp_handle);
 				if(is_running) goto prepare;
 				else break;
@@ -346,6 +350,11 @@ static void *pcm_play_thread(void *arg) {
 	}
 
 	if(fp) fclose(fp);
+
+	if(gp_handle) {
+		snd_pcm_drain(gp_handle);
+		snd_pcm_close(gp_handle);
+	}
 
 	pthread_exit(NULL);
 }
@@ -373,8 +382,9 @@ static void *pcm_capt_thread(void *arg) {
 			}
 			
 		prepare:
-			ret = snd_pcm_readi(gp_handle_cap, pcm_capt_bufs[pos], pcm_capt_buf_size);
+			ret = snd_pcm_readi(gp_handle_cap, pcm_capt_bufs[pos], g_frames_cap);
 			if (ret == -EPIPE) {
+				fprintf(stderr, "readi pipe error: %d\n", ret);
 				snd_pcm_prepare(gp_handle_cap);
 				if(is_running) goto prepare;
 				else break;
@@ -383,7 +393,7 @@ static void *pcm_capt_thread(void *arg) {
 			} else if (ret < 0) {
 				fprintf(stderr, "error from readi: %s\n", snd_strerror(ret));
 				break;
-			} else if(ret != pcm_capt_buf_size) {
+			} else if(ret != g_frames_cap) {
 				fprintf(stderr, "read ret: %d\n", ret);
 				break;
 			} else if(!is_clear_cap) {
@@ -394,6 +404,9 @@ static void *pcm_capt_thread(void *arg) {
 		// exit thread: net_pcm_send_thread
 		sem_post(&pcm_capt_sem);
 		sem_post(&pcm_capt_sem);
+
+		snd_pcm_drop(gp_handle_cap);
+		snd_pcm_close(gp_handle_cap);
 	} else {
 		FILE *fp = fopen(capt_file, "r");
 
@@ -2583,16 +2596,6 @@ end:
 	}
 	if(pthread_join(net_presskey_tid, NULL)) {
 		perror("pthread_join failure");
-	}
-	
-	if(play_dev) {
-		snd_pcm_drain(gp_handle);
-		snd_pcm_close(gp_handle);
-	}
-	
-	if(capt_dev) {
-		snd_pcm_drop(gp_handle_cap);
-		snd_pcm_close(gp_handle_cap);
 	}
 
 	pthread_attr_destroy(&attr);
