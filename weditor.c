@@ -31,6 +31,17 @@
 #define PCM_BUF_SIZE 32
 #define SAMPLE_RATE 48000
 
+#define gc_fg_new_with_rgb(draw, gc, r, g, b) { \
+	GdkColor c; \
+	\
+	c.red = r; \
+	c.green = g; \
+	c.blue = b; \
+	\
+	gc = gdk_gc_new(draw); \
+	gdk_gc_set_rgb_fg_color(gc, &c); \
+}
+
 static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
 static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
 static snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned long类型
@@ -1160,90 +1171,36 @@ static void *net_video_thread(void *arg) {
 								video_width = gdk_pixbuf_get_width(pixbuf);
 								video_height = gdk_pixbuf_get_height(pixbuf);
 								
-								if(is_fullscreen) {
-									int width = 0, height = 0;
-									gtk_window_get_size(GTK_WINDOW(window), &width, &height);
-									
-									gtk_widget_set_size_request(sizeFrame, width, height);
-									gtk_widget_set_size_request(videoFrame, width, height);
+								int width = videoFrame->allocation.width, height = videoFrame->allocation.height;
 
-									double scale = (double) width / (double) video_width;
-									int w = width, h = (double) video_height * scale;
-									if(h > height) {
-										scale = (double) height / (double) video_height;
-										h = height;
-										w = (double) video_width * scale;
-									}
-									
-									int x = (width - w) / 2, y = (height - h) / 2;
-									// printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
-									
-									video_width = w;
-									video_height = h;
-
-									if(!dst || fwidth != width || fheight != height) {
-										fwidth = width;
-										fheight = height;
-										if(dst) g_object_unref(dst);
-										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
-									}
-									
-									gdk_pixbuf_fill(dst, 0x000000);
-									gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
-								#ifdef VIDEO_IMAGE
-									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
-								#else
-									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
-								#endif
-								} else if(video_width > 800 || video_height > 800) {
-									int width, height;
-									if(video_width > video_height) {
-										width = 800;
-										height = 800 * video_height / video_width;
-									} else {
-										width = 800 * video_width / video_height;
-										height = 800;
-									}
-									
-									double scale = (double) width / (double) video_width;
-									
-									video_width = width;
-									video_height = height;
-									
-									if(!dst || fwidth != width || fheight != height) {
-										fwidth = width;
-										fheight = height;
-										if(dst) g_object_unref(dst);
-										dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
-									}
-									
-									gdk_pixbuf_fill(dst, 0x000000);
-									gdk_pixbuf_scale(pixbuf, dst, 0, 0, width, height, 0, 0, scale, scale, GDK_INTERP_BILINEAR);
-
-									gtk_widget_set_size_request(audioFrame, 400, video_height);
-									gtk_widget_set_size_request(videoFrame, video_width, video_height);
-									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
-									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
-									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-									
-								#ifdef VIDEO_IMAGE
-									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
-								#else
-									gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
-								#endif
-								} else {
-									gtk_widget_set_size_request(audioFrame, 400, video_height);
-									gtk_widget_set_size_request(videoFrame, video_width, video_height);
-									gtk_widget_set_size_request(sizeFrame, video_width + 400 + 20, video_height);
-									gtk_widget_set_size_request(window, video_width + 400 + 30, video_height + 20);
-									gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-									
-								#ifdef VIDEO_IMAGE
-									gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), pixbuf);
-								#else
-									gdk_draw_pixbuf(videoFrame->window, gc, pixbuf, 0, 0, 0, 0, video_width, video_height, GDK_RGB_DITHER_NORMAL, 0, 0);
-								#endif
+								double scale = (double) width / (double) video_width;
+								int w = width, h = (double) video_height * scale;
+								if(h > height) {
+									scale = (double) height / (double) video_height;
+									h = height;
+									w = (double) video_width * scale;
 								}
+								
+								int x = (width - w) / 2, y = (height - h) / 2;
+								// printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
+								
+								video_width = w;
+								video_height = h;
+
+								if(!dst || fwidth != width || fheight != height) {
+									fwidth = width;
+									fheight = height;
+									if(dst) g_object_unref(dst);
+									dst = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
+								}
+								
+								gdk_pixbuf_fill(dst, 0x000000);
+								gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
+							#ifdef VIDEO_IMAGE
+								gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
+							#else
+								gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
+							#endif
 							}
 						}
 						g_object_unref(loader);
@@ -1521,18 +1478,33 @@ static void *net_touch_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
+static GdkGC *gc_volume_bg = NULL;
+static GdkGC *gc_volume_left_cur = NULL, *gc_volume_left_max = NULL;
+static GdkGC *gc_volume_right_cur = NULL, *gc_volume_right_max = NULL;
+
 static gboolean scribble_configure_event_volume(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
+	GdkColor color;
+
 	if(pixmapVolume) g_object_unref(G_OBJECT(pixmapVolume));
+	if(gc_volume_bg) g_object_unref(G_OBJECT(gc_volume_bg));
+	if(gc_volume_left_cur) g_object_unref(G_OBJECT(gc_volume_left_cur));
+	if(gc_volume_left_max) g_object_unref(G_OBJECT(gc_volume_left_max));
+	if(gc_volume_right_cur) g_object_unref(G_OBJECT(gc_volume_right_cur));
+	if(gc_volume_right_max) g_object_unref(G_OBJECT(gc_volume_right_max));
 
 	pixmapVolume = gdk_pixmap_new(widget->window, widget->allocation.width, widget->allocation.height, -1);
 
-	gdk_draw_rectangle(pixmapVolume, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+	gc_fg_new_with_rgb(pixmapVolume, gc_volume_bg, 0xffff, 0xffff, 0xffff);
+	gc_fg_new_with_rgb(pixmapVolume, gc_volume_left_cur, 0xffff, 0x3333, 0x0000);
+	gc_fg_new_with_rgb(pixmapVolume, gc_volume_left_max, 0x9999, 0x3333, 0x0000);
+	gc_fg_new_with_rgb(pixmapVolume, gc_volume_right_cur, 0x3333, 0xffff, 0x0000);
+	gc_fg_new_with_rgb(pixmapVolume, gc_volume_right_max, 0x3333, 0x9999, 0x0000);
 
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_volume(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, widget->style->fg_gc[GTK_WIDGET_STATE(widget)], pixmapVolume, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, gc_volume_bg, pixmapVolume, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
@@ -1572,13 +1544,14 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 		if(dBs[i].db > 100) dBs[i].db = 100;
 	}
 
-	gdk_draw_rectangle(pixmapVolume, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+	gdk_draw_rectangle(pixmapVolume, gc_volume_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
 	gint h = widget->allocation.height / play_ch;
-	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
+	GdkGC *gc_curs[] = {gc_volume_left_cur, gc_volume_right_cur};
+	GdkGC *gc_maxs[] = {gc_volume_left_max, gc_volume_right_max};
 	for(i = 0; i < play_ch; i++) {
-		gdk_draw_rectangle(pixmapVolume, gcs[i], TRUE, 0, i * h, widget->allocation.width * dBs[i].db / 100, h);
-		gdk_draw_rectangle(pixmapVolume, widget->style->base_gc[5 - i], TRUE, (widget->allocation.width * maxs[i] / 32767) - 2, i * h, 4, h);
+		gdk_draw_rectangle(pixmapVolume, gc_curs[i], TRUE, 0, i * h, widget->allocation.width * dBs[i].db / 100, h);
+		gdk_draw_rectangle(pixmapVolume, gc_maxs[i], TRUE, (widget->allocation.width * maxs[i] / 32767) - 2, i * h, 4, h);
 	}
 
 	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
@@ -1586,16 +1559,27 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	free(dBs);
 }
 
+static GdkGC *gc_wave_bg = NULL;
+static GdkGC *gc_wave_left = NULL;
+static GdkGC *gc_wave_right = NULL;
+
 static gboolean scribble_configure_event_wave(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
 	if(pixmapWave) g_object_unref(G_OBJECT(pixmapWave));
+	if(gc_wave_bg) g_object_unref(G_OBJECT(gc_wave_bg));
+	if(gc_wave_left) g_object_unref(G_OBJECT(gc_wave_left));
+	if(gc_wave_right) g_object_unref(G_OBJECT(gc_wave_right));
 
 	pixmapWave = gdk_pixmap_new(widget->window, widget->allocation.width, widget->allocation.height, -1);
+
+	gc_fg_new_with_rgb(pixmapWave, gc_wave_bg, 0xffff, 0xffff, 0xffff);
+	gc_fg_new_with_rgb(pixmapWave, gc_wave_left, 0xffff, 0x3333, 0x0000);
+	gc_fg_new_with_rgb(pixmapWave, gc_wave_right, 0x3333, 0xffff, 0x0000);
 
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_wave(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, widget->style->fg_gc[GTK_WIDGET_STATE(widget)], pixmapWave, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, gc_wave_bg, pixmapWave, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
@@ -1616,7 +1600,6 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 
 	gint h = widget->allocation.height / play_ch, h2 = h / 2;
 	double w = (double) widget->allocation.width / (double) g_frames;
-	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	for(i = 0; i < play_ch; i ++) {
 		if(!points[i]) points[i] = (GdkPoint*) malloc(sizeof(GdkPoint) * g_frames);
 	}
@@ -1630,8 +1613,9 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 		}
 	}
 
-	gdk_draw_rectangle(pixmapWave, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+	gdk_draw_rectangle(pixmapWave, gc_wave_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
+	GdkGC *gcs[] = {gc_wave_left, gc_wave_right};
 	for(i = 0; i < play_ch; i ++) {
 		if(i % 2) gdk_draw_line(pixmapWave, widget->style->black_gc, 0, i * h, widget->allocation.width, h);
 		gdk_draw_lines(pixmapWave, gcs[i], points[i], g_frames);
@@ -1640,16 +1624,29 @@ static void scribble_da_event_wave(GtkWidget *widget, GdkEventButton *event, gpo
 	gdk_window_invalidate_rect(widget->window, &update_rect, FALSE);
 }
 
+static GdkGC *gc_fft_bg = NULL;
+static GdkGC *gc_fft_left = NULL;
+static GdkGC *gc_fft_right = NULL;
+
 static gboolean scribble_configure_event_fft(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
+	GdkColor color;
+
 	if(pixmapFFT) g_object_unref(G_OBJECT(pixmapFFT));
+	if(gc_fft_bg) g_object_unref(G_OBJECT(gc_fft_bg));
+	if(gc_fft_left) g_object_unref(G_OBJECT(gc_fft_left));
+	if(gc_fft_right) g_object_unref(G_OBJECT(gc_fft_right));
 
 	pixmapFFT = gdk_pixmap_new(widget->window, widget->allocation.width, widget->allocation.height, -1);
+
+	gc_fg_new_with_rgb(pixmapFFT, gc_fft_bg, 0xffff, 0xffff, 0xffff);
+	gc_fg_new_with_rgb(pixmapFFT, gc_fft_left, 0xffff, 0x3333, 0x0000);
+	gc_fg_new_with_rgb(pixmapFFT, gc_fft_right, 0x3333, 0xffff, 0x0000);
 
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_fft(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, widget->style->fg_gc[GTK_WIDGET_STATE(widget)], pixmapFFT, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, gc_fft_bg, pixmapFFT, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
@@ -1752,7 +1749,6 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 	}
 
 	int h = widget->allocation.height / play_ch, h2 = h / 2;
-	GdkGC *gcs[] = {widget->style->dark_gc[3], widget->style->light_gc[3]};
 	int Ns[] = {0, 0};
 	int N = ((fft_num / 2) * 5 / 6), j, n;
 	const int NN = (fft_mode == 0 ? 50 : (fft_mode == 1 ? 200 : 300));
@@ -1817,8 +1813,9 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 #endif
 	}
 
-	gdk_draw_rectangle(pixmapFFT, widget->style->white_gc, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+	gdk_draw_rectangle(pixmapFFT, gc_fft_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
 
+	GdkGC *gcs[] = {gc_fft_left, gc_fft_right};
 	for(c = 0; c < play_ch; c ++) {
 		if(fft_mode == 0) {
 			float x = 0, stepX = (float) widget->allocation.width / (float) Ns[c];
@@ -2021,17 +2018,6 @@ static void *net_presskey_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
-static guint fullscreen_timer;
-static gboolean fullscreen_func(gpointer data) {
-	GtkWindow *win = GTK_WINDOW(window);
-
-	gtk_timeout_remove(fullscreen_timer);
-
-	gtk_window_fullscreen(win);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 0);
-	gtk_widget_hide(audioFrame);
-}
-
 static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer _data) {
 	bool type = true;
 	uint16_t code = 0;
@@ -2087,11 +2073,11 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 				gtk_window_unfullscreen(win);
 				gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 				gtk_widget_show(audioFrame);
-				gtk_window_set_resizable(win, FALSE);
 			} else {
 				is_fullscreen = true;
-				gtk_window_set_resizable(win, TRUE);
-				fullscreen_timer = gtk_timeout_add(10, fullscreen_func, NULL);
+				gtk_window_fullscreen(win);
+				gtk_container_set_border_width(GTK_CONTAINER(window), 0);
+				gtk_widget_hide(audioFrame);
 			}
 			return FALSE;
 		}
@@ -2261,7 +2247,7 @@ static void gtk_begin() {
 		gtk_window_set_title(GTK_WINDOW(window), title);
 		free(title);
 	}
-	gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
+	gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(scribble_delete_event), NULL);
 	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(scribble_key_press_event), NULL);
