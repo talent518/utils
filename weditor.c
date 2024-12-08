@@ -2247,13 +2247,11 @@ static void gtk_begin() {
 		gtk_window_set_title(GTK_WINDOW(window), title);
 		free(title);
 	}
-	gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
+	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+	gtk_window_resize(GTK_WINDOW(window), 800, 600);
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	g_signal_connect(G_OBJECT(window), "delete_event", G_CALLBACK(scribble_delete_event), NULL);
 	g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(scribble_key_press_event), NULL);
-	
-	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 	
 	sizeFrame = gtk_hbox_new(FALSE, 10);
 	gtk_container_set_border_width(GTK_CONTAINER(sizeFrame), 0);
@@ -2290,10 +2288,10 @@ static void gtk_begin() {
 
 	frameVolume = gtk_frame_new(NULL);
 	gtk_frame_set_shadow_type(GTK_FRAME(frameVolume), GTK_SHADOW_IN);
-	gtk_box_pack_start(GTK_BOX(vbox), frameVolume, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), frameVolume, FALSE, FALSE, 0);
 
 	daVolume = gtk_drawing_area_new();
-	gtk_widget_set_size_request(daVolume, 400, 10);
+	gtk_widget_set_size_request(daVolume, 400, 50);
 	gtk_container_add(GTK_CONTAINER(frameVolume), daVolume);
 
 	sigVolume = (GtkObject*) G_OBJECT(daVolume);
@@ -2308,7 +2306,6 @@ static void gtk_begin() {
 	gtk_box_pack_end(GTK_BOX(vbox), frameWave, TRUE, TRUE, 0);
 
 	daWave = gtk_drawing_area_new();
-	gtk_widget_set_size_request(daWave, 400, 60);
 	gtk_container_add(GTK_CONTAINER(frameWave), daWave);
 
 	sigWave = (GtkObject*) G_OBJECT(daWave);
@@ -2323,7 +2320,6 @@ static void gtk_begin() {
 	gtk_box_pack_end(GTK_BOX(audioFrame), frameFFT, TRUE, TRUE, 0);
 
 	daFFT = gtk_drawing_area_new();
-	gtk_widget_set_size_request(daFFT, 400, 40);
 	gtk_container_add(GTK_CONTAINER(frameFFT), daFFT);
 
 	sigFFT = (GtkObject*) G_OBJECT(daFFT);
