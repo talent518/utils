@@ -713,19 +713,6 @@ static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, gpoint
 	return TRUE;
 }
 
-static gboolean timeout_func_stat(gpointer data)
-{
-	char title[128];
-	unsigned int fps = vframes;
-
-	vframes = 0;
-	printf("[%s] fps: %u\n", nowtime_r(title, sizeof(title)), fps);
-	sprintf(title, "V4L2-Camera - fps: %u - width: %u - height: %u", fps, width, height);
-	
-	gtk_window_set_title(GTK_WINDOW(window), title);
-	return TRUE;
-}
-
 static void *thread_gtk(void *arg)
 {
 	prctl(PR_SET_NAME, (unsigned long) "v4l2-gtk");
@@ -776,11 +763,7 @@ static void *thread_gtk(void *arg)
 	
 	sem_post(&sem);
 	
-	{
-		guint timer = gtk_timeout_add(1000, timeout_func_stat, NULL);
-		gtk_main();
-		gtk_timeout_remove(timer);
-	}
+	gtk_main();
 	
 	gdk_threads_leave();
 	
@@ -1224,6 +1207,8 @@ int main(int argc, char *argv[])
 	}
 	
 	printf("width: %u, height: %u, Running ...\n", width, height);
+
+	double nxtsec = microtime() + 1.0f, idltime = 0, t;
 	
 	while(is_running)
 	{
@@ -1236,8 +1221,11 @@ int main(int argc, char *argv[])
 		
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
-		
+
+		t = microtime();
 		r = select(fd + 1, &rset, NULL, NULL, &tv);
+		idltime += (microtime() - t);
+
 		if(r < 0)
 		{
 			if(EINTR == errno) continue;
@@ -1305,7 +1293,6 @@ int main(int argc, char *argv[])
 				GdkPixbufLoader *loader;
 				GdkPixbuf *pixbuf;
 				
-				gdk_threads_enter();
 				if(is_running)
 				{
 					loader = gdk_pixbuf_loader_new_with_mime_type("image/jpeg", NULL);
@@ -1313,6 +1300,8 @@ int main(int argc, char *argv[])
 					if(gdk_pixbuf_loader_close(loader, NULL)) {
 						pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 						if(pixbuf) {
+							gdk_threads_enter();
+
 							gdk_draw_pixbuf(drawPixmap, drawarea->style->black_gc, pixbuf, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
 
 							if(istime)
@@ -1321,17 +1310,32 @@ int main(int argc, char *argv[])
 							}
 
 							draw_pixmap();
+
+							gdk_threads_leave();
 						}
 					}
 					g_object_unref(loader);
 				}
-				gdk_threads_leave();
 			}
 			break;
 		default:
 			is_running = false;
 			printf("pixel format is invalid\n");
 			break;
+		}
+
+		if(!is_running) break;
+
+		t = microtime();
+		if(t >= nxtsec)
+		{
+			char buf[24];
+
+			printf("[%s][%ux%u] %6.3lf %7.3lf\n", nowtime_r(buf, sizeof(buf)), width, height, vframes / (1.0f + t - nxtsec), idltime * 1000.0f);
+
+			nxtsec = t + 1.0f;
+			vframes = 0;
+			idltime = 0;
 		}
 		
 		// 将缓冲区添加回采集队列
