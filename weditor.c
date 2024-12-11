@@ -1496,11 +1496,13 @@ static gboolean scribble_configure_event_volume(GtkWidget *widget, GdkEventConfi
 	gc_fg_new_with_rgb(pixmapVolume, gc_volume_right_cur, 0x3333, 0xffff, 0x0000);
 	gc_fg_new_with_rgb(pixmapVolume, gc_volume_right_max, 0x3333, 0x9999, 0x0000);
 
+	gdk_draw_rectangle(pixmapVolume, gc_volume_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_volume(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, gc_volume_bg, pixmapVolume, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, widget->style->black_gc, pixmapVolume, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
@@ -1571,11 +1573,13 @@ static gboolean scribble_configure_event_wave(GtkWidget *widget, GdkEventConfigu
 	gc_fg_new_with_rgb(pixmapWave, gc_wave_left, 0xffff, 0x3333, 0x0000);
 	gc_fg_new_with_rgb(pixmapWave, gc_wave_right, 0x3333, 0xffff, 0x0000);
 
+	gdk_draw_rectangle(pixmapWave, gc_wave_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_wave(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, gc_wave_bg, pixmapWave, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, widget->style->black_gc, pixmapWave, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
@@ -1639,11 +1643,13 @@ static gboolean scribble_configure_event_fft(GtkWidget *widget, GdkEventConfigur
 	gc_fg_new_with_rgb(pixmapFFT, gc_fft_left, 0xffff, 0x3333, 0x0000);
 	gc_fg_new_with_rgb(pixmapFFT, gc_fft_right, 0x3333, 0xffff, 0x0000);
 
+	gdk_draw_rectangle(pixmapFFT, gc_fft_bg, TRUE, 0, 0, widget->allocation.width, widget->allocation.height);
+
 	return TRUE;
 }
 
 static gboolean scribble_expose_event_fft(GtkWidget *widget, GdkEventExpose *event, gpointer data) {
-	gdk_draw_drawable(widget->window, gc_fft_bg, pixmapFFT, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
+	gdk_draw_drawable(widget->window, widget->style->black_gc, pixmapFFT, event->area.x, event->area.y, event->area.x, event->area.y, event->area.width, event->area.height);
 
 	return FALSE;
 }
