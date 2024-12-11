@@ -1311,32 +1311,32 @@ static void touch_event_push(int event, int x, int y) {
 	y -= y2;
 
 	switch(video_rotation) {
-        case 0:
-        default:
-        	w = video_width;
-        	h = video_height;
-        	x2 = x;
-        	y2 = y;
-            break;
-        case 90:
-        	w = video_height;
-        	h = video_width;
-            x2 = video_height - y;
-            y2 = x;
-            break;
-        case 180:
-        	w = video_width;
-        	h = video_height;
-            x2 = video_width - x;
-            y2 = video_height - y;
-            break;
-        case 270:
-        	w = video_height;
-        	h = video_width;
-            x2 = y;
-            y2 = video_width - x;
-            break;
-    }
+		case 0:
+		default:
+			w = video_width;
+			h = video_height;
+			x2 = x;
+			y2 = y;
+			break;
+		case 90:
+			w = video_height;
+			h = video_width;
+			x2 = video_height - y;
+			y2 = x;
+			break;
+		case 180:
+			w = video_width;
+			h = video_height;
+			x2 = video_width - x;
+			y2 = video_height - y;
+			break;
+		case 270:
+			w = video_height;
+			h = video_width;
+			x2 = y;
+			y2 = video_width - x;
+			break;
+	}
 	
 	pthread_mutex_lock(&touch_lock);
 	if(touch_event_size < TOUCH_EVENT_SIZE) {
@@ -2366,16 +2366,17 @@ void sig_handle(int sig) {
 
 int main(int argc, char *argv[]) {
 	int ret, c, i;
+	bool is_loopback = false;
 	void *pcm_play_buf_ptr = NULL, *pcm_capt_buf_ptr = NULL, *ptr;
 	
-	while((c = getopt(argc, argv, "H:P:d:D:f:F:c:C:a:w:ih?")) != -1) {
-        switch(c) {
-        	case 'H':
-        		servhost = optarg;
-        		break;
-            case 'P':
-                servport = atoi(optarg);
-                break;
+	while((c = getopt(argc, argv, "H:P:d:D:f:F:c:C:la:w:ih?")) != -1) {
+		switch(c) {
+			case 'H':
+				servhost = optarg;
+				break;
+			case 'P':
+				servport = atoi(optarg);
+				break;
 			case 'd':
 				play_dev = optarg;
 				break;
@@ -2388,57 +2389,71 @@ int main(int argc, char *argv[]) {
 			case 'F':
 				capt_file = optarg;
 				break;
-            case 'c':
-                play_ch = atoi(optarg);
-                break;
-            case 'C':
-                capt_ch = atoi(optarg);
-                break;
-            case 'a':
-                api_proxy_path = optarg;
-                break;
-            case 'w':
-                ws_proxy_path = optarg;
-                break;
-            case 'i':
-                is_ping = true;
-                break;
-            case '?':
-            case 'h':
-            default:
-                fprintf(stderr,
-                    "Usage: %s [-H <host>] [-P <port>] [-d <device>] [-D <device>] [-f <pcmfile>] [-F <pcmfile>] [-c <channels>] [-C <channels>] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
-                    "  -H <host>      Server host(default: %s)\n"
-                    "  -P <port>      Server port(default: %d)\n"
-                    "  -d <device>    Audio Play device(default: %s)\n"
-                    "  -D <device>    Audio Capture device(default: %s)\n"
-                    "  -f <pcmfile>   Audio Play PCM File(default: %s)\n"
-                    "  -F <pcmfile>   Audio Capture PCM File(default: %s)\n"
-                    "  -c <channels>  Audio Play channels(default: %d)\n"
-                    "  -C <channels>  Audio Capture channels(default: %d)\n"
-                    "  -a <proxypath> Api proxy path(default: %s)\n"
-                    "  -w <proxypath> WebSocket proxy path(default: %s)\n"
-                    "  -i             Ping(default: false)\n"
-                    "  -h,-?          This help\n"
-                    "Press Key:\n"
-                    "  F1     KEYCODE_MUSIC\n"
-                    "  F2     KEYCODE_VOLUME_UP\n"
-                    "  F3     KEYCODE_VOLUME_DOWN\n"
-                    "  F4     KEYCODE_VOLUME_MUTE\n"
-                    "  F5     KEYCODE_MEDIA_PREVIOUS\n"
-                    "  F6     KEYCODE_MEDIA_NEXT\n"
-                    "  F7     KEYCODE_MEDIA_PLAY\n"
-                    "  F8     KEYCODE_MEDIA_STOP\n"
-                    "  F10    Show or Hide for Volume, Wave, FFT\n"
-                    "  F11    FullScreen\n"
-                    "  Home   KEYCODE_HOME\n"
-                    "  End    KEYCODE_POWER\n"
-                    "  Esc    KEYCODE_BACK\n"
-                    , argv[0], servhost, servport, play_dev, capt_dev, play_file, capt_file, play_ch, capt_ch, api_proxy_path, ws_proxy_path
-                );
-                return 0;
-        }
-    }
+			case 'c':
+				play_ch = atoi(optarg);
+				break;
+			case 'C':
+				capt_ch = atoi(optarg);
+				break;
+			case 'l':
+				is_loopback = true;
+				break;
+			case 'a':
+				api_proxy_path = optarg;
+				break;
+			case 'w':
+				ws_proxy_path = optarg;
+				break;
+			case 'i':
+				is_ping = true;
+				break;
+			case '?':
+			case 'h':
+			default:
+				fprintf(stderr,
+					"Usage: %s [-H <host>] [-P <port>] [-d <device>] [-D <device>] [-f <pcmfile>] [-F <pcmfile>] [-c <channels>] [-C <channels>] [-l] [-a <proxypath>] [-w <proxypath>] [-i] [-h|-?]\n"
+					"  -H <host>      Server host(default: %s)\n"
+					"  -P <port>      Server port(default: %d)\n"
+					"  -d <device>    Audio Play device(default: %s)\n"
+					"  -D <device>    Audio Capture device(default: %s)\n"
+					"  -f <pcmfile>   Audio Play PCM File(default: %s)\n"
+					"  -F <pcmfile>   Audio Capture PCM File(default: %s)\n"
+					"  -c <channels>  Audio Play channels(default: %d)\n"
+					"  -C <channels>  Audio Capture channels(default: %d)\n"
+					"  -l             Audio loopback(play to capture)\n"
+					"  -a <proxypath> Api proxy path(default: %s)\n"
+					"  -w <proxypath> WebSocket proxy path(default: %s)\n"
+					"  -i             Ping(default: false)\n"
+					"  -h,-?          This help\n"
+					"Press Key:\n"
+					"  F1     KEYCODE_MUSIC\n"
+					"  F2     KEYCODE_VOLUME_UP\n"
+					"  F3     KEYCODE_VOLUME_DOWN\n"
+					"  F4     KEYCODE_VOLUME_MUTE\n"
+					"  F5     KEYCODE_MEDIA_PREVIOUS\n"
+					"  F6     KEYCODE_MEDIA_NEXT\n"
+					"  F7     KEYCODE_MEDIA_PLAY\n"
+					"  F8     KEYCODE_MEDIA_STOP\n"
+					"  F10    Show or Hide for Volume, Wave, FFT\n"
+					"  F11    FullScreen\n"
+					"  Home   KEYCODE_HOME\n"
+					"  End    KEYCODE_POWER\n"
+					"  Esc    KEYCODE_BACK\n"
+					, argv[0], servhost, servport, play_dev, capt_dev, play_file, capt_file, play_ch, capt_ch, api_proxy_path, ws_proxy_path
+				);
+				return 0;
+		}
+	}
+
+	if(is_loopback) {
+		play_dev = capt_dev = NULL;
+		play_file = capt_file = "/tmp/weditor-fifo.pcm";
+		capt_ch = play_ch;
+		if(mkfifo(play_file, 0700)) {
+			perror("mkfifo /tmp/weditor-fifo.pcm error");
+			return -1;
+		}
+	}
 	
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = inet_addr(servhost);
@@ -2596,6 +2611,7 @@ end:
 
 	if(play_dev || play_file) free(pcm_play_buf_ptr);
 	if(capt_dev || capt_file) free(pcm_capt_buf_ptr);
+	if(is_loopback) unlink(play_file);
 
 	fprintf(stderr, "Exited\n");
 	return 0;
