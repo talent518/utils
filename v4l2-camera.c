@@ -584,11 +584,12 @@ static char *bufcap2s(__u32 caps)
 // BGR3 convert to RGB888
 static void bgr3_to_rgb(unsigned char *bgr3_buffer, unsigned char *rgb_buffer, int iWidth, int iHeight)
 {
+	const int n = iWidth*iHeight;
 	int x;
 	unsigned char *ptr = rgb_buffer;
 	unsigned char *bgr3 = bgr3_buffer;
 	
-	for (x = 0; x < iWidth*iHeight; x++)
+	for (x = 0; x < n; x++)
 	{
 		*(ptr + 2) = *(bgr3 + 0);
 		*(ptr + 1) = *(bgr3 + 1);
@@ -601,12 +602,13 @@ static void bgr3_to_rgb(unsigned char *bgr3_buffer, unsigned char *rgb_buffer, i
 // YUYV convert to RGB888
 static void yuyv_to_rgb(unsigned char *yuyv_buffer, unsigned char *rgb_buffer, int iWidth, int iHeight)
 {
+	const int n = iWidth*iHeight;
 	int x;
 	int z=0;
 	unsigned char *ptr = rgb_buffer;
 	unsigned char *yuyv = yuyv_buffer;
 	
-	for (x = 0; x < iWidth*iHeight; x++)
+	for (x = 0; x < n; x++)
 	{
 		int r, g, b;
 		int y, u, v;
@@ -1208,23 +1210,21 @@ int main(int argc, char *argv[])
 	
 	printf("width: %u, height: %u, Running ...\n", width, height);
 
-	double nxtsec = microtime() + 1.0f, idltime = 0, t;
+	double nxtsec = microtime() + 1.0f, idltime = 0, t = microtime();
 	
 	while(is_running)
 	{
 		fd_set rset;
 		int r;
 		struct timeval tv;
-		
+
 		FD_ZERO(&rset);
 		FD_SET(fd, &rset);
 		
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
 
-		t = microtime();
 		r = select(fd + 1, &rset, NULL, NULL, &tv);
-		idltime += (microtime() - t);
 
 		if(r < 0)
 		{
@@ -1250,6 +1250,8 @@ int main(int argc, char *argv[])
 			break;
 		}
 		
+		idltime += (microtime() - t);
+
 		vframes ++;
 		
 		switch(pixfmt)
@@ -1338,6 +1340,8 @@ int main(int argc, char *argv[])
 			idltime = 0;
 		}
 		
+		t = microtime();
+
 		// 将缓冲区添加回采集队列
 		if(ioctl(fd, VIDIOC_QBUF, &vbuf) < 0)
 		{
