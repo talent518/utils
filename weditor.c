@@ -296,7 +296,7 @@ typedef struct {
 } calc_t;
 
 static GtkWidget *window = NULL;
-static volatile bool is_fullscreen = false, is_audio_frame_hide = false;
+static volatile bool is_fullscreen = false, is_audio_frame_hide = false, is_full_height = false;
 static GdkPixmap *pixmapVolume = NULL, *pixmapWave = NULL, *pixmapFFT = NULL;
 static GtkObject *sigVolume = NULL, *sigWave = NULL, *sigFFT = NULL;
 
@@ -1144,19 +1144,20 @@ static double cjson_get_value_double(cJSON *json, char *key) {
 }
 
 static void *net_video_thread(void *arg) {
-	int fd = 0, sz = 0, oldsz = 0, n = 0, is_bin = 0, fwidth = 0, fheight = 0;
+	int fd = 0, sz = 0, oldsz = 0, n = 0, is_bin = 0, x, y, w, h, sx, sy, width, height, fwidth = 0, fheight = 0;
+	double t, scale;
 	char *ptr, *old = NULL, *oldptr = NULL;
 	GdkPixbuf *pixbuf, *dst = NULL;
 	GdkPixbufLoader *loader;
 	char buf[128];
-	double t;
 	
 	while(is_running) {
 		if(fd) {
 			ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 			if(ptr) {
 				if(is_running) {
-					int width = videoFrame->allocation.width, height = videoFrame->allocation.height;
+					width = videoFrame->allocation.width;
+					height = videoFrame->allocation.height;
 					
 					if(is_bin) {
 					redraw:
@@ -1171,19 +1172,38 @@ static void *net_video_thread(void *arg) {
 								video_width = gdk_pixbuf_get_width(pixbuf);
 								video_height = gdk_pixbuf_get_height(pixbuf);
 
-								double scale = (double) width / (double) video_width;
-								int w = width, h = (double) video_height * scale;
-								if(h > height) {
+								if(is_full_height) {
 									scale = (double) height / (double) video_height;
+									w = video_width * height / video_height;
 									h = height;
-									w = (double) video_width * scale;
+									video_width = w;
+									video_height = h;
+									y = sy = 0;
+									if(width >= w) {
+										x = sx = (width - w) / 2;
+									} else {
+										x = 0;
+										sx = (width - w) / 2;
+										w = width;
+									}
+								} else {
+									scale = (double) width / (double) video_width;
+									w = width;
+									h = (double) video_height * scale;
+									if(h > height) {
+										scale = (double) height / (double) video_height;
+										h = height;
+										w = (double) video_width * scale;
+									}
+
+									x = sx = (width - w) / 2;
+									y = sy = (height - h) / 2;
+
+									video_width = w;
+									video_height = h;
 								}
-								
-								int x = (width - w) / 2, y = (height - h) / 2;
+
 								// printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
-								
-								video_width = w;
-								video_height = h;
 
 								if(!dst || fwidth != width || fheight != height) {
 									fwidth = width;
@@ -1193,7 +1213,7 @@ static void *net_video_thread(void *arg) {
 								}
 								
 								gdk_pixbuf_fill(dst, 0x000000);
-								gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, x, y, scale, scale, GDK_INTERP_BILINEAR);
+								gdk_pixbuf_scale(pixbuf, dst, x, y, w, h, sx, sy, scale, scale, GDK_INTERP_BILINEAR);
 							#ifdef VIDEO_IMAGE
 								gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
 							#else
@@ -2089,6 +2109,12 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			}
 			return FALSE;
 		}
+		case GDK_KEY_F12: {
+			char buf[32];
+			is_full_height = !is_full_height;
+			printf("[%s] FullHeight %s\n", nowtime(buf, sizeof(buf)), is_full_height ? "ON" : "OFF");
+			return FALSE;
+		}
 		case GDK_KEY_KP_Add: // NumKey -
 			type = false;
 			code = '+';
@@ -2436,6 +2462,7 @@ int main(int argc, char *argv[]) {
 					"  F8     KEYCODE_MEDIA_STOP\n"
 					"  F10    Show or Hide for Volume, Wave, FFT\n"
 					"  F11    FullScreen\n"
+					"  F12    FullHeight\n"
 					"  Home   KEYCODE_HOME\n"
 					"  End    KEYCODE_POWER\n"
 					"  Esc    KEYCODE_BACK\n"
