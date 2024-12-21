@@ -112,7 +112,7 @@ int recursion_directory(MYSQL *db, MYSQL_STMT *stmt, const char *path, const cha
 	unsigned int dirId;
 	DIR *dir;
 	struct dirent *d;
-	char sPath[PATH_MAX], *dirType, atime[20], mtime[20], ctime[20], *errmsg = NULL;
+	char sPath[PATH_MAX], *dirType, atime[20], mtime[20], ctime[20];
 	struct stat st;
 	struct tm tm;
 	time_t t;

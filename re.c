@@ -3,7 +3,7 @@
 #include <regex.h>
 
 int main(int argc, char *argv[]) {
-	int status = 0, i = 0;
+	int i = 0;
 	int flag = REG_EXTENDED;
 	regmatch_t pmatch[1];
 	const size_t nmatch = 1;

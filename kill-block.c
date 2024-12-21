@@ -57,15 +57,14 @@ int main(int argc, char *argv[]) {
 		signal(SIGUSR1, signal_handler);
 		signal(SIGCHLD, signal_handler); // 无此行时子进程结束时主进程还继续运行，默认系统会忽略SIGCHLD信号
 		printf("%s - parent process: %d\n", gettimeofstr(), getpid());
-		int i = 0, n;
-		char buf[128];
+		int i = 0;
 		while (running) {
 			sleep_before = microtime();
 #if 1
 			sleep(5); // 信号产生时会提前终止sleep而去执行信号处理函数
 #else
 			// 默认自动重启动的系统调用包括：ioctl(),read(),readv(),write(),writev(),wait(),waitpid();其中前5个函数只有在对低速设备进行操作时才会被信号中断。而wait和waitpid在捕捉到信号时总是被中断。
-			n = read(STDIN_FILENO, buf, sizeof(buf)); // 信号来临时不会提前终止read，是由系统重启调用该函数了。
+			int n = read(STDIN_FILENO, buf, sizeof(buf)); // 信号来临时不会提前终止read，是由系统重启调用该函数了。
 			write(STDOUT_FILENO, "buf: ", 5);
 			write(STDOUT_FILENO, buf, n);
 #endif

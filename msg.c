@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
 		msgbuf buf = {1,0,""};
 		FILE *fp = fopen(__FILE__, "r");
 		if(fp) {
-			int i = 0;
+			// int i = 0;
 			while(!feof(fp)) {
 				if(fgets(buf.line, sizeof(buf.line), fp)) {
 					buf.len = strlen(buf.line);

@@ -36,7 +36,6 @@ static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
 static unsigned char format[48];
 static unsigned char filename[48];
-static int is_no_cgi = 1;
 
 static unsigned char bmp_head_66[] = {
 	0x42, 0x4d, 0x42, 0x58, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -92,7 +91,6 @@ static int fb_init(void) {
 
 void save_to_file() {
 	FILE *fp;
-	char *p;
 
 	printf("[%lf] ", microtime());
 

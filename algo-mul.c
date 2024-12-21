@@ -9,7 +9,7 @@
 char *strmul(char *astr, char *bstr) {
 	register char *p, *ap, *bp; // 指针
 	char *ap0, *bp0, *eq; // 操作数: astr x bstr = eq
-	register unsigned int i, a = 0, b = 0, c, n, over;
+	register unsigned int a = 0, b = 0, c, n, over;
 	
 	p = astr;
 	n = 1;

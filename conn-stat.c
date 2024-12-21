@@ -111,8 +111,9 @@ void do_prog(const char *path, int pid) {
 
         id = atoi(d->d_name);
         if(pid > 0) {
-            snprintf(file, sizeof(file), "%s/%d", path, id);
-            if(readlink(file, file, sizeof(file)) > 0) {
+            char srcfile[PATH_MAX];
+            snprintf(srcfile, sizeof(srcfile), "%s/%d", path, id);
+            if(readlink(srcfile, file, sizeof(file)) > 0) {
                 inode = 0;
                 if(sscanf(file, "socket:[%lu]", &inode) != 1) continue;
 

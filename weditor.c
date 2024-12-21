@@ -82,6 +82,7 @@ char *nowtime(char *buf, int max) {
 	struct timeval tv;
 	if(gettimeofday(&tv, NULL)) {
 		perror("gettimeofday error");
+		return "";
 	} else {
 		struct tm tm;
 		localtime_r(&tv.tv_sec, &tm);
@@ -168,7 +169,6 @@ static int set_hardware_params(const char *name, int sample_rate, int channels, 
 	int rate = sample_rate;
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
-		int val = 0, val2 = 0;
 		LOGE("unable to set sampling rate.");
 		goto err1;
 	}
@@ -317,7 +317,6 @@ static void *pcm_play_thread(void *arg) {
 	const int MIN_QUE = 4;
 	const int MAX_QUE = 20; // 20 frames per second
 	int ret;
-	char buf[128];
 	FILE *fp = NULL;
 
 	sem_wait(&pcm_play_sem);
@@ -527,7 +526,6 @@ static int sock_conn(const char *func, int timeout) {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	int ret;
 	int flags;
-	char buf[32];
 
 	if(fd < 0) {
 		char *err = strerror(errno);
@@ -679,7 +677,7 @@ static int ws_conn(const char *func, const char *path, int timeout) {
 #define WS_SEND(fd, ctl, is_mask, str, timeout) ws_send(fd, ctl, is_mask, str, sizeof(str) - 1, timeout, __func__)
 
 static int ws_send(int fd, int ctl, int is_mask, char *data, int size, int timeout, const char *func) {
-	char *ptr, mask[4], buf[128];
+	char *ptr, mask[4];
 	int i = 0, j, sz, ret;
 	struct timeval tv;
 	fd_set set;
@@ -782,7 +780,7 @@ begin:
 	t = microtime() + timeout;
 	
 	if(n > 0) goto protocol;
-slt:
+
 	do {
 		tv.tv_sec = 0;
 		tv.tv_usec = WS_SELECT_USEC;
@@ -974,7 +972,6 @@ static void *net_pcm_recv_thread(void *arg) {
 	const int DELAY = 4;
 	int fd = 0, sz = 0, n = 0, is_bin = 0, delay = 0, i;
 	char *ptr, *old = NULL;
-	char buf[128];
 	
 	while(is_running) {
 		if(fd) {
@@ -1047,12 +1044,9 @@ static void *net_pcm_recv_thread(void *arg) {
 	pthread_exit(NULL);
 }
 
-static int player_loading = 0;
-
 static void *net_pcm_send_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0, is_bin = 0, i, is_ok = 0, pos = -1, size = pcm_capt_buf_size;
+	int fd = 0, sz = 0, n = 0, is_bin = 0, is_ok = 0, pos = -1, size = pcm_capt_buf_size;
 	char *ptr, *old = NULL;
-	char timebuf[128];
 	short *buf = NULL;
 
 	if(capt_ch != 2) {
@@ -1176,11 +1170,10 @@ static double cjson_get_value_double(cJSON *json, char *key) {
 
 static void *net_video_thread(void *arg) {
 	int fd = 0, sz = 0, oldsz = 0, n = 0, is_bin = 0, x, y, w, h, sx, sy, width, height, fwidth = 0, fheight = 0;
-	double t, scale;
+	double scale;
 	char *ptr, *old = NULL, *oldptr = NULL;
 	GdkPixbuf *pixbuf, *dst = NULL;
 	GdkPixbufLoader *loader;
-	char buf[128];
 	
 	while(is_running) {
 		if(fd) {
@@ -1199,7 +1192,6 @@ static void *net_video_thread(void *arg) {
 						if(gdk_pixbuf_loader_close(loader, NULL)) {
 							pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 							if(pixbuf) {
-								GdkGC *gc = videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)];
 								video_width = gdk_pixbuf_get_width(pixbuf);
 								video_height = gdk_pixbuf_get_height(pixbuf);
 
@@ -1248,6 +1240,7 @@ static void *net_video_thread(void *arg) {
 							#ifdef VIDEO_IMAGE
 								gtk_image_set_from_pixbuf(GTK_IMAGE(videoImage), dst);
 							#else
+								GdkGC *gc = videoFrame->style->fg_gc[GTK_WIDGET_STATE(videoFrame)];
 								gdk_draw_pixbuf(videoFrame->window, gc, dst, 0, 0, 0, 0, width, height, GDK_RGB_DITHER_NORMAL, 0, 0);
 							#endif
 							}
@@ -1321,7 +1314,6 @@ static void *net_video_thread(void *arg) {
 			
 			video_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minicap?deviceId=android:", WS_CONN_TIMEOUT);
-			t = microtime();
 			video_loading = 0;
 		}
 	}
@@ -1451,13 +1443,10 @@ static int touch_event_send(int fd) {
 }
 
 static void *net_touch_thread(void *arg) {
-	int fd = 0, sz = 0, n = 0, is_bin = 0, pos, ret;
+	int fd = 0, sz = 0, n = 0, is_bin = 0, ret;
 	char *ptr, *old = NULL;
 	struct timeval tv;
 	fd_set set;
-	touch_event_t evt;
-	char buf[128];
-	double t = 0;
 	
 	while(is_running) {
 		if(fd) {
@@ -1510,7 +1499,6 @@ static void *net_touch_thread(void *arg) {
 			
 			touch_event_loading = 1;
 			fd = ws_conn(__func__, "/ws/v1/minitouch?deviceId=android:", WS_CONN_TIMEOUT);
-			t = microtime();
 			touch_event_loading = 0;
 			if(fd && !WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"r\"}", WS_SEND_TIMEOUT)) {
 			end:
@@ -1537,8 +1525,6 @@ static GdkGC *gc_volume_left_cur = NULL, *gc_volume_left_max = NULL;
 static GdkGC *gc_volume_right_cur = NULL, *gc_volume_right_max = NULL;
 
 static gboolean scribble_configure_event_volume(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
-	GdkColor color;
-
 	if(pixmapVolume) g_object_unref(G_OBJECT(pixmapVolume));
 	if(gc_volume_bg) g_object_unref(G_OBJECT(gc_volume_bg));
 	if(gc_volume_left_cur) g_object_unref(G_OBJECT(gc_volume_left_cur));
@@ -1569,7 +1555,6 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	int i, c;
 	short *data;
 	calc_t *dBs;
-	char buf[128];
 	unsigned short maxs[] = {0, 0}, m;
 
 	GdkRectangle update_rect;
@@ -1688,8 +1673,6 @@ static GdkGC *gc_fft_left = NULL;
 static GdkGC *gc_fft_right = NULL;
 
 static gboolean scribble_configure_event_fft(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
-	GdkColor color;
-
 	if(pixmapFFT) g_object_unref(G_OBJECT(pixmapFFT));
 	if(gc_fft_bg) g_object_unref(G_OBJECT(gc_fft_bg));
 	if(gc_fft_left) g_object_unref(G_OBJECT(gc_fft_left));
@@ -1809,7 +1792,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		}
 	}
 
-	int h = widget->allocation.height / play_ch, h2 = h / 2;
+	int h = widget->allocation.height / play_ch;
 	int Ns[] = {0, 0};
 	int N = ((fft_num / 2) * 5 / 6), j, n;
 	const int NN = (fft_mode == 0 ? 50 : (fft_mode == 1 ? 200 : 300));
@@ -2026,9 +2009,9 @@ static bool is_ping = false;
 static void *net_presskey_thread(void *arg) {
 	keycode_t *key;
 	int ret;
-	char buf[32];
 	double t = microtime() + 10.0, t2 = 0.0;
 	bool is_conn = false;
+	char buf[32];
 	
 	while(is_running) {
 		usleep(10000);
@@ -2129,8 +2112,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 				gtk_container_set_border_width(GTK_CONTAINER(window), 10);
 			}
 			break;
-		case GDK_KEY_F11: {
-			char buf[32];
+		case GDK_KEY_F11:
 			LOGI("FullScreen %s", is_fullscreen ? "OFF" : "ON");
 			if(is_fullscreen) {
 				is_fullscreen = false;
@@ -2140,13 +2122,10 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 				gtk_window_fullscreen(GTK_WINDOW(window));
 			}
 			return FALSE;
-		}
-		case GDK_KEY_F12: {
-			char buf[32];
+		case GDK_KEY_F12:
 			is_full_height = !is_full_height;
 			LOGI("FullHeight %s", is_full_height ? "ON" : "OFF");
 			return FALSE;
-		}
 		case GDK_KEY_KP_Add: // NumKey -
 			type = false;
 			code = '+';
@@ -2297,6 +2276,8 @@ static gboolean timeout_func_stat(gpointer data) {
 	if(window) gtk_window_set_title(GTK_WINDOW(window), title);
 
 	free(title);
+
+	return TRUE;
 }
 
 static void gtk_begin() {

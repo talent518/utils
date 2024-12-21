@@ -48,7 +48,7 @@ static unsigned int modeCount[07777+1];
 
 int recursion_directory(const char *path, const char *name, unsigned int parentId) {
 	static char linkTarget[PATH_MAX];
-	int ret = 0, i;
+	int ret = 0;
 	rdir_t *rdir;
 	DIR *dir;
 	struct dirent *d;
@@ -229,7 +229,6 @@ int main(int argc, char *argv[]) {
 
 		printf("Readed data file from %s\n", dbfile);
 	} else {
-		char *p;
 		for(i=2; i<argc; i++) {
 			path = realpath(argv[i], sPath);
 			if(!path) continue;

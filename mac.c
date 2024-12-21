@@ -9,7 +9,6 @@ int main(int argc, char *argv[]) {
 	struct ifreq ifr;
 	struct ifconf ifc;
 	char buf[2048];
-	int success = 0;
 
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (sock == -1) {
@@ -26,7 +25,6 @@ int main(int argc, char *argv[]) {
 
 	struct ifreq* it = ifc.ifc_req;
 	const struct ifreq* const end = it + (ifc.ifc_len / sizeof(struct ifreq));
-	char szMac[64];
 	int count = 0;
 	unsigned char *ptr;
 	for (; it != end; ++it) {

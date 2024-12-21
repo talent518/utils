@@ -73,7 +73,7 @@ static int words_len = 0;
 void free_ast(ast_t *ast);
 
 int _parse_ast(int i, int n, rule_t r, ast_t *ast) {
-	ast_t left = {NULL_T, {0,0}, NULL, NULL}, right = {NULL_T, {0,0}, NULL, NULL};
+	ast_t left = {NULL_T, {.t=0,.l=0}, NULL, NULL}, right = {NULL_T, {.t=0,.l=0}, NULL, NULL};
 	int ret = 0, i2;
 	ast_type_t t;
 
@@ -210,7 +210,7 @@ int _parse_ast(int i, int n, rule_t r, ast_t *ast) {
 #define SKIP(p) while(*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++
 int parse_ast(const char *s, ast_t *ast) {
 	const char *p = s, *p0;
-	int n = 0, i, i2;
+	int n = 0, i;
 
 	memset(words, 0, sizeof(word_t) * WORDS);
 
@@ -481,7 +481,7 @@ void print_words(void) {
 }
 
 int main(int argc, char *argv[]) {
-	ast_t ast = {NULL_T, {0,0}, NULL, NULL};
+	ast_t ast = {NULL_T, {.t=0,.l=0}, NULL, NULL};
 	char buf[1024];
 	int i;
 

@@ -23,7 +23,6 @@ struct mt {
 
 int main(int argc, char *argv[]) {
 	struct mt* mm;
-	pid_t pid;
 	int i, fd;
 
 	if (access("test.mmap", F_OK) == 0) {

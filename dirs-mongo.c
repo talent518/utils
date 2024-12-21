@@ -115,7 +115,6 @@
 
 int insert_type(BULK_PARAM, int i, const char *type) {
 	int ret = 0;
-	bson_error_t error;
 	bson_t *doc = bson_new();
 
 	BSON_APPEND_INT32(doc, "_id", i);
@@ -147,7 +146,6 @@ int update_type(mongoc_collection_t *collection, const char *type) {
 
 int insert_mode(BULK_PARAM, int mode) {
 	int ret = 0;
-	bson_error_t error;
 	bson_t *doc = bson_new();
 
 	BSON_APPEND_INT32(doc, "_id", mode);
@@ -183,10 +181,10 @@ int recursion_directory(mongoc_collection_t *collection, mongoc_collection_t *ty
 	static char linkTarget[PATH_MAX];
 	BULK_INSERT_BEGIN();
 
-	int ret = 0, i;
+	int ret = 0;
 	DIR *dir;
 	struct dirent *d;
-	char sPath[PATH_MAX], *dirType, atime[20], mtime[20], ctime[20], *errmsg = NULL;
+	char sPath[PATH_MAX], *dirType, atime[20], mtime[20], ctime[20];
 	struct stat st;
 	struct tm tm;
 	time_t t;

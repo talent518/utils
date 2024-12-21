@@ -324,7 +324,6 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	size_t rc;
 	int pos = -1;
 	
 	snd_pcm_pause(gp_handle_cap, 0);

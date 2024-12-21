@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    while(mnt = getmntent(mnt_fp)) {
+    while((mnt = getmntent(mnt_fp)) != NULL) {
         printf("%s => %s\n", mnt->mnt_fsname, mnt->mnt_dir);
         printf("    mnt_fsname: %s\n", mnt->mnt_fsname);
         printf("    mnt_dir: %s\n", mnt->mnt_dir);

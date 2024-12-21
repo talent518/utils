@@ -198,7 +198,7 @@ char *str_cbrt(const char *str, int scale) {
 	if(*p) return NULL;
 	
 	if(an == 1 && bn == 0) {
-		if((isdot == 0 && *str == '0' || isdot && *(str+1) == '0')) {
+		if((isdot == 0 && *str == '0') || (isdot && *(str+1) == '0')) {
 			return strdup("0");
 		} else if(isdot == 0 && *str == '1') {
 			return strdup("1");

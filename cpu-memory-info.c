@@ -72,7 +72,6 @@ void getmem(mem_t *mem) {
 	char key[20] = "";
 	long int val = 0;
 	FILE *fp;
-	char *ptr;
 	int i = 0377;
 	
 	memset(mem, 0, sizeof(mem_t));
@@ -196,7 +195,6 @@ unsigned long int getprocessdirtys(int pid) {
 	char key[64] = "";
 	long int val = 0;
 	FILE *fp;
-	char *ptr;
 	unsigned long int dirtys = 0;
 	
 	snprintf(fname, sizeof(fname), "/proc/%d/smaps", pid);
@@ -291,7 +289,6 @@ int getprocessinfo(int pid, process_t *proc) {
 }
 
 int getcomm(char *pid, char *comm, int size) {
-	char buff[BUFLEN] = "";
 	char fname[64] = "";
 	FILE *fp;
 	char *ptr;
@@ -322,7 +319,7 @@ char procArgStr[NPROC][BUFLEN];
 
 int procarg(int comm_size, char *comms[], int nproc, int *pid, process_t *proc) {
 	char fname[64] = "", comm[BUFLEN];
-	int n, len, i;
+	int n, i;
 
 	// 清除为0的pid[x]
 	i = 0;
@@ -447,7 +444,7 @@ int main(int argc, char *argv[]) {
 	int pid[NPROC];
 	process_t proc[NPROC], proc2[NPROC];
 
-	unsigned int all, all2, i, delay = 1;
+	unsigned int all = 0, all2 = 0, delay = 1;
 
 	double total;
 	long int realUsed;
@@ -504,7 +501,6 @@ int main(int argc, char *argv[]) {
 				}
 				break;
 			default:
-				usage:
 				printf("Usage: %s [-c] [-m] [-P <comm>] [-p <pid>] [-L] [-q]  [-d <delay>] [-h] [-?]\n"
 						"  -c        Cpu info\n"
 						"  -m        Memory info\n"

@@ -34,7 +34,6 @@ int main(int argc, char *argv[]) {
 
 	unsigned int M = NN-(int)ceil((float)N/2.0);
 	int L = (int) ceil(log10(A[M]+1)) + 1, l, ln;
-	char fmt[16];
 	int NM = N*L, nm;
 	unsigned int v;
 	int j, istty = isatty(1);

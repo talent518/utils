@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
 	pthread_t thread;
 	pthread_attr_t attr;
 	strbuf_t *buf;
-	uint16_t i,size;
+	uint16_t i;
 	uint32_t times = (argc < 2 ? 100000 : strtoul(argv[1], NULL, 10));
 	uint64_t bytes = 0;
 	uint8_t *sizes;

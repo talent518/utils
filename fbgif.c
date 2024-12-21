@@ -290,11 +290,12 @@ int main(int argc, char *argv[]) {
 		p2 += xoffset;
 	}
 
+	free(buf);
+
 	fprintf(stdout, "\033[?25h"); // show cursor
 	fflush(stdout);
 
 end:
-	free(buf);
 	munmap(fb_addr, fb_size);
 	close(fd);
 

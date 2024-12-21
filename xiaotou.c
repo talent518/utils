@@ -44,9 +44,10 @@
 #endif
 
 int main(int argc, char *argv[]) {
-	int N = 10, M = 10, *a, i, max = 0, n, n2, n3, m, plus = 0, t = 0;
+	int N = 10, *a, i, max = 0, n, n2, n3, m, plus = 0, t = 0;
 
 #if 0
+	int M = 10;
 	if(argc>=2) N = atoi(argv[1]);
 	else if(argc == 3) M = atoi(argv[2]);
 

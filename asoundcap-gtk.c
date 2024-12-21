@@ -134,6 +134,8 @@ char *nowtime(char *buf, int max) {
 	struct timeval tv;
 	if(gettimeofday(&tv, NULL)) {
 		perror("gettimeofday error");
+		
+		return "";
 	} else {
 		struct tm tm;
 		localtime_r(&tv.tv_sec, &tm);
@@ -223,8 +225,6 @@ static GdkGC *gc_volume_left_cur = NULL, *gc_volume_left_max = NULL;
 static GdkGC *gc_volume_right_cur = NULL, *gc_volume_right_max = NULL;
 
 static gboolean scribble_configure_event_volume(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
-	GdkColor color;
-
 	if(pixmapVolume) g_object_unref(G_OBJECT(pixmapVolume));
 	if(gc_volume_bg) g_object_unref(G_OBJECT(gc_volume_bg));
 	if(gc_volume_left_cur) g_object_unref(G_OBJECT(gc_volume_left_cur));
@@ -255,7 +255,6 @@ static void scribble_da_event_volume(GtkWidget *widget, GdkEventButton *event, g
 	int i, c;
 	short *data;
 	calc_t *dBs;
-	char buf[128];
 	unsigned short maxs[] = {0, 0}, m;
 
 	GdkRectangle update_rect;
@@ -374,8 +373,6 @@ static GdkGC *gc_fft_left = NULL;
 static GdkGC *gc_fft_right = NULL;
 
 static gboolean scribble_configure_event_fft(GtkWidget *widget, GdkEventConfigure *event, gpointer data) {
-	GdkColor color;
-
 	if(pixmapFFT) g_object_unref(G_OBJECT(pixmapFFT));
 	if(gc_fft_bg) g_object_unref(G_OBJECT(gc_fft_bg));
 	if(gc_fft_left) g_object_unref(G_OBJECT(gc_fft_left));
@@ -506,7 +503,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 		}
 	}
 
-	int h = widget->allocation.height / play_ch, h2 = h / 2;
+	int h = widget->allocation.height / play_ch;
 	int Ns[] = {0, 0};
 	int N = ((fft_num / 2) * 5 / 6), j, n;
 	const int NN = (fft_mode == 0 ? 50 : (fft_mode == 1 ? 200 : 300));

@@ -82,7 +82,6 @@ int set_hardware_params(char *name, int sample_rate, int channels, int format_si
 	int rate = sample_rate;
 	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
 	if (rc < 0) {
-		int val = 0, val2 = 0;
 		fprintf(stderr, "unable to set sampling rate.\n");
 		goto err1;
 	}

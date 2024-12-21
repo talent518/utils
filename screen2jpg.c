@@ -38,7 +38,6 @@ static unsigned int capframe = 0;
 static unsigned int maxframe = 0;
 static unsigned char format[48];
 static unsigned char filename[48];
-static int is_no_cgi = 1;
 
 static char *fb_addr = NULL;
 static int fb_width = 0, fb_height = 0;

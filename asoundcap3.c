@@ -119,6 +119,8 @@ char *nowtime(char *buf, int max) {
 	struct timeval tv;
 	if(gettimeofday(&tv, NULL)) {
 		perror("gettimeofday error");
+
+		return "";
 	} else {
 		struct tm tm;
 		localtime_r(&tv.tv_sec, &tm);
@@ -146,7 +148,7 @@ typedef struct {
 
 static void *calc_thread(void *arg) {
 	int channels = * (int*) arg;
-	int ret, pos = -1, i, c;
+	int pos = -1, i, c;
 	short *data;
 	char buf[128];
 	calc_t *dBs = malloc(channels * sizeof(calc_t));
