@@ -27,6 +27,18 @@
 #include <gdk/gdkkeysyms.h>
 #include <cJSON.h>
 
+#define LOGE(fmt, args...) do { \
+	char __timebuf[32]; \
+	fprintf(stderr, "[%s][E] " fmt "\n", nowtime(__timebuf, sizeof(__timebuf)), ##args); \
+	fflush(stderr); \
+} while(0)
+
+#define LOGI(fmt, args...) do { \
+	char __timebuf[32]; \
+	fprintf(stdout, "[%s][I] " fmt "\n", nowtime(__timebuf, sizeof(__timebuf)), ##args); \
+	fflush(stdout); \
+} while(0)
+
 #define VIDEO_IMAGE
 #define PCM_BUF_SIZE 32
 #define SAMPLE_RATE 48000
@@ -40,201 +52,6 @@
 	\
 	gc = gdk_gc_new(draw); \
 	gdk_gc_set_rgb_fg_color(gc, &c); \
-}
-
-static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
-static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
-static snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned long类型
-
-static int play_ch = 2, capt_ch = 2;
-static const char *play_dev = NULL, *capt_dev = NULL;
-static const char *play_file = NULL, *capt_file = NULL;
-
-static int set_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
-	int rc;
-
-	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_PLAYBACK, 0);
-	if (rc < 0) {
-		fprintf(stderr, "unable to open playback pcm device\n");
-		return -1;
-	}
-
-
-	/* Allocate a hardware parameters object */
-	snd_pcm_hw_params_alloca(&gp_params);
-
-	/* Fill it in with default values. */
-	rc = snd_pcm_hw_params_any(gp_handle, gp_params);
-	if (rc < 0) {
-		fprintf(stderr, "unable to Fill it in with default values.\n");
-		goto err1;
-	}
-
-	/* Interleaved mode */
-	rc = snd_pcm_hw_params_set_access(gp_handle, gp_params, SND_PCM_ACCESS_RW_INTERLEAVED);
-	if (rc < 0) {
-		fprintf(stderr, "unable to Interleaved mode.\n");
-		goto err1;
-	}
-
-	snd_pcm_format_t format;
-
-	if (8 == format_size) {
-		format = SND_PCM_FORMAT_U8;
-	} else if (16 == format_size) {
-		format = SND_PCM_FORMAT_S16_LE;
-	} else if (24 == format_size) {
-		format = SND_PCM_FORMAT_U24_LE;
-	} else if (32 == format_size) {
-		format = SND_PCM_FORMAT_U32_LE;
-	} else {
-		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
-		format = SND_PCM_FORMAT_UNKNOWN;
-		goto err1;
-	}
-
-	/* set format */
-	rc = snd_pcm_hw_params_set_format(gp_handle, gp_params, format);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set format.\n");
-		goto err1;
-	}
-
-	/* set channels (stero) */
-	rc = snd_pcm_hw_params_set_channels(gp_handle, gp_params, channels);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set channels (stero).\n");
-		goto err1;
-	}
-
-	/* set sampling rate */
-	int rate = sample_rate;
-	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
-	if (rc < 0) {
-		int val = 0, val2 = 0;
-		fprintf(stderr, "unable to set sampling rate.\n");
-		goto err1;
-	}
-	if(rate != sample_rate) {
-		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
-		goto err1;
-	}
-
-	g_frames = 2048; // sample_rate / 20;
-	rc = snd_pcm_hw_params_set_period_size_near(gp_handle, gp_params, &g_frames, 0);
-	if(rc < 0) {
-		fprintf(stderr, "unable to set sampling rate.\n");
-		goto err1;
-	}
-
-	/* Write the parameters to the dirver */
-	rc = snd_pcm_hw_params(gp_handle, gp_params);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
-		goto err1;
-	}
-
-	snd_pcm_hw_params_get_period_size(gp_params, &g_frames, 0);
-
-	return 0;
-
-err1:
-	snd_pcm_close(gp_handle);
-	return -1;
-}
-
-static int setcap_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
-	int rc;
-	
-	/* Open PCM device for playback */
-	rc = snd_pcm_open(&gp_handle_cap, name, SND_PCM_STREAM_CAPTURE, 0);
-	if (rc < 0) {
-		fprintf(stderr, "unable to open pcm capture device\n");
-		return -1;
-	}
-
-
-	/* Allocate a hardware parameters object */
-	snd_pcm_hw_params_alloca(&gp_params_cap);
-
-	/* Fill it in with default values. */
-	rc = snd_pcm_hw_params_any(gp_handle_cap, gp_params_cap);
-	if (rc < 0) {
-		fprintf(stderr, "unable to Fill it in with default values.\n");
-		goto err1;
-	}
-
-	/* Interleaved mode */
-	rc = snd_pcm_hw_params_set_access(gp_handle_cap, gp_params_cap, SND_PCM_ACCESS_RW_INTERLEAVED);
-	if (rc < 0) {
-		fprintf(stderr, "unable to Interleaved mode.\n");
-		goto err1;
-	}
-
-	snd_pcm_format_t format;
-
-	if (8 == format_size) {
-		format = SND_PCM_FORMAT_U8;
-	} else if (16 == format_size) {
-		format = SND_PCM_FORMAT_S16_LE;
-	} else if (24 == format_size) {
-		format = SND_PCM_FORMAT_U24_LE;
-	} else if (32 == format_size) {
-		format = SND_PCM_FORMAT_U32_LE;
-	} else {
-		fprintf(stderr, "SND_PCM_FORMAT_UNKNOWN.\n");
-		format = SND_PCM_FORMAT_UNKNOWN;
-		goto err1;
-	}
-
-	/* set format */
-	rc = snd_pcm_hw_params_set_format(gp_handle_cap, gp_params_cap, format);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set format.\n");
-		goto err1;
-	}
-
-	/* set channels (stero) */
-	rc = snd_pcm_hw_params_set_channels(gp_handle_cap, gp_params_cap, channels);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set channels (stero).\n");
-		goto err1;
-	}
-
-	/* set sampling rate */
-	int rate = sample_rate;
-	rc = snd_pcm_hw_params_set_rate_near(gp_handle_cap, gp_params_cap, &rate, 0);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set sampling rate.\n");
-		goto err1;
-	}
-	if(rate != sample_rate) {
-		fprintf(stderr, "set sample rate %d is not support, should set is %d\n", sample_rate, rate);
-		goto err1;
-	}
-
-	g_frames_cap = 2048; // sample_rate / 20;
-	rc = snd_pcm_hw_params_set_period_size_near(gp_handle_cap, gp_params_cap, &g_frames_cap, 0);
-	if(rc < 0) {
-		fprintf(stderr, "unable to set sampling rate.\n");
-		goto err1;
-	}
-
-	/* Write the parameters to the dirver */
-	rc = snd_pcm_hw_params(gp_handle_cap, gp_params_cap);
-	if (rc < 0) {
-		fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(rc));
-		goto err1;
-	}
-
-	snd_pcm_hw_params_get_period_size(gp_params_cap, &g_frames_cap, 0);
-
-	return 0;
-
-err1:
-	snd_pcm_close(gp_handle_cap);
-	return -1;
 }
 
 #define MICRO_IN_SEC 1000000.00
@@ -281,6 +98,201 @@ static void sem_clear(sem_t *sem) {
 	}
 }
 
+static snd_pcm_t *gp_handle, *gp_handle_cap;  //调用snd_pcm_open打开PCM设备返回的文件句柄，后续的操作都使用是、这个句柄操作这个PCM设备
+static snd_pcm_hw_params_t *gp_params, *gp_params_cap;  //设置流的硬件参数
+static snd_pcm_uframes_t g_frames, g_frames_cap; //snd_pcm_uframes_t其实是unsigned long类型
+
+static int play_ch = 2, capt_ch = 2;
+static const char *play_dev = NULL, *capt_dev = NULL;
+static const char *play_file = NULL, *capt_file = NULL;
+
+static int set_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
+	int rc;
+
+	/* Open PCM device for playback */
+	rc = snd_pcm_open(&gp_handle, name, SND_PCM_STREAM_PLAYBACK, 0);
+	if (rc < 0) {
+		LOGE("unable to open playback pcm device");
+		return -1;
+	}
+
+
+	/* Allocate a hardware parameters object */
+	snd_pcm_hw_params_alloca(&gp_params);
+
+	/* Fill it in with default values. */
+	rc = snd_pcm_hw_params_any(gp_handle, gp_params);
+	if (rc < 0) {
+		LOGE("unable to Fill it in with default values.");
+		goto err1;
+	}
+
+	/* Interleaved mode */
+	rc = snd_pcm_hw_params_set_access(gp_handle, gp_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (rc < 0) {
+		LOGE("unable to Interleaved mode.");
+		goto err1;
+	}
+
+	snd_pcm_format_t format;
+
+	if (8 == format_size) {
+		format = SND_PCM_FORMAT_U8;
+	} else if (16 == format_size) {
+		format = SND_PCM_FORMAT_S16_LE;
+	} else if (24 == format_size) {
+		format = SND_PCM_FORMAT_U24_LE;
+	} else if (32 == format_size) {
+		format = SND_PCM_FORMAT_U32_LE;
+	} else {
+		LOGE("SND_PCM_FORMAT_UNKNOWN.");
+		format = SND_PCM_FORMAT_UNKNOWN;
+		goto err1;
+	}
+
+	/* set format */
+	rc = snd_pcm_hw_params_set_format(gp_handle, gp_params, format);
+	if (rc < 0) {
+		LOGE("unable to set format.");
+		goto err1;
+	}
+
+	/* set channels (stero) */
+	rc = snd_pcm_hw_params_set_channels(gp_handle, gp_params, channels);
+	if (rc < 0) {
+		LOGE("unable to set channels (stero).");
+		goto err1;
+	}
+
+	/* set sampling rate */
+	int rate = sample_rate;
+	rc = snd_pcm_hw_params_set_rate_near(gp_handle, gp_params, &rate, 0);
+	if (rc < 0) {
+		int val = 0, val2 = 0;
+		LOGE("unable to set sampling rate.");
+		goto err1;
+	}
+	if(rate != sample_rate) {
+		LOGE("set sample rate %d is not support, should set is %d", sample_rate, rate);
+		goto err1;
+	}
+
+	g_frames = 2048; // sample_rate / 20;
+	rc = snd_pcm_hw_params_set_period_size_near(gp_handle, gp_params, &g_frames, 0);
+	if(rc < 0) {
+		LOGE("unable to set sampling rate.");
+		goto err1;
+	}
+
+	/* Write the parameters to the dirver */
+	rc = snd_pcm_hw_params(gp_handle, gp_params);
+	if (rc < 0) {
+		LOGE("unable to set hw parameters: %s", snd_strerror(rc));
+		goto err1;
+	}
+
+	snd_pcm_hw_params_get_period_size(gp_params, &g_frames, 0);
+
+	return 0;
+
+err1:
+	snd_pcm_close(gp_handle);
+	return -1;
+}
+
+static int setcap_hardware_params(const char *name, int sample_rate, int channels, int format_size) {
+	int rc;
+	
+	/* Open PCM device for playback */
+	rc = snd_pcm_open(&gp_handle_cap, name, SND_PCM_STREAM_CAPTURE, 0);
+	if (rc < 0) {
+		LOGE("unable to open pcm capture device");
+		return -1;
+	}
+
+
+	/* Allocate a hardware parameters object */
+	snd_pcm_hw_params_alloca(&gp_params_cap);
+
+	/* Fill it in with default values. */
+	rc = snd_pcm_hw_params_any(gp_handle_cap, gp_params_cap);
+	if (rc < 0) {
+		LOGE("unable to Fill it in with default values.");
+		goto err1;
+	}
+
+	/* Interleaved mode */
+	rc = snd_pcm_hw_params_set_access(gp_handle_cap, gp_params_cap, SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (rc < 0) {
+		LOGE("unable to Interleaved mode.");
+		goto err1;
+	}
+
+	snd_pcm_format_t format;
+
+	if (8 == format_size) {
+		format = SND_PCM_FORMAT_U8;
+	} else if (16 == format_size) {
+		format = SND_PCM_FORMAT_S16_LE;
+	} else if (24 == format_size) {
+		format = SND_PCM_FORMAT_U24_LE;
+	} else if (32 == format_size) {
+		format = SND_PCM_FORMAT_U32_LE;
+	} else {
+		LOGE("SND_PCM_FORMAT_UNKNOWN.");
+		format = SND_PCM_FORMAT_UNKNOWN;
+		goto err1;
+	}
+
+	/* set format */
+	rc = snd_pcm_hw_params_set_format(gp_handle_cap, gp_params_cap, format);
+	if (rc < 0) {
+		LOGE("unable to set format.");
+		goto err1;
+	}
+
+	/* set channels (stero) */
+	rc = snd_pcm_hw_params_set_channels(gp_handle_cap, gp_params_cap, channels);
+	if (rc < 0) {
+		LOGE("unable to set channels (stero).");
+		goto err1;
+	}
+
+	/* set sampling rate */
+	int rate = sample_rate;
+	rc = snd_pcm_hw_params_set_rate_near(gp_handle_cap, gp_params_cap, &rate, 0);
+	if (rc < 0) {
+		LOGE("unable to set sampling rate.");
+		goto err1;
+	}
+	if(rate != sample_rate) {
+		LOGE("set sample rate %d is not support, should set is %d", sample_rate, rate);
+		goto err1;
+	}
+
+	g_frames_cap = 2048; // sample_rate / 20;
+	rc = snd_pcm_hw_params_set_period_size_near(gp_handle_cap, gp_params_cap, &g_frames_cap, 0);
+	if(rc < 0) {
+		LOGE("unable to set sampling rate.");
+		goto err1;
+	}
+
+	/* Write the parameters to the dirver */
+	rc = snd_pcm_hw_params(gp_handle_cap, gp_params_cap);
+	if (rc < 0) {
+		LOGE("unable to set hw parameters: %s", snd_strerror(rc));
+		goto err1;
+	}
+
+	snd_pcm_hw_params_get_period_size(gp_params_cap, &g_frames_cap, 0);
+
+	return 0;
+
+err1:
+	snd_pcm_close(gp_handle_cap);
+	return -1;
+}
+
 static char *get_title();
 
 static volatile bool is_running = true;
@@ -319,7 +331,7 @@ static void *pcm_play_thread(void *arg) {
 
 	while(is_running) {
 		if(!sem_getvalue(&pcm_play_sem, &ret) && ret > MAX_QUE) {
-			fprintf(stderr, "[%s] PLAY QUE: %d, %d, %d\n", nowtime(buf, sizeof(buf)), ret, MIN_QUE, MAX_QUE);
+			LOGE("PLAY QUE: %d, %d, %d", ret, MIN_QUE, MAX_QUE);
 
 			snd_pcm_reset(gp_handle);
 
@@ -338,17 +350,17 @@ static void *pcm_play_thread(void *arg) {
 		prepare:
 			ret = snd_pcm_writei(gp_handle, pcm_play_bufs[playpos], g_frames);
 			if (ret == -EPIPE) {
-				fprintf(stderr, "writei pipe error: %d\n", ret);
+				LOGE("writei pipe error: %d", ret);
 				snd_pcm_prepare(gp_handle);
 				if(is_running) goto prepare;
 				else break;
 			} else if(ret == -EINTR) {
 				break;
 			} else if (ret < 0) {
-				fprintf(stderr, "error from writei: %s\n", snd_strerror(ret));
+				LOGE("error from writei: %s", snd_strerror(ret));
 				break;
 			} else if(ret != g_frames) {
-				fprintf(stderr, "write ret: %d\n", ret);
+				LOGE("write ret: %d", ret);
 				break;
 			} else if(fp) {
 				fwrite(pcm_play_bufs[playpos], 1, pcm_play_buf_size, fp);
@@ -395,17 +407,17 @@ static void *pcm_capt_thread(void *arg) {
 		prepare:
 			ret = snd_pcm_readi(gp_handle_cap, pcm_capt_bufs[pos], g_frames_cap);
 			if (ret == -EPIPE) {
-				fprintf(stderr, "readi pipe error: %d\n", ret);
+				LOGE("readi pipe error: %d", ret);
 				snd_pcm_prepare(gp_handle_cap);
 				if(is_running) goto prepare;
 				else break;
 			} else if(ret == -EINTR) {
 				break;
 			} else if (ret < 0) {
-				fprintf(stderr, "error from readi: %s\n", snd_strerror(ret));
+				LOGE("error from readi: %s", snd_strerror(ret));
 				break;
 			} else if(ret != g_frames_cap) {
-				fprintf(stderr, "read ret: %d\n", ret);
+				LOGE("read ret: %d", ret);
 				break;
 			} else if(!is_clear_cap) {
 				sem_post(&pcm_capt_sem);
@@ -436,10 +448,10 @@ static void *pcm_capt_thread(void *arg) {
 
 				ret = fread(pcm_capt_bufs[pos], 1, pcm_capt_buf_size, fp);
 				if (ret < 0) {
-					fprintf(stderr, "error from readi: %s\n", snd_strerror(ret));
+					LOGE("error from readi: %s", snd_strerror(ret));
 					break;
 				} else if(ret != pcm_capt_buf_size) {
-					fprintf(stderr, "read ret: %d\n", ret);
+					LOGE("read ret: %d", ret);
 					break;
 				} else if(!is_clear_cap) {
 					sem_post(&pcm_capt_sem);
@@ -514,13 +526,22 @@ static struct sockaddr_in servaddr;
 static int sock_conn(const char *func, int timeout) {
 	int fd = socket(AF_INET, SOCK_STREAM, 0);
 	int ret;
-	int flags = fcntl(fd, F_GETFL);
+	int flags;
+	char buf[32];
+
+	if(fd < 0) {
+		char *err = strerror(errno);
+		LOGE("connect %s failure: %s", func, err);
+
+		return 0;
+	}
+
+	// LOGE("connect %s fd: %d", func, fd);
 	
+	flags = fcntl(fd, F_GETFL);
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	
 	if(connect(fd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
-		char buf[32];
-		
 		if(EINPROGRESS == errno) {
 			struct timeval tv;
 			fd_set set;
@@ -540,17 +561,18 @@ static int sock_conn(const char *func, int timeout) {
 			if(ret > 0) {
 				socklen_t len = sizeof(ret);
 				if(getsockopt(fd, SOL_SOCKET, SO_ERROR, &ret, &len) || ret) {
-					fprintf(stderr, "[%s] connect %s failure: get connect status error\n", nowtime(buf, sizeof(buf)), func);
+					LOGE("connect %s failure: get connect status error", func);
 				} else {
 					goto connok;
 				}
 			} else {
-				fprintf(stderr, "[%s] connect %s failure: timeout\n", nowtime(buf, sizeof(buf)), func);
+				LOGE("connect %s failure: timeout", func);
 			}
 		} else {
 			char *err = strerror(errno);
-			fprintf(stderr, "[%s] connect %s failure: %s\n", nowtime(buf, sizeof(buf)), func, err);
+			LOGE("connect %s failure: %s", func, err);
 		}
+		shutdown(fd, SHUT_RDWR);
 		close(fd);
 		return 0;
 	} else {
@@ -570,7 +592,7 @@ static int _ws_conn(const char *func, const char *path, int timeout) {
 	
 	if(!is_connect) return 0;
 
-	fprintf(stderr, "[%s] websocket %s connecting ...\n", nowtime(buf, sizeof(buf)), func);
+	LOGE("websocket %s connecting ...", func);
 	
 	fd = sock_conn(func, timeout);
 	
@@ -612,7 +634,7 @@ looprecv:
 			
 			if(sz < sizeof(buf)) goto looprecv;
 			else {
-				fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
+				LOGE("buffer full");
 				goto err;
 			}
 		}
@@ -623,10 +645,11 @@ looprecv:
 		if(!strstr(buf, "\r\nConnection: Upgrade\r\n")) goto err;
 		if(!(strstr(buf, "\r\nSec-Websocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n") || strstr(buf, "\r\nSec-WebSocket-Accept: HZw0xDMnzz6PpJGmqKAkwUfw+CU=\r\n"))) goto err;
 		
-		fprintf(stderr, "[%s] websocket %s connected success\n", nowtime(buf, sizeof(buf)), func);
+		LOGE("websocket %s connected success", func);
 	} else {
 	err:
-		fprintf(stderr, "[%s] websocket %s connected failure\n", nowtime(buf, sizeof(buf)), func);
+		LOGE("websocket %s connected failure", func);
+		shutdown(fd, SHUT_RDWR);
 		close(fd);
 		fd = 0;
 	}
@@ -725,7 +748,7 @@ loopsend:
 		free(ptr);
 		return 1;
 	} else {
-		if(ret == 0) fprintf(stderr, "[%s] websocket %s disconnected\n", nowtime(buf, sizeof(buf)), func);
+		if(ret == 0) LOGE("websocket %s disconnected", func);
 	err:
 		free(ptr);
 		return 0;
@@ -784,7 +807,7 @@ head:
 		sz = buf[1] & 0x7f;
 
 		if(!(buf[0] & 0x80) || (buf[0] & 0x70) || (ctl != 0x1 && ctl != 0x2 && ctl != 0x8 && ctl != 0x9 && ctl != 0xa)) { // !FIN || (RSV1 || RSV2 || RSV3) || (invalid ctl)
-			fprintf(stderr, "[%s] websocket %s protocol type error\n", nowtime(buf, sizeof(buf)), func);
+			LOGE("websocket %s protocol type error", func);
 			goto err;
 		}
 
@@ -873,7 +896,7 @@ head:
 					n += ret;
 				} else {
 					char *err = strerror(errno);
-					fprintf(stderr, "[%s] websocket %s protocol data error: %s\n", nowtime(buf, sizeof(buf)), func, err);
+					LOGE("websocket %s protocol data error: %s", func, err);
 					goto err;
 				}
 			}
@@ -896,19 +919,19 @@ head:
 				break;
 			case 0x8: // close
 				if(sz > 2) {
-					fprintf(stderr, "[%s] websocket %s disconnected, Errno: %d, Error: %s\n", nowtime(buf, sizeof(buf)), func, ((ptr[0] << 8) | ptr[1]), ptr + 2);
+					LOGE("websocket %s disconnected, Errno: %d, Error: %s", func, ((ptr[0] << 8) | ptr[1]), ptr + 2);
 				} else {
-					fprintf(stderr, "[%s] websocket %s disconnected, Errno: 0, Error: OK\n", nowtime(buf, sizeof(buf)), func);
+					LOGE("websocket %s disconnected, Errno: 0, Error: OK", func);
 				}
 				goto err;
 				break;
 			case 0x9: // ping
-				fprintf(stderr, "[%s] websocket %s ping: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
+				LOGE("websocket %s ping: %s", func, ptr);
 				if(!ws_send(fd, WS_CTL_PONG, WS_SEND_MASK, ptr, sz, WS_SEND_TIMEOUT, __func__)) goto err;
 				goto gobegin;
 				break;
 			case 0xA: // pong
-				fprintf(stderr, "[%s] websocket %s pong: %s\n", nowtime(buf, sizeof(buf)), func, ptr);
+				LOGE("websocket %s pong: %s", func, ptr);
 				
 				gobegin:
 				if(ptr) {
@@ -918,7 +941,7 @@ head:
 				goto begin;
 				break;
 			default:
-				fprintf(stderr, "unknown control code: %d\n", ctl);
+				LOGE("unknown control code: %d", ctl);
 				goto err;
 				break;
 		}
@@ -926,9 +949,9 @@ head:
 		return ptr;
 	} else if(ret) {
 		char *err = strerror(errno);
-		fprintf(stderr, "[%s] websocket %s protocol head error: %s\n", nowtime(buf, sizeof(buf)), func, err);
+		LOGE("websocket %s protocol head error: %s", func, err);
 	} else {
-		fprintf(stderr, "[%s] websocket %s disconnected\n", nowtime(buf, sizeof(buf)), func);
+		LOGE("websocket %s disconnected", func);
 	}
 
 err:
@@ -959,7 +982,7 @@ static void *net_pcm_recv_thread(void *arg) {
 			if(ptr) {
 				if(is_bin) {
 					if(sz != pcm_play_buf_size) {
-						fprintf(stderr, "sound buffer size %d is not equals %d\n", sz, pcm_play_buf_size);
+						LOGE("sound buffer size %d is not equals %d", sz, pcm_play_buf_size);
 					} else {
 						pcm_play_buf_pos ++;
 						if(pcm_play_buf_pos >= PCM_BUF_SIZE) pcm_play_buf_pos = 0;
@@ -986,12 +1009,13 @@ static void *net_pcm_recv_thread(void *arg) {
 						}
 					}
 				} else {
-					printf("[%s] sound data: %s\n", nowtime(buf, sizeof(buf)), ptr);
+					LOGI("sound data: %s", ptr);
 				}
 				
 				free(ptr);
 				ptr = NULL;
 			} else {
+				shutdown(fd, SHUT_RDWR);
 				close(fd);
 				fd = 0;
 				if(delay < DELAY) {
@@ -1014,7 +1038,10 @@ static void *net_pcm_recv_thread(void *arg) {
 		}
 	}
 	
-	if(fd) close(fd);
+	if(fd) {
+		shutdown(fd, SHUT_RDWR);
+		close(fd);
+	}
 	if(old) free(old);
 
 	pthread_exit(NULL);
@@ -1033,7 +1060,7 @@ static void *net_pcm_send_thread(void *arg) {
 		buf = (short *) malloc(size);
 	}
 	
-	printf("capture buffuer size: %d, net send buffer size: %d\n", size, pcm_capt_buf_size);
+	LOGI("capture buffuer size: %d, net send buffer size: %d", size, pcm_capt_buf_size);
 
 	while(is_running) {
 		if(fd) {
@@ -1067,9 +1094,9 @@ static void *net_pcm_send_thread(void *arg) {
 					int is_err = 0;
 
 					if(is_bin) {
-						fprintf(stderr, "player recv size is %d\n", sz);
+						LOGE("player recv size is %d", sz);
 					} else {
-						printf("[%s] player data: %s\n", nowtime(timebuf, sizeof(timebuf)), ptr);
+						LOGI("player data: %s", ptr);
 
 						sem_clear(&pcm_capt_sem);
 
@@ -1091,6 +1118,7 @@ static void *net_pcm_send_thread(void *arg) {
 					if(is_err) goto err;
 				} else {
 				err:
+					shutdown(fd, SHUT_RDWR);
 					close(fd);
 					fd = 0;
 
@@ -1117,7 +1145,10 @@ static void *net_pcm_send_thread(void *arg) {
 		}
 	}
 	
-	if(fd) close(fd);
+	if(fd) {
+		shutdown(fd, SHUT_RDWR);
+		close(fd);
+	}
 	if(old) free(old);
 	if(buf) free(buf);
 
@@ -1203,7 +1234,7 @@ static void *net_video_thread(void *arg) {
 									video_height = h;
 								}
 
-								// printf("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d\n", x, y, w, h, width, height, video_width, video_height);
+								// LOGI("x = %d, y = %d, w = %d, h = %d, width = %d, height = %d, video_width = %d, video_height = %d", x, y, w, h, width, height, video_width, video_height);
 
 								if(!dst || fwidth != width || fheight != height) {
 									fwidth = width;
@@ -1234,8 +1265,7 @@ static void *net_video_thread(void *arg) {
 						cJSON *json = cJSON_Parse(ptr + (atx ? 9 : 10));
 						if(json) {
 							int n = (atx ? 0 : 3);
-							printf("[%s] %s %lg %04.1lf%% %.3lfGB %04.1lf%% %.3lfGB %.3lfGB %04.1lf%%\n",
-								nowtime(buf, sizeof(buf)),
+							LOGI("%s %lg %04.1lf%% %.3lfGB %04.1lf%% %.3lfGB %.3lfGB %04.1lf%%",
 								atx ? "ATX" : "WDR",
 								cjson_get_value_double(json, "cpuCount"),
 								stats[STAT_ATX_CPU + n] = cjson_get_value_double(json, "cpuPercent"),
@@ -1247,13 +1277,13 @@ static void *net_video_thread(void *arg) {
 							);
 							cJSON_free(json);
 						} else {
-							printf("[%s] json error: %s\n", nowtime(buf, sizeof(buf)), ptr + (atx ? 9 : 10));
+							LOGE("json error: %s", ptr + (atx ? 9 : 10));
 						}
 					} else if(!strcmp(ptr, "==equalFrame==")) {
 						video_frames ++;
 
 						if(oldptr && (fwidth != width || fheight != height)) {
-							printf("[%s] redraw\n", nowtime(buf, sizeof(buf)));
+							LOGI("redraw");
 							free(ptr);
 							ptr = oldptr;
 							sz = oldsz;
@@ -1262,7 +1292,7 @@ static void *net_video_thread(void *arg) {
 							goto redraw;
 						}
 					} else {
-						printf("[%s] video data: %s\n", nowtime(buf, sizeof(buf)), ptr);
+						LOGI("video data: %s", ptr);
 						
 						if(!strncmp(ptr, "rotation ", sizeof("rotation ") - 1)) {
 							video_rotation = atoi(ptr + sizeof("rotation ") - 1);
@@ -1275,6 +1305,7 @@ static void *net_video_thread(void *arg) {
 					ptr = NULL;
 				}
 			} else {
+				shutdown(fd, SHUT_RDWR);
 				close(fd);
 				fd = 0;
 				
@@ -1295,7 +1326,10 @@ static void *net_video_thread(void *arg) {
 		}
 	}
 	
-	if(fd) close(fd);
+	if(fd) {
+		shutdown(fd, SHUT_RDWR);
+		close(fd);
+	}
 	if(old) free(old);
 	if(ptr) free(ptr);
 	if(oldptr) free(oldptr);
@@ -1400,7 +1434,7 @@ static int touch_event_send(int fd) {
 		if(sz) {
 			sz = snprintf(buf, sizeof(buf), "{\"operation\":\"%c\",\"index\":0,\"pressure\":0.5,\"xP\":%g,\"yP\":%g}", e, x, y);
 			if(sz >= sizeof(buf)) {
-				fprintf(stderr, "[%s] snprintf buffer size error\n", nowtime(buf, sizeof(buf)));
+				LOGE("snprintf buffer size error");
 				return 0;
 			}
 			if(!ws_send(fd, WS_CTL_TXT, WS_SEND_MASK, buf, sz, WS_SEND_TIMEOUT, __func__)) {
@@ -1441,8 +1475,8 @@ static void *net_touch_thread(void *arg) {
 				ptr = ws_recv(fd, &sz, &old, &n, &is_bin, WS_RECV_TIMEOUT, __func__);
 				if(ptr) {
 					if(is_running) {
-						if(is_bin) printf("[%s] touch data is binary\n", nowtime(buf, sizeof(buf)));
-						else printf("[%s] touch data: %s\n", nowtime(buf, sizeof(buf)), ptr);
+						if(is_bin) LOGI("touch data is binary");
+						else LOGI("touch data: %s", ptr);
 					}
 					
 					free(ptr);
@@ -1480,6 +1514,7 @@ static void *net_touch_thread(void *arg) {
 			touch_event_loading = 0;
 			if(fd && !WS_SEND(fd, WS_CTL_TXT, WS_SEND_MASK, "{\"operation\":\"r\"}", WS_SEND_TIMEOUT)) {
 			end:
+				shutdown(fd, SHUT_RDWR);
 				close(fd);
 				fd = 0;
 				
@@ -1489,7 +1524,10 @@ static void *net_touch_thread(void *arg) {
 		}
 	}
 	
-	if(fd) close(fd);
+	if(fd) {
+		shutdown(fd, SHUT_RDWR);
+		close(fd);
+	}
 	if(old) free(old);
 	pthread_exit(NULL);
 }
@@ -1832,7 +1870,7 @@ static void scribble_da_event_fft(GtkWidget *widget, GdkEventButton *event, gpoi
 			p->y = (c + 1) * h;
 		}
 #ifdef FFT_DEBUG
-		printf("[channel:%d] max: %f, min: %f, count: %d\n", c, max, min, j);
+		LOGI("[channel:%d] max: %f, min: %f, count: %d", c, max, min, j);
 #endif
 	}
 
@@ -1866,7 +1904,7 @@ static int video_is_press = 0;
 static void scribble_button_press_event_video(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
 	touch_event_push('d', event->x, event->y);
 	video_is_press = 1;
-	// printf("mouse press: button = %d, type = %d, x = %f, y = %f\n", event->button, event->type, event->x, event->y);
+	// LOGI("mouse press: button = %d, type = %d, x = %f, y = %f", event->button, event->type, event->x, event->y);
 }
 
 static void scribble_motion_notify_event_video(GtkWidget *widget, GdkEventButton *event, gpointer _data) {
@@ -1874,7 +1912,7 @@ static void scribble_motion_notify_event_video(GtkWidget *widget, GdkEventButton
 	if(video_is_press) {
 		touch_event_push('m', event->x, event->y);
 		
-		// printf("motion x = %f, motion y = %f\n", event->x, event->y);
+		// LOGI("motion x = %f, motion y = %f", event->x, event->y);
 	}
 }
 
@@ -1883,7 +1921,7 @@ static void scribble_button_release_event_video(GtkWidget *widget, GdkEventButto
 		video_is_press = 0;
 		touch_event_push('u', event->x, event->y);
 		
-		// printf("mouse release: button = %d, type = %d, x = %f, y = %f\n", event->button, event->type, event->x, event->y);
+		// LOGI("mouse release: button = %d, type = %d, x = %f, y = %f", event->button, event->type, event->x, event->y);
 	}
 }
 
@@ -1898,29 +1936,25 @@ static volatile uint32_t key_size = 0;
 
 static int http_post(const char *func, const char *path, char *post, const char *result) {
 	int fd, size, sz, ret = 0;
-	char buf[2048];
+	char buf[2048], *p;
 	struct timeval tv;
 	fd_set set;
 	
 	fd = sock_conn(func, 100);
 
-	if(fd == 0) {
-		memset(buf, 0, sizeof(buf));
-		
-		goto end;
-	}
-	
-	size = 0;
-	size += snprintf(buf + size, sizeof(buf) - size, "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
-	size += snprintf(buf + size, sizeof(buf) - size, "Host: %s:%d\r\n", servhost, servport);
-	size += snprintf(buf + size, sizeof(buf) - size, "Connection: Close\r\n");
-	size += snprintf(buf + size, sizeof(buf) - size, "Accept: */*\r\n");
-	size += snprintf(buf + size, sizeof(buf) - size, "User-Agent: weditor for c language client\r\n");
-	size += snprintf(buf + size, sizeof(buf) - size, "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
-	size += snprintf(buf + size, sizeof(buf) - size, "Content-Length: %ld\r\n", strlen(post));
-	size += snprintf(buf + size, sizeof(buf) - size, "\r\n%s", post);
-	
-	// fprintf(stderr, "%s\n", buf);
+	if(fd == 0) goto end;
+
+	memset(buf, 0, sizeof(buf));
+
+	p = buf;
+	p += snprintf(p, sizeof(buf) - (p - buf), "POST %s%s?__raw__=1 HTTP/1.1\r\n", api_proxy_path, path);
+	p += snprintf(p, sizeof(buf) - (p - buf), "Host: %s:%d\r\n", servhost, servport);
+	p += snprintf(p, sizeof(buf) - (p - buf), "Connection: Close\r\n");
+	p += snprintf(p, sizeof(buf) - (p - buf), "Accept: */*\r\n");
+	p += snprintf(p, sizeof(buf) - (p - buf), "User-Agent: weditor for c language client\r\n");
+	p += snprintf(p, sizeof(buf) - (p - buf), "Content-Type: application/x-www-form-urlencoded; charset=UTF-8\r\n");
+	p += snprintf(p, sizeof(buf) - (p - buf), "Content-Length: %ld\r\n\r\n%s", strlen(post), post);
+	size = (p - buf);
 	
 	sz = 0;
 loopsend:
@@ -1965,7 +1999,7 @@ looprecv:
 		
 		char *ptr = strstr(buf, "\r\n\r\n");
 		if(ptr) {
-			return strstr(buf, result) ? 1 : -1;
+			ret = (strstr(buf, result) ? 1 : -1);
 		} else {
 			if(!is_running) {
 				ret = 0;
@@ -1974,16 +2008,14 @@ looprecv:
 			
 			if(sz < sizeof(buf)) goto looprecv;
 			else {
-				fprintf(stderr, "[%s] buffer full\n", nowtime(buf, sizeof(buf)));
+				LOGE("buffer full");
 				ret = 0;
 				goto err;
 			}
 		}
 	}
 err:
-	//fwrite(buf, 1, sz, stderr);
-	//fprintf(stderr, "\n");
-	//fflush(stderr);
+	shutdown(fd, SHUT_RDWR);
 	close(fd);
 end:
 	return ret;
@@ -2007,8 +2039,8 @@ static void *net_presskey_thread(void *arg) {
 			key_size --;
 			if(key_idx >= KEY_SIZE) key_idx = 0;
 
-			if(key->type) printf("[%s] KEYCODE: %d %02x ...\n", nowtime(buf, sizeof(buf)), key->code, key->code);
-			else printf("[%s] TEXT: %c ...\n", nowtime(buf, sizeof(buf)), key->code);
+			if(key->type) LOGI("KEYCODE: %d %02x ...", key->code, key->code);
+			else LOGI("TEXT: %c ...", key->code);
 			
 			if(key->type) {
 				snprintf(buf, sizeof(buf), "serial=android:&key=%d", key->code);
@@ -2018,21 +2050,21 @@ static void *net_presskey_thread(void *arg) {
 				ret = http_post(__func__, "/api/v1/text", buf, "{\"ret\": true}");
 			}
 			if(ret) {
-				if(key->type) printf("[%s] KEYCODE: %d %02x %s\n", nowtime(buf, sizeof(buf)), key->code, key->code, ret > 0 ? "OK" : "ERR");
-				else printf("[%s] TEXT: %c %s\n", nowtime(buf, sizeof(buf)), key->code, ret > 0 ? "OK" : "ERR");
+				if(key->type) LOGI("KEYCODE: %d %02x %s", key->code, key->code, ret > 0 ? "OK" : "ERR");
+				else LOGI("TEXT: %c %s", key->code, ret > 0 ? "OK" : "ERR");
 			}
 			
 			if(is_ping) t = microtime() + 10.0;
 		} else if(is_ping && microtime() > t) {
-			printf("[%s] PING ...\n", nowtime(buf, sizeof(buf)));
+			LOGI("PING ...");
 			ret = http_post(__func__, "/api/v1/ping", "serial=android:", "{\"ret\": \"pong\"}");
 			if(ret) {
-				printf("[%s] PING %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
+				LOGI("PING %s", ret > 0 ? "OK" : "ERR");
 			}
 			t = microtime() + 10.0;
 		} else if(microtime() > t2) {
 			ret = http_post(__func__, "/api/v1/connect", "platform=Android&deviceUrl=", "\"success\": true");
-			printf("[%s] Connect device %s\n", nowtime(buf, sizeof(buf)), ret > 0 ? "OK" : "ERR");
+			LOGI("Connect device %s", ret > 0 ? "OK" : "ERR");
 			is_connect = is_conn = ret > 0;
 			if(ret > 0) t2 = microtime() + 30.0;
 			else t2 = microtime() + 1.0;
@@ -2045,7 +2077,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 	bool type = true;
 	uint16_t code = 0;
 	
-	// printf("%u %02x\n", event->hardware_keycode, event->hardware_keycode);
+	// LOGI("%u %02x", event->hardware_keycode, event->hardware_keycode);
 
 	switch(event->keyval) {
 		case GDK_KEY_Escape:
@@ -2099,7 +2131,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 			break;
 		case GDK_KEY_F11: {
 			char buf[32];
-			printf("[%s] FullScreen %s\n", nowtime(buf, sizeof(buf)), is_fullscreen ? "OFF" : "ON");
+			LOGI("FullScreen %s", is_fullscreen ? "OFF" : "ON");
 			if(is_fullscreen) {
 				is_fullscreen = false;
 				gtk_window_unfullscreen(GTK_WINDOW(window));
@@ -2112,7 +2144,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 		case GDK_KEY_F12: {
 			char buf[32];
 			is_full_height = !is_full_height;
-			printf("[%s] FullHeight %s\n", nowtime(buf, sizeof(buf)), is_full_height ? "ON" : "OFF");
+			LOGI("FullHeight %s", is_full_height ? "ON" : "OFF");
 			return FALSE;
 		}
 		case GDK_KEY_KP_Add: // NumKey -
@@ -2211,7 +2243,7 @@ static gboolean scribble_key_press_event(GtkWidget *widget, GdkEventKey *event, 
 				code = event->keyval;
 				break;
 			}
-			printf("KEYCODE %u %02x %u %02x\n", code, code, event->keyval, event->keyval);
+			LOGI("KEYCODE %u %02x %u %02x", code, code, event->keyval, event->keyval);
 			return FALSE;
 	}
 	if(code && key_size < KEY_SIZE) {
@@ -2380,7 +2412,7 @@ static void gtk_end(void) {
 }
 
 void sig_handle(int sig) {
-	// fprintf(stderr, "sig: %d\n", sig);
+	// LOGE("sig: %d", sig);
 	if(is_running) {
 		is_running = false;
 		// gdk_threads_enter();
@@ -2489,7 +2521,7 @@ int main(int argc, char *argv[]) {
 	if(play_dev) {
 		ret = set_hardware_params(play_dev, SAMPLE_RATE, play_ch, 16);
 		if (ret < 0) {
-			fprintf(stderr, "set_hardware_params error\n");
+			LOGE("set_hardware_params error");
 			return -1;
 		}
 	} else {
@@ -2499,7 +2531,7 @@ int main(int argc, char *argv[]) {
 	if(capt_dev) {
 		ret = setcap_hardware_params(capt_dev, SAMPLE_RATE, capt_ch, 16);
 		if (ret < 0) {
-			fprintf(stderr, "setcap_hardware_params error\n");
+			LOGE("setcap_hardware_params error");
 			return -1;
 		}
 	} else if(capt_file) {
@@ -2545,14 +2577,14 @@ int main(int argc, char *argv[]) {
 	pthread_attr_init(&attr);
 	ret = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	if(ret) {
-		fprintf(stderr, "pthread_attr_setdetachstate failure: %d", ret);
+		LOGE("pthread_attr_setdetachstate failure: %d", ret);
 		return -1;
 	}
 
 	if(play_dev || play_file) {
 		ret = pthread_create(&pcm_play_tid, &attr, pcm_play_thread, NULL);
 		if(ret) {
-			fprintf(stderr, "pthread_create failure: %d", ret);
+			LOGE("pthread_create failure: %d", ret);
 			goto end;
 		}
 	}
@@ -2560,40 +2592,40 @@ int main(int argc, char *argv[]) {
 	if(capt_dev || capt_file) {
 		ret = pthread_create(&pcm_capt_tid, &attr, pcm_capt_thread, NULL);
 		if(ret) {
-			fprintf(stderr, "pthread_create failure: %d", ret);
+			LOGE("pthread_create failure: %d", ret);
 			goto end;
 		}
 	}
 
 	ret = pthread_create(&net_pcm_recv_tid, &attr, net_pcm_recv_thread, NULL);
 	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
+		LOGE("pthread_create failure: %d", ret);
 		goto end;
 	}
 
 	if(capt_dev || capt_file) {
 		ret = pthread_create(&net_pcm_send_tid, &attr, net_pcm_send_thread, NULL);
 		if(ret) {
-			fprintf(stderr, "pthread_create failure: %d", ret);
+			LOGE("pthread_create failure: %d", ret);
 			goto end;
 		}
 	}
 	
 	ret = pthread_create(&net_video_tid, &attr, net_video_thread, NULL);
 	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
+		LOGE("pthread_create failure: %d", ret);
 		goto end;
 	}
 	
 	ret = pthread_create(&net_touch_tid, &attr, net_touch_thread, NULL);
 	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
+		LOGE("pthread_create failure: %d", ret);
 		goto end;
 	}
 	
 	ret = pthread_create(&net_presskey_tid, &attr, net_presskey_thread, NULL);
 	if(ret) {
-		fprintf(stderr, "pthread_create failure: %d", ret);
+		LOGE("pthread_create failure: %d", ret);
 		goto end;
 	}
 	
@@ -2640,6 +2672,6 @@ end:
 	if(capt_dev || capt_file) free(pcm_capt_buf_ptr);
 	if(is_loopback) unlink(play_file);
 
-	fprintf(stderr, "Exited\n");
+	LOGE("Exited");
 	return 0;
 }
